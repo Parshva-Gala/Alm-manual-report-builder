@@ -247,6 +247,7 @@ End Function
 Public Sub PD_Reset()
     Dim st As Object, ws As Worksheet, k As Variant, r As Long
     If PD_Busy Then Exit Sub
+    modPD_Desk.PressFx
     If MsgBox("Clear every loaded file and every result?" & vbCrLf & vbCrLf & _
               "The files themselves are not touched, and workbooks already written stay where " & _
               "they are. Your preferences - which frameworks are switched on, the folders " & _

@@ -167,7 +167,7 @@ def desk(st):
     x = nav_x + 3
     for key, label, ic, w, mac in items:
         active = key == "desk"
-        S.append(Shape("pdx_nav_%s" % key, x, nav_y + 3, w, 20, "roundRect", 10,
+        S.append(Shape("pdx_nav_%s" % key, x, nav_y + 2, w, 22, "roundRect", 11,
                        fill=Solid(EM[900]) if active else Solid("FFFFFF", 0.0),
                        line=Line(0.75, EM[700], 1) if active else None,
                        body=Body([T(label, 8.5, TX_1 if active else TX_2, F_SEMI, align="ctr")], "ctr", False, (14, 0, 0, 0)),
@@ -307,7 +307,7 @@ def desk(st):
                   wrap=False, clip=True, descr="last build"))
     add(button("pdx_c2_build", x + 20, y + 228, 164, st["build_label"], st["build_kind"], "PD_BuildSelected",
                descr="Build the selected frameworks"))
-    add(button("pdx_c2_open", x + 190, y + 228, 106, "Open folder", "ghost", "PD_OpenOutputFolder",
+    add(button("pdx_c2_open", x + 190, y + 228, 106, "Open folder", st.get("open_kind", "ghost"), "PD_OpenOutputFolder",
                descr="Open the folder the last build wrote to"))
 
     # card 3: controls, the verdict matrix, the overall verdict
@@ -337,8 +337,12 @@ def desk(st):
         for f in range(3):
             v = st["matrix"][r_][f]
             fg, bg = lv(v)
+            ln = Line(0.75, fg, 0.4)
+            if VERDICT_WORD.get(v.upper(), v) == "—":
+                # not compared: a placeholder, painted as one (as modPD_Desk does)
+                fg, bg, ln = TX_4, IDLE_BG, Line(0.75, HAIR_2, 1)
             S.append(Shape("pdx_m_%d%d" % (r_ + 1, f + 1), gx0 + f * (cell_w + 5), ry, cell_w, cell_h, "roundRect", 5,
-                           fill=Solid(bg), line=Line(0.75, fg, 0.35),
+                           fill=Solid(bg), line=ln,
                            body=Body([T(VERDICT_WORD.get(v.upper(), v), 6.5, fg, F_SEMI, align="ctr")], "ctr", False),
                            descr="%s against %s" % (ctl, cols[f])))
     vfg, vbg = lv(st["verdict_level"])
@@ -377,6 +381,8 @@ def desk(st):
         S.append(text("pdx_act%d_msg" % (a + 1), MARGIN + 228, ry, W - 2 * MARGIN - 248, 14,
                       T(e["msg"] if e else "", 8, TX_1, F_BODY), anchor="ctr", wrap=False, clip=True,
                       hidden=e is None, descr="what happened"))
+    S.append(pic("pdx_act_art", W - MARGIN - 250, ay + 1, 240, 78, os.path.join(ASSETS, "lattice-medallion"),
+                 svg=False, hidden=bool(acts), descr="pattern"))
     S.append(text("pdx_act_empty", MARGIN + 20, ay + 34, 700, 36,
                   T("Nothing has happened on this desk yet. Add files and every step will be written here, newest first.",
                     8.5, TX_3, F_BODY), anchor="ctr", hidden=bool(acts), descr="no activity yet"))
@@ -447,6 +453,7 @@ def empty_state(today="SATURDAY  ·  26 SEPTEMBER 2026", greeting="Good evening.
         "last_build": "Nothing built yet.",
         "build_label": "Build pivots",
         "build_kind": "off",
+        "open_kind": "off",
         "controls": [
             {"label": "Control report 3", "level": "EMPTY", "meta": "by COA  ·  not added"},
             {"label": "Control report 6", "level": "EMPTY", "meta": "by account  ·  not added"},
@@ -496,6 +503,7 @@ def showcase_state():
         "last_build": "Last built 26 Sep 14:05  ·  2 workbooks  ·  D:\\ALM\\Pivots\\30 Nov",
         "build_label": "Build 2 workbooks",
         "build_kind": "soft",
+        "open_kind": "ghost",
         "controls": [
             {"label": "Control report 3", "level": "LOADED", "meta": "by COA  ·  664 keys"},
             {"label": "Control report 6", "level": "MISSING", "meta": "by account  ·  file moved"},

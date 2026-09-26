@@ -212,7 +212,7 @@ Private Function SlotMetaColor(ByVal state As String) As Long
         Case "EMPTY": SlotMetaColor = HX("4A5E55")
         Case "MISSING": SlotMetaColor = HX("FF6B5E")
         Case "FORCED": SlotMetaColor = HX("F2B544")
-        Case Else: SlotMetaColor = HX("6F857A")
+        Case Else: SlotMetaColor = HX("7E9388")
     End Select
 End Function
 
@@ -353,7 +353,7 @@ Private Function NextAction(ByRef label As String, ByRef lede As String) As Stri
         label = "Open the breaks"
         lede = "The last reconciliation found " & nBreak & Plural(nBreak, " break", " breaks") & " across " & _
                nCmp & Plural(nCmp, " comparison", " comparisons")
-        If worst > 0 Then lede = lede & " - the largest involves " & Fmt(worst) & " LCY"
+        If worst > 0 Then lede = lede & " - the largest involves " & Compact(worst) & " LCY"
         lede = lede & ". Scope is on Activity; read it before calling a difference an error."
         NextAction = "GO_RECON"
     Else
@@ -367,6 +367,7 @@ End Function
 Public Sub PD_NextAction()
     Dim label As String, lede As String, act As String
     If PD_Busy Then Exit Sub
+    PressFx
     ToastHide
     act = NextAction(label, lede)
     Select Case True
@@ -530,7 +531,7 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
             If Len(asOf) > 0 Then meta = meta & "  " & ChrW(183) & "  as of " & asOf
             SetText ws, nm & "_meta", meta
             SetTextColor ws, nm & "_label", HX("F2F7F4")
-            SetTextColor ws, nm & "_meta", HX("6F857A")
+            SetTextColor ws, nm & "_meta", HX("7E9388")
             If sel Then
                 SetFill ws, nm & "_row", HX("001D14")
                 SetLine ws, nm & "_row", HX("004A32")
@@ -735,6 +736,7 @@ Private Sub PaintActivity(ByVal ws As Worksheet)
         SetVisible ws, "pdx_act" & a & "_msg", Len(msg) > 0
     Next a
     SetVisible ws, "pdx_act_empty", n = 0
+    SetVisible ws, "pdx_act_art", n = 0
 End Sub
 
 ' ===================== results reported by the engine =======================
@@ -822,6 +824,7 @@ End Sub
 Public Sub PD_BuildSelected()
     Dim fw As Variant, s As String
     If PD_Busy Then Exit Sub
+    PressFx
     ToastHide
     For Each fw In Frameworks()
         If IsIn(SlotState("OUTPUT|" & CStr(fw))) And SettingGet("sel_" & CStr(fw), "1") = "1" Then
@@ -842,6 +845,7 @@ End Sub
 
 Public Sub PD_OpenOutputFolder()
     Dim f As String, there As Boolean
+    PressFx
     ToastHide
     f = SettingGet("last_out_folder")
     If Len(f) = 0 Then
@@ -1041,6 +1045,7 @@ End Sub
 Public Sub PD_ToggleAppView()
     Dim ws As Worksheet
     On Error Resume Next
+    PressFx
     If AppView() Then SettingSet "view", "excel" Else SettingSet "view", "app"
     ApplyChrome
     Set ws = DeskSheet()
@@ -1058,7 +1063,57 @@ Public Sub SheetChrome(ByVal sh As Object)
     On Error Resume Next
     If PD_Busy Then Exit Sub
     ApplyChrome
-    If StrComp(sh.Name, SH_HOME, vbTextCompare) = 0 Then FitDesk
+    If StrComp(sh.Name, SH_HOME, vbTextCompare) = 0 Then
+        FitDesk
+    Else
+        FreezeHeader sh
+    End If
+    Err.Clear
+End Sub
+
+' The table header stays in view however far down the reader scrolls.
+Private Sub FreezeHeader(ByVal sh As Object)
+    Dim wn As Window
+    On Error Resume Next
+    Set wn = ActiveWindow
+    If wn.FreezePanes Then Exit Sub
+    wn.ScrollRow = 1
+    wn.ScrollColumn = 1
+    sh.Cells(modPD_Theme.R_FIRST, 1).Select
+    wn.FreezePanes = True
+    sh.Cells(modPD_Theme.R_FIRST, 1).Select
+    Err.Clear
+End Sub
+
+' The one piece of motion a shape can carry: pressed, it sinks a point and
+' comes back, so a click is felt before the work it starts. Only buttons -
+' not the invisible rows or the switches, which answer by changing.
+Public Sub PressFx()
+    Dim nm As String, sh As Shape, ws As Worksheet, l As Double, t As Double, w As Double, h As Double
+    Dim t0 As Single, prot As Boolean
+    On Error Resume Next
+    nm = CStr(Application.Caller)
+    If Err.Number <> 0 Or Len(nm) = 0 Then Err.Clear: Exit Sub
+    If InStr(nm, "_hit") > 0 Or InStr(nm, "_fw") > 0 Then Exit Sub
+    If Left$(nm, 4) <> "pdx_" And Left$(nm, 4) <> "pdr_" Then Exit Sub
+    Set ws = ActiveSheet
+    Set sh = ws.Shapes(nm)
+    If sh Is Nothing Then Exit Sub
+    If Right$(nm, 3) = "_ic" Then Set sh = ws.Shapes(Left$(nm, Len(nm) - 3))
+    If sh Is Nothing Then Exit Sub
+    prot = ws.ProtectDrawingObjects
+    If prot Then ws.Unprotect
+    l = sh.Left: t = sh.Top: w = sh.Width: h = sh.Height
+    Application.ScreenUpdating = True
+    sh.Left = l + 1: sh.Top = t + 1: sh.Width = w - 2: sh.Height = h - 2
+    DoEvents
+    t0 = Timer
+    Do While Timer - t0 < 0.08 And Timer >= t0
+        DoEvents
+    Loop
+    sh.Left = l: sh.Top = t: sh.Width = w: sh.Height = h
+    DoEvents
+    If prot Then ws.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True, UserInterfaceOnly:=True
     Err.Clear
 End Sub
 
@@ -1076,7 +1131,9 @@ Public Sub FitDesk()
     wn.DisplayHeadings = False
     ws.Range(FIT_RANGE).Select
     wn.Zoom = True
-    If wn.Zoom < 45 Then wn.Zoom = 45
+    ' Below this the smallest labels stop being readable; a window that small
+    ' scrolls instead.
+    If wn.Zoom < 60 Then wn.Zoom = 60
     If wn.Zoom > 200 Then wn.Zoom = 200
     wn.ScrollRow = 1
     wn.ScrollColumn = 1

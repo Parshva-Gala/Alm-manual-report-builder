@@ -39,6 +39,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
+import contrast  # noqa: E402
 import desk  # noqa: E402
 import vbalint  # noqa: E402
 import vbaproj  # noqa: E402
@@ -89,7 +90,7 @@ def desk_sheet_xml(canvas_xf: int) -> str:
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
         'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-        '<sheetPr><tabColor rgb="FF%s"/></sheetPr>'
+        '<sheetPr><tabColor rgb="FF%s"/><pageSetUpPr fitToPage="1"/></sheetPr>'
         '<dimension ref="A1"/>'
         '<sheetViews><sheetView showGridLines="0" showRowColHeaders="0" tabSelected="1" zoomScale="100" '
         'zoomScaleNormal="100" workbookViewId="0"><selection activeCell="A1" sqref="A1"/></sheetView></sheetViews>'
@@ -168,7 +169,7 @@ def brand_theme(theme: str) -> str:
     colours = {
         "dk2": "0C1512", "lt2": "F4F7F5",
         "accent1": EM[500], "accent2": EM[400], "accent3": EM[300], "accent4": EM[700],
-        "accent5": EM[200], "accent6": "6B7C74", "hlink": EM[600], "folHlink": EM[800],
+        "accent5": EM[200], "accent6": "5F7068", "hlink": EM[600], "folHlink": EM[800],
     }
     for tag, val in colours.items():
         theme, k = re.subn(r"<a:%s>.*?</a:%s>" % (tag, tag),
@@ -241,6 +242,10 @@ def build():
     wb = wb.replace('name="_Console_Src"', 'name="_Settings"')
     wb = wb.replace(' calcMode="manual"', "")
     wb = re.sub(r'<x15ac:absPath[^>]*/>', "", wb)
+    # The Desk prints as a one-page status snapshot.
+    if "_xlnm.Print_Area" not in wb:
+        wb = wb.replace("<definedNames>", '<definedNames><definedName name="_xlnm.Print_Area" localSheetId="0">'
+                        "Desk!$A$1:$BW$42</definedName>", 1)
     parts["xl/workbook.xml"] = wb.encode("utf-8")
 
     ct = parts["[Content_Types].xml"].decode("utf-8")
@@ -321,6 +326,8 @@ def check_contract(shapes, sources):
     code = "\n".join(_code_only(src) for src in sources.values())
 
     for lit in sorted(set(re.findall(r'"(pdx_[A-Za-z0-9_]*)"', code))):
+        if lit == "pdx_":
+            continue                    # the family prefix itself, in a comparison
         # followed by & -> a prefix the code completes at run time
         exact = lit in names
         prefix = any(n.startswith(lit) for n in names)
@@ -365,6 +372,39 @@ def check_contract(shapes, sources):
     return problems
 
 
+def check_palette(sources):
+    """The VBA palette and the design tokens are the same colours."""
+    import design_tokens as T
+    expect = {
+        "C_INK": T.INK, "C_CANVAS": T.CANVAS, "C_SURFACE": T.SURFACE, "C_ELEV": T.SURFACE_2,
+        "C_HAIR_DARK": T.HAIR, "C_BRAND": T.EM[500], "C_BRAND_BRIGHT": T.EM[400], "C_BRAND_DEEP": T.EM[700],
+        "C_BRAND_900": T.EM[900], "C_BRAND_950": T.EM[950], "C_BRAND_SOFT": T.EM[100], "C_BRAND_TINT": T.EM[50],
+        "C_TX1": T.TX_1, "C_TX2": T.TX_2, "C_TX3": T.TX_3, "C_TX4": T.TX_4,
+        "C_PAPER": T.PAPER, "C_MIST": T.MIST, "C_HAIR": T.LINE, "C_MUTED": T.MUTED, "C_BODY": T.BODY,
+        "C_OK_TX": T.OK_TX, "C_OK_BG": T.OK_LT, "C_WARN_TX": T.WARN_TX, "C_WARN_BG": T.WARN_LT,
+        "C_BAD_TX": T.BAD_TX, "C_BAD_BG": T.BAD_LT, "C_IDLE_TX": T.IDLE_TX, "C_IDLE_BG": T.IDLE_LT,
+        "C_OK_DK": T.OK, "C_WARN_DK": T.WARN, "C_BAD_DK": T.BAD, "C_IDLE_DK": T.IDLE,
+    }
+    problems = []
+    theme = sources.get("modPD_Theme", "")
+    got = dict(re.findall(r'\n\s*(C_\w+) = HX\("([0-9A-Fa-f]{6})"\)', theme))
+    for name, hexv in expect.items():
+        if name not in got:
+            problems.append("palette: modPD_Theme has no %s" % name)
+        elif got[name].upper() != hexv.upper():
+            problems.append("palette: %s is %s in VBA but %s in the tokens" % (name, got[name], hexv))
+    # every literal colour anywhere in the code is a token colour
+    allowed = {v.upper() for v in expect.values()} | {v.upper() for v in T.EM.values()}
+    allowed |= {x.upper() for x in (T.SURFACE_HI, T.SURFACE_3, T.HAIR_2, T.OK_BG, T.WARN_BG, T.BAD_BG, T.IDLE_BG,
+                                    "FFFFFF", "000000", "3A4B43", "2A3B33", "17221D", "34443D", "3E5A50",
+                                    "F4A29A")}
+    for mod, src in sources.items():
+        for hexv in re.findall(r'HX\("([0-9A-Fa-f]{6})"\)', _code_only(src)):
+            if hexv.upper() not in allowed:
+                problems.append("palette: %s uses #%s, which is not a design colour" % (mod, hexv))
+    return problems
+
+
 def main():
     parts, shapes, sources = build()
     problems = []
@@ -372,6 +412,12 @@ def main():
     problems += ["vba %s:%d %s" % i for i in lint]
     problems += check_contract(shapes, sources)
     problems += check_package(parts)
+    problems += check_palette(sources)
+    for label, st in (("shipped", shipped_state()), ("showcase", desk.showcase_state())):
+        fails, _ = contrast.check(st, label)
+        problems += ["contrast %.2f < %.1f on %s (%r)" % (f[0], f[1], f[3], f[4]) for f in fails]
+    fails, _ = contrast.check_sheets()
+    problems += ["contrast %.2f < %.1f: %s" % (f[0], f[1], f[2]) for f in fails]
     print("built %s  (%d KB, %d shapes on the Desk, %d modules)" % (
         os.path.relpath(DIST, ROOT), os.path.getsize(DIST) // 1024, len(shapes), len(sources)))
     for p in problems:

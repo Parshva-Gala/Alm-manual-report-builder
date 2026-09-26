@@ -195,10 +195,10 @@ def build_all(hero_w, hero_h, hero_r):
            os.path.join(OUT, "logo.png"), 64, 64, scale=2)
     render(hero_html(hero_w, hero_h, hero_r), os.path.join(OUT, "hero.png"),
            round(hero_w * 4 / 3), round(hero_h * 4 / 3), scale=2)
-    render(empty_art_html(160, 90), os.path.join(OUT, "lattice-medallion.png"),
-           round(160 * 4 / 3), round(90 * 4 / 3), scale=2)
+    render(empty_art_html(240, 78), os.path.join(OUT, "lattice-medallion.png"),
+           round(240 * 4 / 3), round(78 * 4 / 3), scale=2)
 
 
 if __name__ == "__main__":
     build_all(1064, 152, 16)
-    build_icons({"em": EM[300], "white": "FFFFFF", "ink": "0C1512", "muted": "6F857A", "dark": "18241F"})
+    build_icons({"em": EM[300], "white": "FFFFFF", "ink": "0C1512", "muted": "7E9388", "dark": "18241F"})

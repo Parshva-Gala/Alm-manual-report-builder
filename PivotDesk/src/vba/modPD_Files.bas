@@ -154,6 +154,7 @@ End Sub
 Public Sub PD_LoadFolder()
     Dim fld As String, st As Object, n As Long, start As String
     If PD_Busy Then Exit Sub
+    modPD_Desk.PressFx
     On Error GoTo Failed
     start = SettingGet("last_in_folder")
     With Application.FileDialog(msoFileDialogFolderPicker)
@@ -186,6 +187,7 @@ Public Sub PD_LoadFiles()
     Dim st As Object, i As Long, n As Long, tried As Long, p As String, missed As String
     Dim picked As Collection, start As String
     If PD_Busy Then Exit Sub
+    modPD_Desk.PressFx
     On Error GoTo Failed
     Set picked = New Collection
     start = SettingGet("last_in_folder")

@@ -30,7 +30,7 @@ EM = {
 # --- type on dark ------------------------------------------------------------
 TX_1 = "F2F7F4"           # primary
 TX_2 = "A9BDB3"           # secondary
-TX_3 = "6F857A"           # tertiary / labels
+TX_3 = "7E9388"           # tertiary / labels
 TX_4 = "4A5E55"           # disabled, placeholders
 
 # --- status (on dark) --------------------------------------------------------
@@ -40,14 +40,14 @@ WARN = "F2B544"
 WARN_BG = "2A2310"
 BAD = "FF6B5E"
 BAD_BG = "2E1614"
-IDLE = "6F857A"
+IDLE = "7E9388"
 IDLE_BG = "121D19"
 
 # --- the light canvas the tables sit on (Files / Reconciliation / Activity) --
 PAPER = "FFFFFF"
 MIST = "F4F7F5"
 LINE = "E2E9E5"
-MUTED = "6B7C74"
+MUTED = "5F7068"
 BODY = "18241F"
 OK_TX, OK_LT = "0B6B47", "DDF5EA"
 WARN_TX, WARN_LT = "8A5A00", "FFF1CF"

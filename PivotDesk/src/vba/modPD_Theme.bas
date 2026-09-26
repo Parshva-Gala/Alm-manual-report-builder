@@ -102,7 +102,7 @@ Public Function C_TX2() As Long
     C_TX2 = HX("A9BDB3")
 End Function
 Public Function C_TX3() As Long
-    C_TX3 = HX("6F857A")
+    C_TX3 = HX("7E9388")
 End Function
 Public Function C_TX4() As Long
     C_TX4 = HX("4A5E55")
@@ -119,7 +119,7 @@ Public Function C_HAIR() As Long
     C_HAIR = HX("E2E9E5")
 End Function
 Public Function C_MUTED() As Long
-    C_MUTED = HX("6B7C74")
+    C_MUTED = HX("5F7068")
 End Function
 Public Function C_BODY() As Long
     C_BODY = HX("18241F")
@@ -162,7 +162,7 @@ Public Function C_BAD_DK() As Long
     C_BAD_DK = HX("FF6B5E")
 End Function
 Public Function C_IDLE_DK() As Long
-    C_IDLE_DK = HX("6F857A")
+    C_IDLE_DK = HX("7E9388")
 End Function
 
 ' A leading dot on a status cell, drawn by the number format so the cell's

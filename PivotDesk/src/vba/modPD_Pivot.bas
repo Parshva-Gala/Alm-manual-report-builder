@@ -334,6 +334,28 @@ Private Sub Finish(ByVal pt As PivotTable, ByVal ws As Worksheet)
         .ManualUpdate = False
     End With
     FitColumns ws, pt
+    PrintPivot ws, pt
+    Err.Clear
+End Sub
+
+' Landscape, one page wide, the pivot's own headers repeated on every page,
+' and a footer that says which book and which sheet. PrintCommunication off
+' while it is set: with a hundred sheets, talking to the printer driver for
+' each property is the difference between a second and a minute.
+Private Sub PrintPivot(ByVal ws As Worksheet, ByVal pt As PivotTable)
+    On Error Resume Next
+    pt.PrintTitles = True
+    Application.PrintCommunication = False
+    With ws.PageSetup
+        .Orientation = xlLandscape
+        .Zoom = False
+        .FitToPagesWide = 1
+        .FitToPagesTall = False
+        .LeftFooter = "&8" & TOOL_NAME & "  " & ChrW(183) & "  &F"
+        .CenterFooter = "&8&A"
+        .RightFooter = "&8Page &P of &N"
+    End With
+    Application.PrintCommunication = True
     Err.Clear
 End Sub
 

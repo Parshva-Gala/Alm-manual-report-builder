@@ -221,7 +221,7 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
         .Value2 = "HOW TO READ THIS"
         .Font.Name = modPD_Theme.UI_SEMI
         .Font.Size = 8.5
-        .Font.Color = modPD_Theme.C_BRAND
+        .Font.Color = modPD_Theme.C_BRAND_DEEP
         .IndentLevel = 1
     End With
     With ws.Range(ws.Cells(r, 1), ws.Cells(r, 2)).Borders(xlEdgeBottom)
@@ -298,7 +298,7 @@ Private Sub Brand(ByVal wb As Workbook, ByVal fw As String)
         .Colors(7).RGB = modPD_Theme.HX("4FC79C")
         .Colors(8).RGB = modPD_Theme.HX("006141")
         .Colors(9).RGB = modPD_Theme.HX("8FDBBE")
-        .Colors(10).RGB = modPD_Theme.HX("6B7C74")
+        .Colors(10).RGB = modPD_Theme.HX("5F7068")
         .Colors(11).RGB = modPD_Theme.HX("00794F")     ' hyperlink
         .Colors(12).RGB = modPD_Theme.HX("004A32")     ' followed hyperlink
     End With

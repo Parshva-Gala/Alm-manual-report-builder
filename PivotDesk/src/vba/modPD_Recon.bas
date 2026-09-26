@@ -61,6 +61,7 @@ Public Sub PD_Reconcile()
 
     Dim fromDesk As Boolean
     If PD_Busy Then Exit Sub
+    modPD_Desk.PressFx
     If Not modPD_Files.AnyFrameworkLoaded() Then
         Notify "No framework output has been loaded yet - add an LCR, NSFR or maturity ladder output first.", V_CHECK
         Exit Sub
