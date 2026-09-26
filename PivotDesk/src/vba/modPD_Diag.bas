@@ -3,7 +3,7 @@ Option Explicit
 ' ============================================================================
 '  A headless run, for the build harness.
 '
-'  The same code path the console takes, with the window and the message boxes
+'  The same code path the Desk takes, with the pickers and the message boxes
 '  removed. Nothing here is a second implementation of the run - if it were, it
 '  would pass while the thing the user presses fails.
 ' ============================================================================
@@ -43,7 +43,7 @@ Public Sub PD_DiagRun(ByVal logPath As String, ByVal args As String)
     modPD_Files.RefreshStatuses
     Wr "load: " & n & " file(s) placed, " & Format$(Timer - t0, "0.0") & "s"
     DumpFiles
-    DumpConsoleState
+    DumpSettings
 
     If Len(fws) = 0 Then fws = LoadedFrameworks()
     If Len(fws) > 0 Then
@@ -80,7 +80,7 @@ Private Function LoadedFrameworks() As String
     LoadedFrameworks = s
 End Function
 
-' The same build the console runs, with the folder picker taken out.
+' The same build the Desk runs, with the folder picker taken out.
 Private Sub BuildQuiet(ByVal fws As String, ByVal outFolder As String)
     Dim parts As Variant, i As Long, fw As String, errOut As String, Path As String
     Dim fso As Object
@@ -134,34 +134,17 @@ Private Sub DumpFiles()
     Next k
 End Sub
 
-' What the console would be handed, written and read back the way the console
-' reads it. This is the check that was missing: the desk and the window each
-' worked on their own, and only the round trip showed they disagreed.
-Private Sub DumpConsoleState()
-    Dim p As String, st As Object, raw As String, lines_ As Variant, i As Long
+' What the Desk will paint from: the settings it keeps between sessions.
+Private Sub DumpSettings()
+    Dim ws As Worksheet, r As Long, lastR As Long
     On Error Resume Next
-    modPD_Console.WriteState
-    p = modPD_Console.StatePath()
-    Wr "console state (" & p & "):"
-    Set st = CreateObject("ADODB.Stream")
-    st.Type = 2
-    st.Charset = "utf-8"
-    st.Open
-    st.LoadFromFile p
-    raw = st.ReadText
-    st.Close
-    If Err.Number <> 0 Then
-        Wr "   COULD NOT READ IT BACK: " & Err.Number & " " & Err.Description
-        Err.Clear
-        Exit Sub
-    End If
-    If Len(raw) > 0 Then
-        If AscW(Left$(raw, 1)) = 65279 Then raw = Mid$(raw, 2)
-    End If
-    lines_ = Split(Replace(raw, vbCr, ""), vbLf)
-    For i = 0 To UBound(lines_)
-        If InStr(CStr(lines_(i)), "=") > 1 Then Wr "   " & CStr(lines_(i))
-    Next i
+    Set ws = GetSheet(SH_SETTINGS)
+    If ws Is Nothing Then Wr "settings: none": Exit Sub
+    lastR = LastRow(ws, 1)
+    Wr "settings:"
+    For r = 2 To lastR
+        Wr "   " & PadR(SafeText(ws.Cells(r, 1).Value2), 20) & SafeText(ws.Cells(r, 2).Value2)
+    Next r
     Err.Clear
 End Sub
 

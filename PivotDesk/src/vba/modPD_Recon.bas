@@ -59,20 +59,21 @@ Public Sub PD_Reconcile()
     Dim st As Object, ws As Worksheet, ctl3 As Object, ctl6 As Object
     Dim fw As Variant, summaries As Collection, ran As Boolean, t0 As Single
 
+    Dim fromDesk As Boolean
     If PD_Busy Then Exit Sub
     If Not modPD_Files.AnyFrameworkLoaded() Then
-        Tell "No framework output has been loaded yet.", vbInformation
+        Notify "No framework output has been loaded yet - add an LCR, NSFR or maturity ladder output first.", V_CHECK
         Exit Sub
     End If
     If Not modPD_Files.SlotLoaded("CTRL3|") And Not modPD_Files.SlotLoaded("CTRL6|") Then
-        Tell "Neither control report has been loaded." & vbCrLf & vbCrLf & _
-             "Add control report 3 or 6 and try again. Without one there is nothing to " & _
-             "reconcile against - and that is not a clean reconciliation, it is no reconciliation.", _
-             vbInformation
+        Notify "Neither control report has been loaded. Add control report 3 or 6 - without one there is " & _
+               "nothing to reconcile against, and that is not a clean reconciliation, it is no reconciliation.", V_CHECK
         Exit Sub
     End If
 
     On Error GoTo Failed
+    fromDesk = modPD_Desk.DeskInFront()
+    modPD_Desk.BusyOn
     Set st = CaptureState(): PD_Busy = True
     t0 = Timer
     BuildReconSheet
@@ -82,12 +83,14 @@ Public Sub PD_Reconcile()
     If modPD_Files.SlotLoaded("CTRL3|") Then
         Step_ "reading control report 3"
         Set ctl3 = LoadControl("CTRL3|", F_COA_CODE, F_CTRL3_AMT)
+        SettingSet "ctl3_keys", CStr(ctl3.count)
         LogIt IIf(ctl3.count > 0, V_OK, V_CHECK), "Recon", _
               "Control 3: " & Fmt(CDbl(ctl3.count)) & " COA(s).", ""
     End If
     If modPD_Files.SlotLoaded("CTRL6|") Then
         Step_ "reading control report 6"
         Set ctl6 = LoadControl("CTRL6|", F_ACCOUNT, F_CTRL6_AMT)
+        SettingSet "ctl6_keys", CStr(ctl6.count)
         LogIt IIf(ctl6.count > 0, V_OK, V_CHECK), "Recon", _
               "Control 6: " & Fmt(CDbl(ctl6.count)) & " account(s).", ""
     End If
@@ -122,12 +125,23 @@ Public Sub PD_Reconcile()
 
     Finish ws, summaries, ran, Timer - t0
     RestoreState st: PD_Busy = False
-    modPD_Theme.GoTo_ SH_RECON
+    modPD_Desk.RefreshDesk
+    modPD_Desk.BusyOff
+    ' Started from the Desk, the answer is shown there - the matrix, the
+    ' verdict and a toast - and the detail is one click away. Started from
+    ' the sheet, the sheet is where the reader already is.
+    If fromDesk Then
+        modPD_Theme.GoTo_ SH_HOME
+        Notify SafeText(ws.Cells(modPD_Theme.R_STATUS, 1).Value2), SettingGet("recon_level", V_OK)
+    Else
+        modPD_Theme.GoTo_ SH_RECON
+    End If
     Exit Sub
 
 Failed:
     Step_ "RECONCILE FAILED: " & Err.Number & " " & Err.Description
     RestoreState st: PD_Busy = False
+    modPD_Desk.BusyOff
     LogIt V_BREAK, "Recon", Err.Number & " " & Err.Description, ""
     Tell "The reconciliation stopped:" & vbCrLf & vbCrLf & Err.Description, vbExclamation
 End Sub
@@ -288,8 +302,10 @@ Private Sub Finish(ByVal ws As Worksheet, ByVal summaries As Collection, ByVal r
     lastR = mOut - 1
     If lastR >= modPD_Theme.R_FIRST Then
         ws.Range(ws.Cells(modPD_Theme.R_FIRST, N_OUT), ws.Cells(lastR, N_DIFF)).NumberFormat = NUM_FMT
-        modPD_Theme.PaintVerdictColumn ws, N_VERDICT, lastR
-        modPD_Theme.DressTable ws, N_COLS, lastR
+        modPD_Theme.DressTable ws, N_COLS, lastR, N_VERDICT
+        ws.Range(ws.Cells(modPD_Theme.R_FIRST, N_KEY), ws.Cells(lastR, N_KEY)).Font.Name = modPD_Theme.UI_MONO
+        ws.Range(ws.Cells(modPD_Theme.R_FIRST, N_NOTE), ws.Cells(lastR, N_NOTE)).Font.Color = modPD_Theme.C_MUTED
+        DiffBars ws.Range(ws.Cells(modPD_Theme.R_FIRST, N_DIFF), ws.Cells(lastR, N_DIFF))
     End If
 
     For i = 1 To summaries.count
@@ -302,20 +318,43 @@ Private Sub Finish(ByVal ws As Worksheet, ByVal summaries As Collection, ByVal r
         LogIt CStr(s("Verdict")), "Recon", Describe(s), CStr(s("Control")) & " vs " & FwLabel(CStr(s("Framework")))
     Next i
 
+    modPD_Desk.NoteRecon summaries, ran, nBreak, worst
     If Not ran Then
         msg = "Nothing was reconciled - no control report produced any keys."
         modPD_Theme.SetStatus ws, msg, "Idle"
+        SettingSet "recon_level", "Idle"
     ElseIf nBreak > 0 Then
         msg = nBreak & " of " & summaries.count & " comparison(s) broke" & _
               IIf(worst > 0, ", the largest involving " & Fmt(worst) & " LCY", "") & ".   " & _
               "Scope is on Activity for each - read it before treating a difference as an error.   " & _
               "(" & Format$(secs, "0.0") & "s)"
         modPD_Theme.SetStatus ws, msg, "Break"
+        SettingSet "recon_level", V_BREAK
     Else
         msg = "Every shared key agrees, across " & summaries.count & " comparison(s).   (" & _
               Format$(secs, "0.0") & "s)"
         modPD_Theme.SetStatus ws, msg, "OK"
+        SettingSet "recon_level", V_OK
     End If
+End Sub
+
+' In-cell bars on the difference, so the size of each break reads at a glance
+' down the column - red either side of an axis, because a difference is
+' signed and the sign matters.
+Private Sub DiffBars(ByVal rng As Range)
+    Dim db As Object
+    On Error Resume Next
+    rng.FormatConditions.Delete
+    Set db = rng.FormatConditions.AddDatabar
+    If db Is Nothing Then Exit Sub
+    db.BarColor.Color = modPD_Theme.HX("F4A29A")
+    db.BarFillType = 1                      ' xlDataBarFillSolid
+    db.ShowValue = True
+    db.AxisPosition = 0                     ' xlDataBarAxisAutomatic
+    db.NegativeBarFormat.ColorType = 0      ' xlDataBarColor
+    db.NegativeBarFormat.Color.Color = modPD_Theme.HX("F4A29A")
+    db.AxisColor.Color = modPD_Theme.HX("B42318")
+    Err.Clear
 End Sub
 
 Private Function Describe(ByVal s As Object) As String
@@ -436,7 +475,8 @@ Private Sub SumBoth(ByVal fw As String, ByVal wantCoa As Boolean, ByVal wantAcct
             Next i
         End If
         r = r + n
-        Step_ FwLabel(fw) & " - summed " & Fmt(CDbl(r - hdr - 1)) & " of " & Fmt(CDbl(lastR - hdr)) & " rows"
+        Progress_ FwLabel(fw) & " - summed " & Fmt(CDbl(r - hdr - 1)) & " of " & Fmt(CDbl(lastR - hdr)) & " rows", _
+                  (r - hdr - 1) / (lastR - hdr)
     Loop
 
 CloseDone:

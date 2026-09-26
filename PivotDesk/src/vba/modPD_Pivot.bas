@@ -25,11 +25,15 @@ Option Explicit
 '  cache - so when the analysis needs to change, it is dragged, not rebuilt.
 ' ============================================================================
 
+' The fallback if the workbook will not take the PivotDesk style. With the
+' brand theme applied, Medium2 is itself emerald.
 Private Const PT_STYLE As String = "PivotStyleMedium2"
+Private Const PT_CUSTOM As String = "PivotDesk"
+Private Const SLICER_STYLE As String = "SlicerStyleDark1"
 
-' Where the pivot starts on a sheet: under the masthead and the slicer strip.
+' Where the pivot starts on a sheet: under the masthead and the slicer band.
 Private Const PIVOT_ROW As Long = 9
-Private Const SLICER_TOP As Double = 74
+Private Const SLICER_BAND_ROW As Long = 6
 Private Const SLICER_H As Double = 58
 
 Private mCache As PivotCache
@@ -192,6 +196,15 @@ Private Function NewPivotSheet(ByVal wb As Workbook, ByVal wanted As String, _
     On Error GoTo 0
     modPD_Theme.Dress ws, title, about
     ws.Rows(modPD_Theme.R_STATUS).RowHeight = 6
+    BackLink ws
+    ' Tabs say what kind of sheet they are before they are opened: the
+    ' overviews in emerald, the local-currency sheets deep green, foreign
+    ' currency slate.
+    Select Case True
+        Case Right$(nm, 4) = " FCY": ws.Tab.Color = modPD_Theme.HX("3E5A50")
+        Case Right$(nm, 4) = " LCY": ws.Tab.Color = modPD_Theme.C_BRAND_DEEP
+        Case Else: ws.Tab.Color = modPD_Theme.C_BRAND
+    End Select
     Set NewPivotSheet = ws
 End Function
 
@@ -301,7 +314,10 @@ End Sub
 Private Sub Finish(ByVal pt As PivotTable, ByVal ws As Worksheet)
     On Error Resume Next
     With pt
-        .TableStyle2 = PT_STYLE
+        .TableStyle2 = PivotStyleFor(ws.Parent)
+        .ShowTableStyleRowStripes = True
+        .ShowTableStyleColumnHeaders = True
+        .ShowTableStyleRowHeaders = True
         .RowAxisLayout xlTabularRow          ' one field per column, not nested
         .RepeatAllLabels xlDoNotRepeatLabels
         .ShowDrillIndicators = True
@@ -351,6 +367,7 @@ Private Sub FitColumns(ByVal ws As Worksheet, ByVal pt As PivotTable)
     ' A rough character-width budget for a laptop screen. Clamped so it never
     ' goes so small the figures cannot be read.
     ws.Activate
+    ActiveWindow.DisplayGridlines = False
     ActiveWindow.Zoom = ZoomFor(total)
     ActiveWindow.FreezePanes = False
     ws.Cells(PIVOT_ROW + 2, firstData + 1).Select
@@ -411,7 +428,15 @@ End Function
 ' ============================================================================
 Private Sub Slicers(ByVal ws As Worksheet, ByVal pt As PivotTable, ByRef fields As Variant)
     Dim i As Long, x As Double, sc As SlicerCache, sl As Slicer, nm As String, why As String
-    x = 4
+    Dim yTop As Double
+    ' The slicers get a band of their own between the masthead and the pivot,
+    ' so they sit over nothing.
+    On Error Resume Next
+    ws.Rows(SLICER_BAND_ROW).RowHeight = SLICER_H + 10
+    yTop = ws.Rows(SLICER_BAND_ROW).Top + 5
+    Err.Clear
+    On Error GoTo 0
+    x = 8
     For i = 0 To UBound(fields)
         nm = CStr(fields(i))
         Set sc = Nothing
@@ -421,7 +446,7 @@ Private Sub Slicers(ByVal ws As Worksheet, ByVal pt As PivotTable, ByRef fields 
         Set sc = CacheFor(ws.Parent, pt, nm, why)
         If Not sc Is Nothing Then
             On Error Resume Next
-            Set sl = sc.Slicers.Add(ws, , SlicerName(nm, i), nm, SLICER_TOP, x, 156, SLICER_H)
+            Set sl = sc.Slicers.Add(ws, , SlicerName(nm, i), nm, yTop, x, 156, SLICER_H)
             If sl Is Nothing Then why = "slicer: " & Err.Number & " " & Err.Description
             Err.Clear
             On Error GoTo 0
@@ -431,7 +456,7 @@ Private Sub Slicers(ByVal ws As Worksheet, ByVal pt As PivotTable, ByRef fields 
             LogIt V_CHECK, "Slicer", "No slicer for " & Chr$(34) & nm & Chr$(34) & " - " & why, ws.Name
         Else
             On Error Resume Next
-            sl.style = "SlicerStyleDark2"
+            sl.style = SLICER_STYLE
             sl.NumberOfColumns = 2
             sl.RowHeight = 15
             sl.caption = nm
@@ -478,3 +503,92 @@ End Function
 Private Sub NoteSheet(ByVal ws As Worksheet, ByVal what As String)
     MadeSheets.Add Array(ws.Name, what)
 End Sub
+
+' "< Start here" in the black band of every pivot sheet. A hyperlink rather
+' than a button: the built workbook carries no macros, and a link works for
+' whoever it is emailed to.
+Private Sub BackLink(ByVal ws As Worksheet)
+    On Error Resume Next
+    ws.Hyperlinks.Add Anchor:=ws.Cells(modPD_Theme.R_BAR, 1), Address:="", _
+                      SubAddress:="'" & SH_GUIDE & "'!A1", ScreenTip:="Back to the index of this workbook", _
+                      TextToDisplay:=ChrW(8249) & "  " & SH_GUIDE
+    With ws.Cells(modPD_Theme.R_BAR, 1)
+        .Font.Name = modPD_Theme.UI_SEMI
+        .Font.Size = 8.5
+        .Font.Underline = xlUnderlineStyleNone
+        .Font.Color = modPD_Theme.HX("4FC79C")
+        .IndentLevel = 1
+        .VerticalAlignment = xlCenter
+        .WrapText = False
+    End With
+    Err.Clear
+End Sub
+
+' The PivotDesk pivot style, made once per workbook: a black header with
+' mint type, quiet mist banding, hairlines between rows and a grand total
+' that reads as the total - on an emerald-tinted band with a rule above it.
+'
+' Element indexes are the XlTableStyleElementType values, written as numbers
+' so a name this Excel does not know is a skipped line, not a module that
+' will not compile.
+Private Function PivotStyleFor(ByVal wb As Workbook) As String
+    Dim ts As TableStyle
+    On Error Resume Next
+    Set ts = wb.TableStyles(PT_CUSTOM)
+    If ts Is Nothing Then
+        Set ts = wb.TableStyles.Add(PT_CUSTOM)
+        If ts Is Nothing Then
+            PivotStyleFor = PT_STYLE
+            Exit Function
+        End If
+        ts.ShowAsAvailablePivotTableStyle = True
+        ts.ShowAsAvailableTableStyle = False
+        With ts.TableStyleElements(0)                  ' whole table
+            .Borders(12).LineStyle = xlContinuous      ' inside horizontal
+            .Borders(12).Color = modPD_Theme.C_HAIR
+            .Borders(9).LineStyle = xlContinuous       ' bottom edge
+            .Borders(9).Color = modPD_Theme.C_HAIR
+            .Font.Color = modPD_Theme.C_BODY
+        End With
+        With ts.TableStyleElements(1)                  ' header row
+            .Interior.Color = modPD_Theme.C_INK
+            .Font.Color = modPD_Theme.C_BRAND_SOFT
+            .Font.Bold = True
+        End With
+        With ts.TableStyleElements(9)                  ' first header cell
+            .Interior.Color = modPD_Theme.C_INK
+            .Font.Color = modPD_Theme.C_BRAND_SOFT
+            .Font.Bold = True
+        End With
+        With ts.TableStyleElements(2)                  ' grand total row
+            .Interior.Color = modPD_Theme.C_BRAND_TINT
+            .Font.Bold = True
+            .Font.Color = modPD_Theme.C_INK
+            .Borders(8).LineStyle = xlContinuous       ' top edge
+            .Borders(8).Color = modPD_Theme.C_BRAND
+            .Borders(8).Weight = xlMedium
+        End With
+        With ts.TableStyleElements(4)                  ' grand total column
+            .Interior.Color = modPD_Theme.C_MIST
+            .Font.Bold = True
+        End With
+        With ts.TableStyleElements(5)                  ' row stripe 1
+            .Interior.Color = modPD_Theme.C_MIST
+        End With
+        With ts.TableStyleElements(20)                 ' column subheading 1
+            .Font.Bold = True
+        End With
+        With ts.TableStyleElements(23)                 ' row subheading 1
+            .Font.Bold = True
+        End With
+        With ts.TableStyleElements(26)                 ' report filter labels
+            .Font.Bold = True
+            .Font.Color = modPD_Theme.C_MUTED
+        End With
+        With ts.TableStyleElements(27)                 ' report filter values
+            .Font.Color = modPD_Theme.C_BODY
+        End With
+    End If
+    If ts Is Nothing Then PivotStyleFor = PT_STYLE Else PivotStyleFor = PT_CUSTOM
+    Err.Clear
+End Function

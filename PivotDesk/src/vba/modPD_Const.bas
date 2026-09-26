@@ -3,11 +3,15 @@ Option Explicit
 ' ============================================================================
 '  PivotDesk - a desk for daily analysis.
 '
-'  Three things, chosen from the console:
+'  Three things, done from the Desk:
 '
 '    ADD FILES   point it at them; it works out what each one is
 '    PIVOTS      pick the frameworks; each becomes a workbook of live pivots
 '    RECONCILE   the outputs against control reports 3 and 6
+'
+'  The Desk is the whole interface. There used to be a separate console
+'  window as well; everything it did now happens on the sheet, so there is
+'  one place to look and nothing to open.
 '
 '  What makes it a desk rather than a report writer: everything it builds is a
 '  real PivotTable over one cache, so you can drag a field, add a slicer, change
@@ -24,7 +28,7 @@ Option Explicit
 ' ============================================================================
 
 Public Const TOOL_NAME As String = "PivotDesk"
-Public Const TOOL_VERSION As String = "1.0"
+Public Const TOOL_VERSION As String = "2.0"
 Public Const BANK_NAME As String = "MIDBANK  Cairo"
 
 ' --- sheets in the desk itself ----------------------------------------------
@@ -32,6 +36,7 @@ Public Const SH_HOME As String = "Desk"
 Public Const SH_SOURCES As String = "Files"
 Public Const SH_RECON As String = "Reconciliation"
 Public Const SH_LOG As String = "Activity"
+Public Const SH_SETTINGS As String = "_Settings"
 
 ' --- sheets in a generated framework workbook -------------------------------
 Public Const SH_STAGE As String = "_data"
@@ -200,9 +205,32 @@ Public Function PostNativeSpellings() As Variant
         "CASHFLOW_AMT_CCY_POST_FACTOR", "CASHFLOW_AMT_ACY_POST_FACTOR")
 End Function
 
+' Information goes to the Desk as a toast when the Desk is in front - a message
+' box for "3 files placed" is a click the reader should not owe. Warnings,
+' questions and anything said from another sheet still get a box, because
+' there it is the only thing guaranteed to be seen.
 Public Sub Tell(ByVal msg As String, ByVal style As Long)
     If PD_Quiet Then Exit Sub
+    If (style And vbExclamation) = 0 And (style And vbCritical) = 0 And (style And vbQuestion) = 0 Then
+        If modPD_Desk.DeskInFront() Then
+            modPD_Desk.Toast msg, "OK"
+            Exit Sub
+        End If
+    End If
     MsgBox msg, style, TOOL_NAME
+End Sub
+
+' A result with a verdict: on the Desk it is a toast coloured by the level,
+' anywhere else a message box with the matching icon.
+Public Sub Notify(ByVal msg As String, ByVal level As String)
+    If PD_Quiet Then Exit Sub
+    If modPD_Desk.DeskInFront() Then
+        modPD_Desk.Toast msg, level
+    ElseIf UCase$(level) = UCase$(V_OK) Then
+        MsgBox msg, vbInformation, TOOL_NAME
+    Else
+        MsgBox msg, vbExclamation, TOOL_NAME
+    End If
 End Sub
 
 ' A breadcrumb the headless harness writes and the desk ignores. Every long
@@ -210,7 +238,27 @@ End Sub
 ' still says on disk which stage it was in.
 Public Sub Step_(ByVal what As String)
     On Error Resume Next
-    Application.StatusBar = TOOL_NAME & "   -   " & what
+    Application.StatusBar = TOOL_NAME & "   " & ChrW(183) & "   " & what
+    If Not PD_Trace Is Nothing Then PD_Trace.Note what
+    Err.Clear
+End Sub
+
+' The same breadcrumb with a measured bar in front of it, for the stages that
+' know how far through they are:
+'
+'    PivotDesk   [filled x6][empty x14]  30%   LCR - staged 120,000 of 400,000 rows
+Public Sub Progress_(ByVal what As String, ByVal frac As Double)
+    Dim n As Long, i As Long, bar As String
+    On Error Resume Next
+    If frac < 0 Then frac = 0
+    If frac > 1 Then frac = 1
+    n = CLng(frac * 20)
+    ' Built a character at a time: String$ is not to be trusted with a
+    ' character outside the ANSI code page.
+    For i = 1 To 20
+        If i <= n Then bar = bar & ChrW(9632) Else bar = bar & ChrW(9633)
+    Next i
+    Application.StatusBar = TOOL_NAME & "   " & bar & "  " & Format$(frac, "0%") & "   " & what
     If Not PD_Trace Is Nothing Then PD_Trace.Note what
     Err.Clear
 End Sub

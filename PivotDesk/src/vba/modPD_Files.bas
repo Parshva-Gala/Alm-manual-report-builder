@@ -95,8 +95,8 @@ Public Sub BuildFilesSheet()
     Dim ws As Worksheet, k As Variant, r As Long
     Set ws = EnsureSheet(SH_SOURCES)
     modPD_Theme.Dress ws, "Files", _
-        "Every file is identified by the columns it carries, not by its name. Use the console to add them, " & _
-        "or click a row here and press " & Chr$(34) & "Use a file for this row" & Chr$(34) & " to place one by hand."
+        "Every file is identified by the columns it carries, not by its name. Add them from the Desk, or " & _
+        "click a row here and press " & Chr$(34) & "Use a file for this row" & Chr$(34) & " to place one by hand."
     modPD_Theme.Head ws, Array("What", "Status", "File", "Sheet", "Header row", "Rows", "As of", "Amount field", "Note"), _
                         Array(30, 12, 54, 20, 11, 12, 13, 34, 56)
     r = modPD_Theme.R_FIRST
@@ -124,14 +124,20 @@ Public Sub RefreshStatuses()
             ws.Cells(r, S_STATUS).Value2 = "Loaded"
             n = n + 1
         End If
-        modPD_Theme.PaintVerdict ws.Cells(r, S_STATUS)
         r = r + 1
     Next k
     ws.Range(ws.Cells(modPD_Theme.R_FIRST, S_ROWS), ws.Cells(r - 1, S_ROWS)).NumberFormat = NUM_FMT
-    modPD_Theme.DressTable ws, S_COLS, r - 1
+    modPD_Theme.DressTable ws, S_COLS, r - 1, S_STATUS
+    With ws.Range(ws.Cells(modPD_Theme.R_FIRST, S_WHAT), ws.Cells(r - 1, S_WHAT)).Font
+        .Name = modPD_Theme.UI_SEMI
+        .Color = modPD_Theme.C_BODY
+    End With
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, S_FILE), ws.Cells(r - 1, S_FILE)).Font.Color = modPD_Theme.C_MUTED
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, S_NOTE), ws.Cells(r - 1, S_NOTE)).Font.Color = modPD_Theme.C_MUTED
     modPD_Theme.SetStatus ws, n & " of " & total & " file(s) loaded." & _
         IIf(AnyFrameworkLoaded(), "  Ready to build pivots.", "  Load at least one framework output to build pivots."), _
         IIf(n = 0, "Idle", IIf(AnyFrameworkLoaded(), "OK", "Check"))
+    modPD_Desk.RefreshDesk
 End Sub
 
 ' ===================== loading ==============================================
@@ -146,56 +152,73 @@ Public Sub ClearRefused()
 End Sub
 
 Public Sub PD_LoadFolder()
-    Dim fld As String, st As Object, n As Long
+    Dim fld As String, st As Object, n As Long, start As String
     If PD_Busy Then Exit Sub
     On Error GoTo Failed
+    start = SettingGet("last_in_folder")
     With Application.FileDialog(msoFileDialogFolderPicker)
         .title = "Choose the folder holding the outputs and control reports"
+        If Len(start) > 0 Then .InitialFileName = PathJoin(start, "")
         If .Show <> -1 Then Exit Sub
         fld = .SelectedItems(1)
     End With
+    SettingSet "last_in_folder", fld
+    modPD_Desk.BusyOn
     Set st = CaptureState(): PD_Busy = True
     ClearRefused
     n = ScanFolder(fld, 0)
-    RefreshStatuses
     RestoreState st: PD_Busy = False
     LogIt V_OK, "Load", n & " file(s) placed.", fld
-    Tell n & " file(s) placed." & vbCrLf & vbCrLf & _
-         "Anything not recognised is on Activity with the reason.", vbInformation
+    RefreshStatuses
+    modPD_Desk.BusyOff
+    Tell Words(n) & IIf(n = 1, " file", " files") & " placed from " & FileLeaf(fld) & "." & _
+         IIf(Refused.count > 0, "  " & Refused.count & " duplicate(s) left out - Activity says which.", _
+             "  Anything not recognised is on Activity, with the reason."), vbInformation
     Exit Sub
 Failed:
     RestoreState st: PD_Busy = False
+    modPD_Desk.BusyOff
     LogIt V_BREAK, "Load", Err.Description, fld
     Tell "The folder could not be read:" & vbCrLf & vbCrLf & Err.Description, vbExclamation
 End Sub
 
 Public Sub PD_LoadFiles()
     Dim st As Object, i As Long, n As Long, tried As Long, p As String, missed As String
+    Dim picked As Collection, start As String
     If PD_Busy Then Exit Sub
     On Error GoTo Failed
+    Set picked = New Collection
+    start = SettingGet("last_in_folder")
     With Application.FileDialog(msoFileDialogFilePicker)
         .title = "Choose the file or files to load"
         .AllowMultiSelect = True
         .Filters.Clear
         .Filters.Add "Excel workbooks", "*.xlsx; *.xlsm; *.xlsb"
+        If Len(start) > 0 Then .InitialFileName = PathJoin(start, "")
         If .Show <> -1 Then Exit Sub
-        Set st = CaptureState(): PD_Busy = True
         For i = 1 To .SelectedItems.count
-            p = CStr(.SelectedItems(i))
-            tried = tried + 1
-            Step_ "reading " & FileLeaf(p)
-            If AssignFile(p) Then n = n + 1 Else missed = missed & vbCrLf & "   " & FileLeaf(p)
+            picked.Add CStr(.SelectedItems(i))
         Next i
     End With
-    RefreshStatuses
+    If picked.count > 0 Then SettingSet "last_in_folder", FolderOf(CStr(picked(1)))
+    modPD_Desk.BusyOn
+    Set st = CaptureState(): PD_Busy = True
+    For i = 1 To picked.count
+        p = CStr(picked(i))
+        tried = tried + 1
+        Progress_ "reading " & FileLeaf(p), (i - 1) / picked.count
+        If AssignFile(p) Then n = n + 1 Else missed = missed & IIf(Len(missed) > 0, ", ", "") & FileLeaf(p)
+    Next i
     RestoreState st: PD_Busy = False
     LogIt V_OK, "Load", n & " of " & tried & " file(s) placed.", ""
-    Tell n & " of " & tried & " file(s) placed." & _
-         IIf(Len(missed) > 0, vbCrLf & vbCrLf & "Not placed:" & missed & vbCrLf & vbCrLf & _
-             "Activity says why for each.", ""), vbInformation
+    RefreshStatuses
+    modPD_Desk.BusyOff
+    Tell n & " of " & tried & IIf(tried = 1, " file", " files") & " placed." & _
+         IIf(Len(missed) > 0, "  Not placed: " & missed & " - Activity says why.", ""), vbInformation
     Exit Sub
 Failed:
     RestoreState st: PD_Busy = False
+    modPD_Desk.BusyOff
     LogIt V_BREAK, "Load", Err.Description, ""
     Tell "The files could not be read:" & vbCrLf & vbCrLf & Err.Description, vbExclamation
 End Sub
@@ -204,7 +227,7 @@ End Sub
 ' still read and still reported - a file forced into a slot it does not match is
 ' worth knowing about - but the reading does not overrule you.
 Public Sub PD_UseFileHere()
-    Dim ws As Worksheet, r As Long, key As String, what As String, st As Object, p As String
+    Dim ws As Worksheet, r As Long, key As String
     If PD_Busy Then Exit Sub
     Set ws = GetSheet(SH_SOURCES)
     If ws Is Nothing Then Exit Sub
@@ -221,7 +244,22 @@ Public Sub PD_UseFileHere()
              (modPD_Theme.R_FIRST + Slots.count - 1) & " and press this again.", vbInformation
         Exit Sub
     End If
+    UseFileFor key
+End Sub
+
+' The file picker for exactly one slot - from a row on this sheet, or from a
+' row or a switch on the Desk. It opens where that slot's file lives, or
+' where the last file came from.
+Public Sub UseFileFor(ByVal key As String)
+    Dim ws As Worksheet, r As Long, what As String, st As Object, p As String, start As String
+    If PD_Busy Then Exit Sub
+    Set ws = GetSheet(SH_SOURCES)
+    If ws Is Nothing Then Exit Sub
+    r = SlotRow(key)
+    If r = 0 Then Exit Sub
     what = SafeText(ws.Cells(r, S_WHAT).Value2)
+    start = SlotFile(key)
+    If Len(start) > 0 Then start = FolderOf(start) Else start = SettingGet("last_in_folder")
 
     On Error GoTo Failed
     With Application.FileDialog(msoFileDialogFilePicker)
@@ -229,24 +267,33 @@ Public Sub PD_UseFileHere()
         .AllowMultiSelect = False
         .Filters.Clear
         .Filters.Add "Excel workbooks", "*.xlsx; *.xlsm; *.xlsb"
+        If Len(start) > 0 Then .InitialFileName = PathJoin(start, "")
         If .Show <> -1 Then Exit Sub
         p = CStr(.SelectedItems(1))
     End With
+    SettingSet "last_in_folder", FolderOf(p)
+    modPD_Desk.BusyOn
     Set st = CaptureState(): PD_Busy = True
     If AssignFile(p, key) Then
-        RefreshStatuses
         RestoreState st: PD_Busy = False
-        Tell FileLeaf(p) & " is now the " & what & "." & vbCrLf & vbCrLf & _
-             "The Note column says what its contents looked like, which is worth a glance if it " & _
-             "disagrees with you.", vbInformation
+        RefreshStatuses
+        modPD_Desk.BusyOff
+        If InStr(1, SafeText(ws.Cells(r, S_NOTE).Value2), "YOU CHOSE THIS FILE", vbBinaryCompare) > 0 Then
+            Notify FileLeaf(p) & " is now the " & what & ", but its columns read as something else. " & _
+                   "The Note on the Files sheet says what - check it is the file you meant.", V_CHECK
+        Else
+            Notify FileLeaf(p) & " is now the " & what & ".", V_OK
+        End If
     Else
-        RefreshStatuses
         RestoreState st: PD_Busy = False
-        Tell FileLeaf(p) & " could not be used - Activity says why.", vbExclamation
+        RefreshStatuses
+        modPD_Desk.BusyOff
+        Notify FileLeaf(p) & " could not be used - Activity says why.", V_BREAK
     End If
     Exit Sub
 Failed:
     RestoreState st: PD_Busy = False
+    modPD_Desk.BusyOff
     LogIt V_BREAK, "Load", Err.Description, FileLeaf(p)
     Tell "The file could not be read:" & vbCrLf & vbCrLf & Err.Description, vbExclamation
 End Sub
@@ -331,6 +378,7 @@ Public Function AssignFile(ByVal Path As String, Optional ByVal forceKey As Stri
     End If
     reached = True
     AssignFile = RecordSlot(key, Path, ws.Name, hdr, why, Len(forceKey) > 0)
+    If AssignFile Then NoteAsOf key, ws, hdr, h
 
 CloseAndDone:
     why = IIf(Err.Number <> 0, Err.Number & " " & Err.Description, why)
@@ -421,6 +469,9 @@ Public Function RecordSlot(ByVal key As String, ByVal Path As String, ByVal shee
         Refused.Add Array(Replace(key, "|", " "), FileLeaf(had), FileLeaf(Path))
         Exit Function
     End If
+    ' A new file's details start clean: the last file's row count and as-of
+    ' date are not this one's.
+    ws.Range(ws.Cells(r, S_ROWS), ws.Cells(r, S_AMOUNT)).ClearContents
     ws.Cells(r, S_FILE).Value2 = Path
     ws.Cells(r, S_SHEET).Value2 = sheetName
     ws.Cells(r, S_HDRROW).Value2 = hdr
@@ -428,6 +479,25 @@ Public Function RecordSlot(ByVal key As String, ByVal Path As String, ByVal shee
     LogIt V_OK, "Load", "Placed as " & Replace(key, "|", " ") & ". " & why, FileLeaf(Path)
     RecordSlot = True
 End Function
+
+' The as-of date off the first data row, recorded the moment a file is placed
+' so the Desk can say what date the data is for before anything is built.
+Private Sub NoteAsOf(ByVal key As String, ByVal src As Worksheet, ByVal hdr As Long, ByVal h As Object)
+    Dim ws As Worksheet, r As Long, c As Long, v As String
+    On Error Resume Next
+    If h Is Nothing Then Exit Sub
+    If Not h.Exists(NormKey(F_AS_OF)) Then Exit Sub
+    c = CLng(h(NormKey(F_AS_OF)))
+    v = AsOfText(src.Cells(hdr + 1, c).Value2)
+    If Len(v) = 0 Then Exit Sub
+    Set ws = GetSheet(SH_SOURCES)
+    If ws Is Nothing Then Exit Sub
+    r = SlotRow(key)
+    If r = 0 Then Exit Sub
+    ws.Cells(r, S_ASOF).NumberFormat = "@"
+    ws.Cells(r, S_ASOF).Value2 = v
+    Err.Clear
+End Sub
 
 Public Function SheetOfSlot(ByVal wb As Workbook, ByVal key As String, ByRef hdr As Long) As Worksheet
     Dim ws As Worksheet, src As Worksheet, r As Long, nm As String
@@ -461,5 +531,8 @@ Public Sub NoteRows(ByVal key As String, ByVal n As Double, ByVal asOf As String
     If r = 0 Then Exit Sub
     ws.Cells(r, S_ROWS).Value2 = n
     ws.Cells(r, S_ROWS).NumberFormat = NUM_FMT
-    If Len(asOf) > 0 Then ws.Cells(r, S_ASOF).Value2 = asOf
+    If Len(asOf) > 0 Then
+        ws.Cells(r, S_ASOF).NumberFormat = "@"
+        ws.Cells(r, S_ASOF).Value2 = asOf
+    End If
 End Sub

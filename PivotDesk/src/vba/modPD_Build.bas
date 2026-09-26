@@ -22,6 +22,7 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
     t0 = Timer
     Step_ FwLabel(fw) & " - opening a new workbook"
     Set wb = Workbooks.Add(xlWBATWorksheet)
+    Brand wb, fw
 
     modPD_Pivot.ResetPivots
     Step_ FwLabel(fw) & " - staging the output"
@@ -177,7 +178,16 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     modPD_Theme.SetStatus ws, Fmt(modPD_Stage.StagedRows()) & " rows staged into one pivot cache.  " & _
         "Every sheet below is a live PivotTable over it - drag a field, drop a slicer, drill a total.", "OK"
 
-    modPD_Theme.Head ws, Array("Sheet", "What is on it", "", "", ""), Array(34, 62, 2, 2, 2)
+    modPD_Theme.Head ws, Array("Sheet", "What is on it"), Array(38, 96)
+    With ws.Cells(modPD_Theme.R_BAR, 1)
+        .Value2 = UCase$(TOOL_NAME) & "  " & ChrW(183) & "  START HERE"
+        .Font.Name = modPD_Theme.UI_SEMI
+        .Font.Size = 8
+        .Font.Color = modPD_Theme.HX("4FC79C")
+        .IndentLevel = 1
+        .VerticalAlignment = xlCenter
+    End With
+    ws.Tab.Color = modPD_Theme.C_INK
 
     r = modPD_Theme.R_FIRST
     Set made = modPD_Pivot.MadeSheets()
@@ -193,11 +203,33 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
         r = r + 1
     Next i
     modPD_Theme.DressTable ws, 2, r - 1
+    ' Links in the brand's emerald, not the default blue underline - they are
+    ' the index of the book and should read as part of it.
+    If r - 1 >= modPD_Theme.R_FIRST Then
+        With ws.Range(ws.Cells(modPD_Theme.R_FIRST, 1), ws.Cells(r - 1, 1)).Font
+            .Name = modPD_Theme.UI_SEMI
+            .Underline = xlUnderlineStyleNone
+            .Color = modPD_Theme.C_BRAND_DEEP
+        End With
+        ws.Range(ws.Cells(modPD_Theme.R_FIRST, 2), ws.Cells(r - 1, 2)).Font.Color = modPD_Theme.C_MUTED
+    End If
 
     ' What the tool had to decide for itself goes here, where it is read, not
     ' into a log nobody opens.
     r = r + 2
-    Note ws, r, "How to read this", ""
+    With ws.Cells(r, 1)
+        .Value2 = "HOW TO READ THIS"
+        .Font.Name = modPD_Theme.UI_SEMI
+        .Font.Size = 8.5
+        .Font.Color = modPD_Theme.C_BRAND
+        .IndentLevel = 1
+    End With
+    With ws.Range(ws.Cells(r, 1), ws.Cells(r, 2)).Borders(xlEdgeBottom)
+        .LineStyle = xlContinuous
+        .Color = modPD_Theme.C_BRAND
+        .Weight = xlThin
+    End With
+    ws.Rows(r).RowHeight = 24
     r = r + 1
     Note ws, r, "Amounts", "Pre-factor and post-factor from " & modPD_Stage.AmountFieldNote() & _
         IIf(modPD_Stage.UsedNativeAmounts(), ".", _
@@ -219,17 +251,71 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
             "everything is still in the Output and Balance sheet pivots."
     End If
 
-    ws.Columns(1).ColumnWidth = 34
-    ws.Columns(2).ColumnWidth = 96
+    ws.Columns(1).ColumnWidth = 38
+    ws.Columns(2).ColumnWidth = 110
+    On Error Resume Next
+    ws.Activate
+    ActiveWindow.DisplayGridlines = False
+    ActiveWindow.Zoom = 100
+    Err.Clear
 End Sub
 
 Private Sub Note(ByVal ws As Worksheet, ByVal r As Long, ByVal label As String, ByVal body As String)
-    ws.Cells(r, 1).Value2 = label
-    ws.Cells(r, 1).Font.Bold = True
-    ws.Cells(r, 1).Font.Color = modPD_Theme.C_INK
-    ws.Cells(r, 2).Value2 = body
-    ws.Cells(r, 2).Font.Color = modPD_Theme.C_MUTED
-    ws.Cells(r, 2).WrapText = False
+    With ws.Cells(r, 1)
+        .Value2 = label
+        .Font.Name = modPD_Theme.UI_SEMI
+        .Font.Color = modPD_Theme.C_BODY
+        .IndentLevel = 1
+        .VerticalAlignment = xlTop
+    End With
+    With ws.Cells(r, 2)
+        .Value2 = body
+        .Font.Color = modPD_Theme.C_MUTED
+        .WrapText = True
+        .VerticalAlignment = xlTop
+        .IndentLevel = 1
+    End With
+    ws.Rows(r).AutoFit
+    If ws.Rows(r).RowHeight < 22 Then ws.Rows(r).RowHeight = 22
+End Sub
+
+' ===================== the look of the output ===============================
+
+' The framework workbook in the desk's colours. Black, emerald and white go
+' in as the THEME, so every built-in pivot, slicer and chart style Excel
+' offers inside it comes out in the bank's palette - not only the one this
+' tool applies - and the document says what it is when someone finds it in a
+' folder a month later.
+Private Sub Brand(ByVal wb As Workbook, ByVal fw As String)
+    On Error Resume Next
+    With wb.Theme.ThemeColorScheme
+        .Colors(1).RGB = modPD_Theme.HX("000000")      ' dark 1
+        .Colors(2).RGB = modPD_Theme.HX("FFFFFF")      ' light 1
+        .Colors(3).RGB = modPD_Theme.HX("0C1512")      ' dark 2
+        .Colors(4).RGB = modPD_Theme.HX("F4F7F5")      ' light 2
+        .Colors(5).RGB = modPD_Theme.HX("009060")      ' accent 1 - the brand emerald
+        .Colors(6).RGB = modPD_Theme.HX("16B07F")
+        .Colors(7).RGB = modPD_Theme.HX("4FC79C")
+        .Colors(8).RGB = modPD_Theme.HX("006141")
+        .Colors(9).RGB = modPD_Theme.HX("8FDBBE")
+        .Colors(10).RGB = modPD_Theme.HX("6B7C74")
+        .Colors(11).RGB = modPD_Theme.HX("00794F")     ' hyperlink
+        .Colors(12).RGB = modPD_Theme.HX("004A32")     ' followed hyperlink
+    End With
+    With wb.Theme.ThemeFontScheme
+        .MajorFont(1).Name = modPD_Theme.UI_FONT
+        .MinorFont(1).Name = modPD_Theme.UI_FONT
+    End With
+    With wb.Styles("Normal").Font
+        .Name = modPD_Theme.UI_FONT
+        .Size = 10
+    End With
+    wb.BuiltinDocumentProperties("Title").value = FwLabel(fw) & " pivots  -  " & BANK_NAME
+    wb.BuiltinDocumentProperties("Subject").value = FwLabel(fw) & " output, staged into live PivotTables"
+    wb.BuiltinDocumentProperties("Keywords").value = "ALM; " & FwLabel(fw) & "; PivotDesk; " & BANK_NAME
+    wb.BuiltinDocumentProperties("Comments").value = "Built by " & TOOL_NAME & " " & TOOL_VERSION & " on " & _
+        Format$(Now, "dd mmm yyyy hh:nn") & "."
+    Err.Clear
 End Sub
 
 ' ===================== tidying up ===========================================

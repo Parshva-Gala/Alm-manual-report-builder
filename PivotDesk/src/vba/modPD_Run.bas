@@ -1,7 +1,7 @@
 Option Explicit
 
 ' ============================================================================
-'  Setting the desk up, and running what the console asked for.
+'  Setting the desk up, and running what the Desk asks for.
 ' ============================================================================
 
 Public Sub PD_Setup()
@@ -13,141 +13,133 @@ Public Sub PD_Setup()
     BuildLogSheet
     OrderSheets
     modPD_Theme.RailEverywhere
+    PrintSetup
+    SettingSet "styled_version", TOOL_VERSION
     Set ws = GetSheet(SH_HOME)
     If Not ws Is Nothing Then ws.Activate
+    modPD_Desk.RefreshDesk
+    Err.Clear
+End Sub
+
+' A workbook saved by an older version still carries the older look on its
+' table sheets. Re-dressing them is safe - the data is not touched - but it
+' is not free, so it happens once per version rather than on every open.
+Public Sub Restyle()
+    Dim ws As Worksheet, lastR As Long
+    On Error Resume Next
+    If SettingGet("styled_version") = TOOL_VERSION Then Exit Sub
+
+    modPD_Files.BuildFilesSheet
+
+    Set ws = GetSheet(SH_RECON)
+    If Not ws Is Nothing Then
+        ReconChrome ws
+        lastR = LastRow(ws, 3)
+        If lastR >= modPD_Theme.R_FIRST Then
+            ws.Range(ws.Cells(modPD_Theme.R_FIRST, 4), ws.Cells(lastR, 6)).NumberFormat = NUM_FMT
+            modPD_Theme.DressTable ws, 8, lastR, 7
+        End If
+    End If
+
+    Set ws = GetSheet(SH_LOG)
+    If Not ws Is Nothing Then
+        LogChrome ws
+        lastR = LastRow(ws, 4)
+        If lastR >= modPD_Theme.R_FIRST Then DressLogBlock ws, lastR
+    End If
+
+    modPD_Theme.RailEverywhere
+    PrintSetup
+    SettingSet "styled_version", TOOL_VERSION
     Err.Clear
 End Sub
 
 ' ===================== the desk sheet =======================================
 
+' The Desk is designed and ships in the workbook; nothing here draws it. If
+' the sheet is somehow gone, a plain one says so rather than the tool
+' quietly having no front page.
 Private Sub BuildDesk()
-    Dim ws As Worksheet, r As Long
-    Set ws = EnsureSheet(SH_HOME)
-    ws.Cells.Clear
-    modPD_Theme.ClearButtons ws, "pd_card_"
-
-    modPD_Theme.Dress ws, TOOL_NAME & "   " & BANK_NAME, _
-        "A desk for daily analysis. Everything it builds is a live PivotTable you can drag, " & _
-        "slice and drill - not a picture of an analysis."
-
-    modPD_Theme.SetStatus ws, "Press " & Chr$(34) & "Open the console" & Chr$(34) & _
-        " to choose what to do.", "Idle"
-
-    r = modPD_Theme.R_HDR
-    Card ws, r, "1", "Add files", _
-        "Point at a folder or pick files. Each is identified by the columns it carries, never by " & _
-        "its name - the exports in this bank are routinely misnamed.", "PD_LoadFolder", "Choose a folder", _
-        "PD_LoadFiles", "Pick files"
-    r = r + 5
-    Card ws, r, "2", "Build pivots", _
-        "One workbook per framework: the rule-level Output, the Balance sheet, and one sheet per " & _
-        "rule. All on a single pivot cache, so a slicer drives the lot.", "PD_Pivots", "Choose frameworks", _
-        "", ""
-    r = r + 5
-    Card ws, r, "3", "Reconcile", _
-        "The loaded outputs against control reports 3 and 6. Scope is established before any " & _
-        "difference is called a break.", "PD_Reconcile", "Reconcile now", "", ""
-
-    ws.Columns(1).ColumnWidth = 5
-    ws.Columns(2).ColumnWidth = 26
-    ws.Columns(3).ColumnWidth = 96
-    ws.Columns(4).ColumnWidth = 2
-End Sub
-
-' A numbered block with its own actions. Three of these IS the desk - the whole
-' tool is three things and the sheet should look like three things.
-Private Sub Card(ByVal ws As Worksheet, ByVal r As Long, ByVal num As String, ByVal title As String, _
-                 ByVal body As String, ByVal proc1 As String, ByVal cap1 As String, _
-                 ByVal proc2 As String, ByVal cap2 As String)
-    Dim x As Double, topPt As Double
-    With ws.Cells(r, 1)
-        .Value2 = num
-        .Font.Size = 22
-        .Font.Bold = True
-        .Font.Color = modPD_Theme.C_HAIR
-        .HorizontalAlignment = xlCenter
-    End With
-    With ws.Cells(r, 2)
-        .Value2 = title
-        .Font.Size = 14
-        .Font.Bold = True
-        .Font.Color = modPD_Theme.C_INK
-    End With
-    With ws.Cells(r, 3)
-        .Value2 = body
-        .Font.Size = 10
-        .Font.Color = modPD_Theme.C_MUTED
-        .WrapText = False
-    End With
-    ws.Rows(r).RowHeight = 24
-    ws.Rows(r + 1).RowHeight = 6
-    ws.Rows(r + 2).RowHeight = 26
-    ws.Rows(r + 3).RowHeight = 12
-
-    With ws.Range(ws.Cells(r, 2), ws.Cells(r + 2, 3)).Borders(xlEdgeBottom)
-        .Color = modPD_Theme.C_HAIR
-    End With
-
-    topPt = ws.Cells(r + 2, 2).Top + 2
-    x = ws.Cells(r + 2, 2).Left
-    If Len(proc1) > 0 Then x = PlaceButton(ws, cap1, proc1, x, topPt, 118, 1)
-    If Len(proc2) > 0 Then x = PlaceButton(ws, cap2, proc2, x, topPt, 92, 0)
-End Sub
-
-Private Function PlaceButton(ByVal ws As Worksheet, ByVal caption As String, ByVal proc As String, _
-                             ByVal x As Double, ByVal y As Double, ByVal w As Double, _
-                             ByVal kind As Long) As Double
-    Dim sh As Shape
-    On Error Resume Next
-    Set sh = ws.Shapes.AddShape(msoShapeRoundedRectangle, x, y, w, 22)
-    If sh Is Nothing Then PlaceButton = x: Exit Function
-    sh.Name = "pd_card_" & CLng(x) & "_" & CLng(y)
-    sh.Placement = xlFreeFloating
-    sh.Adjustments(1) = 0.24
-    sh.Line.visible = msoFalse
-    With sh.Shadow
-        .visible = msoTrue
-        .style = msoShadowStyleOuterShadow
-        .Blur = 5
-        .Transparency = 0.8
-        .Size = 100
-        .OffsetX = 0
-        .OffsetY = 1.5
-        .ForeColor.RGB = modPD_Theme.C_INK
-    End With
-    If kind = 1 Then
-        sh.Fill.ForeColor.RGB = modPD_Theme.C_BRAND
-    Else
-        sh.Fill.ForeColor.RGB = RGB(238, 243, 240)
+    Dim ws As Worksheet
+    Set ws = GetSheet(SH_HOME)
+    If ws Is Nothing Then
+        Set ws = EnsureSheet(SH_HOME)
+        modPD_Theme.Dress ws, TOOL_NAME & "   " & BANK_NAME, _
+            "The Desk's design is missing from this copy of the workbook. The Files, Reconciliation " & _
+            "and Activity sheets still work; download a fresh copy of PivotDesk to get the Desk back."
+        modPD_Theme.SetStatus ws, "The Desk could not be found.", "Check"
+        Exit Sub
     End If
-    With sh.TextFrame2
-        .MarginTop = 0: .MarginBottom = 0
-        .VerticalAnchor = msoAnchorMiddle
-        .WordWrap = msoFalse
-        .TextRange.ParagraphFormat.Alignment = msoAlignCenter
-        .TextRange.Text = caption
-        .TextRange.Font.Size = 9.5
-        .TextRange.Font.Bold = msoTrue
-        .TextRange.Font.Name = modPD_Theme.UI_FONT
-        If kind = 1 Then
-            .TextRange.Font.Fill.ForeColor.RGB = RGB(255, 255, 255)
-        Else
-            .TextRange.Font.Fill.ForeColor.RGB = modPD_Theme.C_INK
-        End If
-    End With
-    sh.OnAction = proc
-    Err.Clear
-    PlaceButton = x + w + 7
-End Function
+    modPD_Desk.RefreshDesk
+End Sub
 
 Private Sub BuildLogSheet()
     Dim ws As Worksheet
     Set ws = EnsureSheet(SH_LOG)
+    LogChrome ws
+End Sub
+
+Private Sub LogChrome(ByVal ws As Worksheet)
     modPD_Theme.Dress ws, "Activity", _
         "What the desk did and why, newest first. A file that was not recognised says here what was missing."
     modPD_Theme.Head ws, Array("When", "Level", "Stage", "What happened", "Which file"), _
-                        Array(20, 12, 14, 96, 40)
-    modPD_Theme.SetStatus ws, "Ready.", "Idle"
+                        Array(20, 12, 14, 110, 40)
+    modPD_Theme.SetStatus ws, "The newest entry is at the top. The Desk shows the latest three.", "Idle"
+End Sub
+
+Private Sub ReconChrome(ByVal ws As Worksheet)
+    Dim msg As String
+    msg = SafeText(ws.Cells(modPD_Theme.R_STATUS, 1).Value2)
+    modPD_Theme.Dress ws, "Reconciliation", _
+        "Each loaded output against control report 3 (the ledger, by COA) and control report 6 " & _
+        "(the reporting balance, by account)."
+    modPD_Theme.Head ws, Array("Control", "Framework", "Key", "Output", "Control", "Difference", _
+                               "Verdict", "What it means"), _
+                        Array(12, 18, 26, 18, 18, 18, 13, 74)
+    If Len(msg) = 0 Then msg = "Nothing reconciled yet."
+    modPD_Theme.SetStatus ws, msg, SettingGet("recon_level", "Idle")
+End Sub
+
+' Every existing log line dressed in one pass - the first open after an
+' upgrade, when there can be a couple of thousand of them.
+Private Sub DressLogBlock(ByVal ws As Worksheet, ByVal lastR As Long)
+    Dim rng As Range
+    On Error Resume Next
+    Set rng = ws.Range(ws.Cells(modPD_Theme.R_FIRST, 1), ws.Cells(lastR, 5))
+    With rng
+        .Interior.Color = modPD_Theme.C_PAPER
+        .Font.Name = modPD_Theme.UI_FONT
+        .Font.Size = 9.5
+        .Font.Color = modPD_Theme.C_BODY
+        .Font.Bold = False
+        .VerticalAlignment = xlCenter
+        .IndentLevel = 1
+        .WrapText = False
+        .Borders(xlInsideHorizontal).LineStyle = xlContinuous
+        .Borders(xlInsideHorizontal).Color = modPD_Theme.C_HAIR
+        .Borders(xlEdgeBottom).LineStyle = xlContinuous
+        .Borders(xlEdgeBottom).Color = modPD_Theme.C_HAIR
+    End With
+    With ws.Range(ws.Cells(modPD_Theme.R_FIRST, 1), ws.Cells(lastR, 1)).Font
+        .Name = modPD_Theme.UI_MONO
+        .Size = 9
+        .Color = modPD_Theme.C_MUTED
+    End With
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, 3), ws.Cells(lastR, 3)).Font.Name = modPD_Theme.UI_SEMI
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, 5), ws.Cells(lastR, 5)).Font.Color = modPD_Theme.C_MUTED
+    ws.Range(ws.Rows(modPD_Theme.R_FIRST), ws.Rows(lastR)).RowHeight = 21
+    modPD_Theme.PaintVerdictColumn ws, 2, lastR
+    Err.Clear
+End Sub
+
+Private Sub PrintSetup()
+    Dim ws As Worksheet
+    Set ws = GetSheet(SH_SOURCES)
+    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, modPD_Files.S_COLS
+    Set ws = GetSheet(SH_RECON)
+    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
+    Set ws = GetSheet(SH_LOG)
+    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 5
 End Sub
 
 Private Sub OrderSheets()
@@ -177,17 +169,10 @@ End Sub
 ' called PD_LoadFolder and refused to pick one: "Ambiguous name detected", on
 ' every button press. The buttons name the real procedures directly.
 
-' Straight to the console with the framework chooser already open.
+' Kept for anything still wired to the 1.0 name: builds what the Desk has
+' switched on.
 Public Sub PD_Pivots()
-    Dim cmd As String
-    If Not modPD_Files.AnyFrameworkLoaded() Then
-        Tell "No framework output has been loaded yet." & vbCrLf & vbCrLf & _
-             "Add files first - the desk needs at least one LCR, NSFR or maturity ladder output " & _
-             "before it can build pivots.", vbInformation
-        Exit Sub
-    End If
-    cmd = modPD_Console.ShowConsole()
-    If Len(cmd) > 0 Then modPD_Console.Dispatch cmd
+    modPD_Desk.PD_BuildSelected
 End Sub
 
 ' ============================================================================
@@ -195,16 +180,17 @@ End Sub
 ' ============================================================================
 Public Sub BuildPivotsFor(ByVal args As String)
     Dim st As Object, parts As Variant, i As Long, fw As String, folder As String
-    Dim made As String, errOut As String, Path As String, n As Long, t0 As Single
+    Dim made As String, notBuilt As String, errOut As String, Path As String, n As Long, t0 As Single
 
     If PD_Busy Then Exit Sub
     parts = Split(args, ",")
     If UBound(parts) < 0 Then Exit Sub
 
-    folder = AskFolder("Where should the framework workbooks be written?")
+    folder = AskFolder("Where should the framework workbooks be written?", SettingGet("last_out_folder"))
     If Len(folder) = 0 Then Exit Sub
 
     On Error GoTo Failed
+    modPD_Desk.BusyOn
     Set st = CaptureState(): PD_Busy = True
     t0 = Timer
 
@@ -212,40 +198,45 @@ Public Sub BuildPivotsFor(ByVal args As String)
         fw = Trim$(CStr(parts(i)))
         If Len(fw) > 0 Then
             errOut = ""
-            Step_ FwLabel(fw) & " - starting"
+            Progress_ FwLabel(fw) & " - starting", i / (UBound(parts) + 1)
             Path = modPD_Build.BuildFramework(fw, folder, errOut)
             If Len(Path) > 0 Then
                 n = n + 1
-                made = made & vbCrLf & "   " & FileLeaf(Path)
+                made = made & IIf(Len(made) > 0, ", ", "") & FileLeaf(Path)
             Else
                 LogIt V_BREAK, "Pivots", "Not built - " & errOut, FwLabel(fw)
-                made = made & vbCrLf & "   " & FwLabel(fw) & " - NOT BUILT: " & errOut
+                notBuilt = notBuilt & IIf(Len(notBuilt) > 0, ", ", "") & FwLabel(fw)
             End If
         End If
     Next i
 
     RestoreState st: PD_Busy = False
+    modPD_Desk.NoteBuild folder, n
     modPD_Files.RefreshStatuses
-    modPD_Theme.RailEverywhere
+    modPD_Desk.BusyOff
 
-    Tell n & " workbook(s) written to:" & vbCrLf & vbCrLf & folder & vbCrLf & made & vbCrLf & vbCrLf & _
-         "Each one opens on a " & Chr$(34) & SH_GUIDE & Chr$(34) & " sheet listing what is inside. " & _
-         "Every sheet is a live pivot - drag a field, drop a slicer, double-click a total to see " & _
-         "the rows behind it.", vbInformation
+    If Len(notBuilt) = 0 Then
+        Notify Words(n) & IIf(n = 1, " workbook", " workbooks") & " written to " & MidTrim(folder, 60) & _
+               " in " & Format$(Timer - t0, "0") & "s. Each opens on its " & Chr$(34) & SH_GUIDE & Chr$(34) & " sheet.", V_OK
+    Else
+        Notify n & " built, " & notBuilt & " not built - Activity says why.", V_CHECK
+    End If
     Exit Sub
 
 Failed:
     Step_ "BUILD FAILED: " & Err.Number & " " & Err.Description
     RestoreState st: PD_Busy = False
+    modPD_Desk.BusyOff
     LogIt V_BREAK, "Pivots", Err.Number & " " & Err.Description, ""
     Tell "The build stopped:" & vbCrLf & vbCrLf & Err.Description & vbCrLf & vbCrLf & _
          "Activity has what had been done up to that point.", vbExclamation
 End Sub
 
-Public Function AskFolder(ByVal title As String) As String
+Public Function AskFolder(ByVal title As String, Optional ByVal start As String = "") As String
     On Error Resume Next
     With Application.FileDialog(msoFileDialogFolderPicker)
         .title = title
+        If Len(start) > 0 Then .InitialFileName = PathJoin(start, "")
         If .Show = -1 Then AskFolder = .SelectedItems(1)
     End With
     Err.Clear
@@ -258,7 +249,8 @@ Public Sub PD_Reset()
     If PD_Busy Then Exit Sub
     If MsgBox("Clear every loaded file and every result?" & vbCrLf & vbCrLf & _
               "The files themselves are not touched, and workbooks already written stay where " & _
-              "they are.", vbQuestion + vbYesNo, TOOL_NAME) <> vbYes Then Exit Sub
+              "they are. Your preferences - which frameworks are switched on, the folders " & _
+              "last used - are kept.", vbQuestion + vbYesNo, TOOL_NAME) <> vbYes Then Exit Sub
     Set st = CaptureState(): PD_Busy = True
     On Error Resume Next
     Set ws = GetSheet(SH_SOURCES)
@@ -270,8 +262,32 @@ Public Sub PD_Reset()
         Next k
     End If
     modPD_Files.ClearRefused
+    SettingClear "m_"
+    SettingClear "recon_"
+    SettingClear "last_build_"
+    SettingClear "build_sig"
+    SettingClear "ctl3_"
+    SettingClear "ctl6_"
+    SettingSet "styled_version", ""
     PD_Setup
     RestoreState st: PD_Busy = False
     LogIt V_OK, "Reset", "Cleared.", ""
+    modPD_Desk.RefreshDesk
+    Notify "The desk is clear. Add files to start again.", V_OK
+    Err.Clear
+End Sub
+
+Public Sub PD_ClearLog()
+    Dim ws As Worksheet, lastR As Long
+    If PD_Busy Then Exit Sub
+    Set ws = GetSheet(SH_LOG)
+    If ws Is Nothing Then Exit Sub
+    If MsgBox("Clear the activity log?" & vbCrLf & vbCrLf & _
+              "Loaded files and results are not affected.", vbQuestion + vbYesNo, TOOL_NAME) <> vbYes Then Exit Sub
+    On Error Resume Next
+    lastR = LastRow(ws, 4)
+    If lastR >= modPD_Theme.R_FIRST Then ws.Range(ws.Rows(modPD_Theme.R_FIRST), ws.Rows(lastR)).Delete
+    LogIt V_OK, "Activity", "The log was cleared.", ""
+    modPD_Desk.RefreshDesk
     Err.Clear
 End Sub

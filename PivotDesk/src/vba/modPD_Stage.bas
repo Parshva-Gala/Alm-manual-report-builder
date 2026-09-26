@@ -122,7 +122,8 @@ Public Function StageFramework(ByVal fw As String, ByVal dstWb As Workbook, ByRe
         Next i
         wrote = wrote + EmitBlock(buf, n, ix, stage, outRow)
         r = r + n
-        Step_ FwLabel(fw) & " - staged " & Fmt(wrote) & " of " & Fmt(CDbl(lastR - hdr)) & " rows"
+        Progress_ FwLabel(fw) & " - staged " & Fmt(wrote) & " of " & Fmt(CDbl(lastR - hdr)) & " rows", _
+                  wrote / (lastR - hdr)
     Loop
 
     src.Close SaveChanges:=False
@@ -337,7 +338,9 @@ Private Function EmitBlock(ByRef buf As Variant, ByVal n As Long, ByVal ix As Ob
         out(k, C_POST) = post
 
         If Len(rule) > 0 Then mRuleNames(rule) = SafeNum(mRuleNames(rule)) + Abs(pre)
-        If Len(mAsOf) = 0 And iAsOf > 0 Then mAsOf = Txt(buf, i, iAsOf)
+        ' AsOfText, not Txt: the block was read with .Value2, which hands a date
+        ' over as its serial number, and "45991" is not an as-of date.
+        If Len(mAsOf) = 0 And iAsOf > 0 Then mAsOf = AsOfText(buf(i, iAsOf))
     Next i
 
     If k = 0 Then Exit Function
