@@ -1,5 +1,5 @@
 """
-The PivotDesk design tokens - one place for every colour, size and font.
+The Avati design tokens - one place for every colour, size and font.
 
 MIDBANK's mark is jet black, white, and the emerald the word MID is set in.
 The system keeps that discipline: black is the field, emerald is the ONLY

@@ -1,7 +1,7 @@
 Option Explicit
 
 ' ============================================================================
-'  PivotDesk - a desk for daily analysis.
+'  Avati - a desk for daily analysis.
 '
 '  Three things, done from the Desk:
 '
@@ -27,8 +27,8 @@ Option Explicit
 '  Excel - a hang, not an error.
 ' ============================================================================
 
-Public Const TOOL_NAME As String = "PivotDesk"
-Public Const TOOL_VERSION As String = "2.1"
+Public Const TOOL_NAME As String = "Avati"
+Public Const TOOL_VERSION As String = "3.0"
 Public Const BANK_NAME As String = "MIDBANK  Cairo"
 
 ' --- sheets in the desk itself ----------------------------------------------
@@ -261,7 +261,7 @@ End Sub
 ' The same breadcrumb with a measured bar in front of it, for the stages that
 ' know how far through they are:
 '
-'    PivotDesk   [filled x6][empty x14]  30%   LCR - staged 120,000 of 400,000 rows
+'    Avati   [filled x6][empty x14]  30%   LCR - staged 120,000 of 400,000 rows
 Public Sub Progress_(ByVal what As String, ByVal frac As Double)
     Dim n As Long, i As Long, bar As String
     On Error Resume Next

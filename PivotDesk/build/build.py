@@ -1,5 +1,5 @@
 """
-Build dist/PivotDesk.xlsm from sources, without Excel.
+Build dist/Avati.xlsm from sources, without Excel.
 
     seed workbook  (src/seed/PivotDesk_v1.xlsm)   the package, sheets and styles
     VBA sources    (src/vba/*.bas, *.cls)          the whole program
@@ -49,7 +49,7 @@ from shapes import to_drawingml  # noqa: E402
 
 SEED = os.path.join(ROOT, "src", "seed", "PivotDesk_v1.xlsm")
 VBA_DIR = os.path.join(ROOT, "src", "vba")
-DIST = os.path.join(ROOT, "dist", "PivotDesk.xlsm")
+DIST = os.path.join(ROOT, "dist", "Avati.xlsm")
 
 # Desk columns are exactly 20 px wide at the workbook's 7 px maximum digit
 # width (Calibri 11, the Normal style): 2.7890625 characters.
@@ -176,7 +176,7 @@ def brand_theme(theme: str) -> str:
         theme, k = re.subn(r"<a:%s>.*?</a:%s>" % (tag, tag),
                            '<a:%s><a:srgbClr val="%s"/></a:%s>' % (tag, val, tag), theme, count=1, flags=re.S)
         assert k == 1, tag
-    theme = theme.replace('<a:clrScheme name="Office">', '<a:clrScheme name="PivotDesk">', 1)
+    theme = theme.replace('<a:clrScheme name="Office">', '<a:clrScheme name="Avati">', 1)
     return theme
 
 
@@ -195,9 +195,9 @@ def drop_drawing(sheet: str) -> str:
 
 def core_props(old: str, version: str) -> str:
     now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    extra = ("<dc:title>PivotDesk " + version + " - MIDBANK Cairo</dc:title>"
+    extra = ("<dc:title>Avati ALM Desk " + version + " - MIDBANK Cairo</dc:title>"
              "<dc:subject>ALM outputs staged into live PivotTables, and reconciled against control reports 3 and 6</dc:subject>"
-             "<cp:keywords>ALM; LCR; NSFR; maturity ladder; reconciliation; PivotDesk</cp:keywords>"
+             "<cp:keywords>ALM; LCR; NSFR; maturity ladder; reconciliation; Avati</cp:keywords>"
              "<dc:description>Open, enable content, and work from the Desk.</dc:description>"
              "<cp:category>ALM desk</cp:category>")
     old = re.sub(r"<dc:title>.*?</dc:title>|<dc:subject>.*?</dc:subject>|<cp:keywords>.*?</cp:keywords>"
@@ -207,6 +207,9 @@ def core_props(old: str, version: str) -> str:
 
 
 def build():
+    import brand
+    if not os.path.exists(os.path.join(ROOT, "design", "brand", "avati-logo.png")):
+        brand.build()
     zin = zipfile.ZipFile(SEED)
     parts = {i.filename: zin.read(i.filename) for i in zin.infolist()}
     order = [i.filename for i in zin.infolist()]
@@ -247,7 +250,7 @@ def build():
         order.append(name)
     root = parts["_rels/.rels"].decode("utf-8")
     if ribbon.REL_TYPE not in root:
-        root = root.replace("</Relationships>", '<Relationship Id="rIdPivotDeskUI" Type="%s" Target="%s"/>'
+        root = root.replace("</Relationships>", '<Relationship Id="rIdAvatiUI" Type="%s" Target="%s"/>'
                             "</Relationships>" % (ribbon.REL_TYPE, ribbon.PART))
     parts["_rels/.rels"] = root.encode("utf-8")
 
@@ -367,9 +370,8 @@ def check_contract(shapes, sources):
         expected += ["pdx_ctl%d_dot" % r, "pdx_ctl%d_meta" % r, "pdx_ctl%d_hit" % r]
     for a in range(1, desk.ACT_ROWS + 1):
         expected += ["pdx_act%d_%s" % (a, k) for k in ("when", "lvl", "stage", "msg")]
-    for b in range(1, desk.GAP_MAX + 1):
-        expected += ["pdx_gap_bar%d" % b, "pdx_gap_lbl%d" % b]
-    expected += ["pdx_gap_k%d" % k for k in (1, 2, 3)] + ["pdx_gap_v%d" % k for k in (1, 2, 3)]
+    for b in range(1, desk.RB_ROWS + 1):
+        expected += ["pdx_rb%d_%s" % (b, k) for k in ("fw", "name", "meta", "open", "hit")]
     expected += ["pdx_tour_pip%d" % k for k in range(1, len(desk.TOUR) + 1)]
     for c in (1, 2, 3):
         expected += ["pdx_card%d_count" % c]
@@ -448,10 +450,8 @@ def check_geometry(sources):
     problems = []
     src = sources.get("modPD_Desk", "")
     consts = {k: float(v) for k, v in re.findall(r"Private Const (\w+) As (?:Double|Long) = ([0-9.]+)", src)}
-    want = {"GAP_CARD_W": desk.GAP_W, "GAP_PAD_X": desk.GAP_PAD[0], "GAP_PAD_Y": desk.GAP_PAD[1],
-            "GAP_CW": desk.GAP_CHART[2], "GAP_CH": desk.GAP_CHART[3], "GAP_BARS": desk.GAP_MAX,
-            "TOUR_STEPS": len(desk.TOUR), "TOUR_PAD": desk.TOUR_PAD, "TOUR_GAP": desk.TOUR_GAP,
-            "DESK_H": desk.H}
+    want = {"TOUR_STEPS": len(desk.TOUR), "TOUR_PAD": desk.TOUR_PAD, "TOUR_GAP": desk.TOUR_GAP,
+            "DESK_H": desk.H, "RB_ROWS": desk.RB_ROWS}
     for k, v in want.items():
         if k not in consts:
             problems.append("geometry: modPD_Desk has no constant %s" % k)

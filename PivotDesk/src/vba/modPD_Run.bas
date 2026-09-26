@@ -72,7 +72,7 @@ Private Sub BuildDesk()
         Set ws = EnsureSheet(SH_HOME)
         modPD_Theme.Dress ws, TOOL_NAME & "   " & BANK_NAME, _
             "The Desk's design is missing from this copy of the workbook. The Files, Reconciliation " & _
-            "and Activity sheets still work; download a fresh copy of PivotDesk to get the Desk back."
+            "and Activity sheets still work; download a fresh copy of Avati to get the Desk back."
         modPD_Theme.SetStatus ws, "The Desk could not be found.", "Check"
         Exit Sub
     End If
@@ -299,6 +299,7 @@ Public Sub PD_Reset()
     SettingClear "ctl3_"
     SettingClear "ctl6_"
     SettingClear "gap_"
+    SettingClear "rb_"
     SettingSet "styled_version", ""
     PD_Setup
     RestoreState st: PD_Busy = False

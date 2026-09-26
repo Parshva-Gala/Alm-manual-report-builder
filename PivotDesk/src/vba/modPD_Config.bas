@@ -84,7 +84,7 @@ End Function
 
 Public Sub PD_ConfigEngine()
     If Engine() = "recipes" Then
-        If MsgBox("Build with PivotDesk 1.0's fixed layout instead of this sheet?" & vbCrLf & vbCrLf & _
+        If MsgBox("Build with the 1.0 layout instead of this sheet?" & vbCrLf & vbCrLf & _
                   "Your recipes are kept. Switch back any time.", vbQuestion + vbYesNo, TOOL_NAME) <> vbYes Then Exit Sub
         SettingSet "engine", "classic"
     Else
@@ -448,9 +448,9 @@ End Function
 Public Sub PD_ConfigDefaults()
     Dim ws As Worksheet
     If PD_Busy Then Exit Sub
-    If MsgBox("Put the Pivot config back to PivotDesk's defaults?" & vbCrLf & vbCrLf & _
+    If MsgBox("Put the Pivot config back to its defaults?" & vbCrLf & vbCrLf & _
               "Every recipe, and every field on Pivot fields, is replaced. The defaults build exactly what " & _
-              "PivotDesk 1.0 built.", vbQuestion + vbYesNo, TOOL_NAME) <> vbYes Then Exit Sub
+              "version 1.0 built.", vbQuestion + vbYesNo, TOOL_NAME) <> vbYes Then Exit Sub
     Application.ScreenUpdating = False
     BuildConfigSheet True
     modPD_Theme.Rail GetSheet(SH_CONFIG)
@@ -981,7 +981,7 @@ Public Function CheckAll(Optional ByVal quiet As Boolean = False) As Long
         End If
     Next r
     If Engine() = "classic" Then
-        modPD_Theme.SetStatus ws, "Building with PivotDesk 1.0's fixed layout - this sheet is kept but not used. " & _
+        modPD_Theme.SetStatus ws, "Building with the 1.0 layout - this sheet is kept but not used. " & _
             "Engine switches back.", "Check"
     ElseIf nBad > 0 Then
         modPD_Theme.SetStatus ws, nBad & " of " & nOn & " pivot(s) that are on will not build - the reason is " & _

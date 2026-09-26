@@ -1,5 +1,5 @@
 """
-The PivotDesk tab on Excel's ribbon, for Excel view.
+The Avati tab on Excel's ribbon, for Excel view.
 
 In app view the ribbon is hidden and the Desk is the interface. Anyone who
 prefers Excel's own chrome gets the same actions on a tab of their own,
@@ -34,7 +34,7 @@ GROUPS = [
         ("pdBuild", "Build pivots", "pivot", True, "One workbook of live PivotTables per framework switched on."),
         ("pdReconcile", "Reconcile", "check", True, "Compare the outputs with the control reports."),
     ]),
-    ("PivotDesk", [
+    ("Avati", [
         ("pdApp", "App view", "expand", True, "Hide the ribbon and work from the Desk."),
         ("pdTour", "Tour", "help", True, "A one-minute tour of the Desk. F1"),
     ]),
@@ -78,7 +78,7 @@ def custom_ui():
         groups.append('<group id="pdGroup%d" label="%s">%s</group>' % (g, _esc(label), "".join(items)))
     xml = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
            '<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">'
-           '<ribbon><tabs><tab id="pdTab" label="PivotDesk" insertBeforeMso="TabHome">%s</tab></tabs></ribbon>'
+           '<ribbon><tabs><tab id="pdTab" label="Avati" insertBeforeMso="TabHome">%s</tab></tabs></ribbon>'
            '</customUI>' % "".join(groups))
     rels_xml = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">%s'

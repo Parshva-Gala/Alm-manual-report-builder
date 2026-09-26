@@ -12,7 +12,7 @@ Layout, in points, on a 1120 x 660 canvas:
     0    app bar
     68   hero: greeting, the one-sentence state, the next action, 4 tiles
     236  three cards - Add files, Build pivots, Reconcile
-    524  recent activity, and the maturity gap of the last build
+    524  recent activity, and the workbooks the last builds wrote
     642  footer
 
 Over everything, hidden until asked for: the busy veil, the toast, the
@@ -29,6 +29,10 @@ from design_tokens import *  # noqa: F401,F403
 from shapes import Body, Glow, Line, Linear, Para, Run, Shadow, Shape, Solid, T
 
 ASSETS = os.path.join(assets.OUT)
+# The Avati logo (build/brand.py makes it from the supplied artwork).
+LOGO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "design", "brand", "avati-logo")
+LOGO_RATIO = 785 / 205          # width / height of the trimmed mark
+LOGO_H = 20
 
 # ---------------------------------------------------------------------------
 #  Icons the Desk uses, rendered on demand.
@@ -145,8 +149,9 @@ CARD_Y, CARD_H, CARD_W = 236, 272, 344
 CARD_X = [MARGIN, MARGIN + CARD_W + GUTTER, MARGIN + 2 * (CARD_W + GUTTER)]
 BOT_Y, BOT_H = 524, 108
 ACT_W, ACT_ROWS = 612, 4
-GAP_X = MARGIN + ACT_W + GUTTER
-GAP_W = W - MARGIN - GAP_X
+RB_X = MARGIN + ACT_W + GUTTER
+RB_W = W - MARGIN - RB_X
+RB_ROWS = 3
 
 
 def desk(st):
@@ -154,21 +159,23 @@ def desk(st):
     add = S.extend
 
     # --- app bar --------------------------------------------------------------
-    S.append(Shape("pdx_bar", 0, 0, W, 52, fill=Solid(INK), descr="PivotDesk app bar"))
+    S.append(Shape("pdx_bar", 0, 0, W, 52, fill=Solid(INK), descr="Avati app bar"))
     S.append(Shape("pdx_bar_rule", 0, 51.25, W, 0.75,
                    fill=Linear(0, [(0, EM[900], 1), (0.5, EM[600], 1), (1, EM[900], 1)]), descr="rule"))
-    S.append(pic("pdx_logo", MARGIN, 12, 28, 28, os.path.join(ASSETS, "logo"), macro="PD_GoHome",
-                 descr="PivotDesk", svg=True))
-    S.append(text("pdx_wordmark", 64, 10.5, 150, 20,
-                  Para([Run("Pivot", 13, TX_1, F_SEMI), Run("Desk", 13, EM[300], F_SEMI)]),
-                  descr="PivotDesk"))
-    S.append(text("pdx_bank", 64.5, 29, 170, 12, T("MIDBANK  ·  CAIRO", 6.5, TX_3, F_SEMI, spc=1.6),
-                  descr="MIDBANK Cairo"))
+    # The Avati mark, then what this is and whose it is.
+    lw = round(LOGO_H * LOGO_RATIO, 2)
+    S.append(pic("pdx_logo", MARGIN, 26 - LOGO_H / 2, lw, LOGO_H, LOGO, svg=False, macro="PD_GoHome",
+                 descr="Avati"))
+    S.append(Shape("pdx_logo_rule", MARGIN + lw + 12, 15, 0.75, 22, fill=Solid(HAIR_2), descr="rule"))
+    S.append(text("pdx_wordmark", MARGIN + lw + 24, 12.5, 120, 14, T("ALM DESK", 8, TX_1, F_SEMI, spc=2.0),
+                  wrap=False, descr="ALM Desk"))
+    S.append(text("pdx_bank", MARGIN + lw + 24, 27, 120, 12, T("MIDBANK  ·  CAIRO", 6.5, TX_3, F_SEMI, spc=1.6),
+                  wrap=False, descr="MIDBANK Cairo"))
 
     # navigation
-    nav_x, nav_y = 236, 13
+    nav_x, nav_y = 262, 13
     items = [("desk", "Desk", "spark", 66, "PD_GoHome"), ("files", "Files", "files", 64, "PD_GoFiles"),
-             ("config", "Pivot config", "layers", 100, "PD_GoConfig"),
+             ("config", "Reports", "layers", 84, "PD_GoConfig"),
              ("recon", "Reconciliation", "balance", 110, "PD_GoRecon"), ("log", "Activity", "pulse", 80, "PD_GoLog")]
     total = 3 + sum(i[3] for i in items) + 2 * (len(items) - 1) + 3
     S.append(Shape("pdx_nav", nav_x, nav_y, total, 26, "roundRect", 13, fill=Solid("0B1310"),
@@ -240,8 +247,8 @@ def desk(st):
     cards = [
         ("1", "01", "Add files", "Point at a folder or pick files. Each is recognised by the columns it "
          "carries, never its name.", "upload"),
-        ("2", "02", "Build pivots", "One workbook per framework: the Output, the Balance sheet and a sheet "
-         "per rule, all live PivotTables.", "pivot"),
+        ("2", "02", "Build pivots", "Each framework becomes a workbook, or one per currency: every pivot and "
+         "chart set up under Reports, all live.", "pivot"),
         ("3", "03", "Reconcile", "Outputs against control reports 3 and 6. Scope is settled before any "
          "difference is called a break.", "balance"),
     ]
@@ -402,63 +409,49 @@ def desk(st):
                   T("Nothing has happened on this desk yet. Add files and every step is written here, newest first.",
                     8.5, TX_3, F_BODY), anchor="ctr", hidden=bool(acts), descr="no activity yet"))
 
-    # --- maturity gap: the shape of the book the last build staged --------------
-    gx, gy, gw, gh = GAP_X, BOT_Y, GAP_W, BOT_H
-    prof = st.get("gap")
-    S.append(Shape("pdx_gap", gx, gy, gw, gh, "roundRect", 14, fill=CARD_FILL, line=CARD_LINE,
-                   shadow=CARD_SHADOW, descr="maturity gap"))
-    S.append(pic("pdx_gap_ic", gx + 20, gy + 12, 12, 12, icon("gap", "em"), descr="maturity gap"))
-    S.append(text("pdx_gap_title", gx + 38, gy + 9, 84, 18, T("Maturity gap", 9.5, TX_1, F_SEMI),
-                  anchor="ctr", wrap=False, descr="Maturity gap"))
-    S.append(text("pdx_gap_unit", gx + 124, gy + 9, 196, 18,
-                  T(prof["unit"] if prof else "NET PRE-FACTOR  ·  BY BUCKET", 6, TX_3, F_SEMI, spc=1.2),
-                  anchor="ctr", wrap=False, clip=True, descr="what the bars show"))
-    S.append(Shape("pdx_gap_fw", gx + gw - 20 - 76, gy + 10, 76, 18, "roundRect", 9, fill=Solid(EM[950]),
-                   line=Line(0.75, EM[700], 1),
-                   body=Body([T((prof["fw"] if prof else "LCR") + "  ›", 6.5, EM[100], F_SEMI, spc=1.0, align="ctr")],
-                             "ctr", False),
-                   macro="PD_GapNext", hidden=prof is None, descr="Show the next framework"))
-    cx, top, cw, ch = GAP_CHART
-    vals = [b[1] for b in prof["buckets"]] if prof else GAP_GHOST
-    geo, zero, bw, gap = gap_bars(vals, cx, top, cw, ch)
-    S.append(Shape("pdx_gap_zero", cx, zero - 0.375, cw, 0.75, fill=Solid(TX_4), descr="zero"))
-    for i in range(GAP_MAX):
-        on = i < len(vals)
-        x, y, w, h = geo[i] if on else (cx + i * 22, zero - 1, 16, 1)
-        if prof and on:
-            short, v, kind = prof["buckets"][i]
-            colour = TX_4 if kind == "none" else (EM[400] if v >= 0 else TX_3)
-            fill = Solid(colour)
-        else:
-            short, fill = "", Solid("FFFFFF", 0.05)
-        S.append(Shape("pdx_gap_bar%d" % (i + 1), x, y, w, h, fill=fill, hidden=not on, descr="bucket %d" % (i + 1)))
-        S.append(text("pdx_gap_lbl%d" % (i + 1), x - gap / 2 - 4, top + ch + 3, w + gap + 8, 9,
-                      T(short or " ", 5.5, TX_3, F_SEMI, align="ctr"), wrap=False,
-                      hidden=not (prof and on), descr="bucket %d" % (i + 1)))
-    # Before any build: the ghost of a gap, and a pill over it saying what
-    # will be drawn. The pill is opaque so the zero line cannot run through it.
-    S.append(Shape("pdx_gap_empty", cx + (cw - 184) / 2, top + (ch - 26) / 2, 184, 26, "roundRect", 13,
-                   fill=Solid(SURFACE), line=Line(0.75, HAIR_2, 1),
-                   body=Body([T("Build a framework to draw its gap", 7.5, TX_2, F_SEMI, align="ctr")], "ctr", False),
-                   hidden=prof is not None, descr="no build yet"))
-    S.append(Shape("pdx_gap_div", gx + 300, gy + 36, 0.75, 62, fill=Solid(HAIR_2), descr="rule"))
-    stats = prof["stats"] if prof else [("NET", "—"), ("GROSS", "—"), ("FACTOR", "—")]
-    for k, (lab, val) in enumerate(stats, start=1):
-        sy = gy + 36 + (k - 1) * 22
-        S.append(text("pdx_gap_k%d" % k, gx + 316, sy, 50, 18, T(lab, 6, TX_3, F_SEMI, spc=1.2), anchor="ctr",
-                      wrap=False, descr=lab.lower()))
-        S.append(text("pdx_gap_v%d" % k, gx + 350, sy, gw - 370, 18, T(val, 10, TX_1, F_SEMILIGHT, align="r"),
-                      anchor="ctr", wrap=False, descr=lab.lower() + " value"))
-        if k < 3:
-            S.append(Shape("pdx_gap_sep%d" % k, gx + 316, sy + 20, gw - 336, 0.5, fill=Solid(HAIR, 0.9), descr="rule"))
+    # --- recent builds: what was made, ready to open --------------------------
+    gx, gy, gw, gh = RB_X, BOT_Y, RB_W, BOT_H
+    builds = st.get("builds") or []
+    S.append(Shape("pdx_rb", gx, gy, gw, gh, "roundRect", 14, fill=CARD_FILL, line=CARD_LINE,
+                   shadow=CARD_SHADOW, descr="recent builds"))
+    S.append(pic("pdx_rb_ic", gx + 20, gy + 12, 12, 12, icon("pivot", "em"), descr="recent builds"))
+    S.append(text("pdx_rb_title", gx + 38, gy + 9, 160, 18, T("Recent builds", 9.5, TX_1, F_SEMI),
+                  anchor="ctr", wrap=False, descr="Recent builds"))
+    S.append(text("pdx_rb_all", gx + gw - 130, gy + 9, 110, 18, T("Open folder  →", 8, EM[300], F_SEMI, align="r"),
+                  anchor="ctr", wrap=False, macro="PD_OpenOutputFolder", descr="Open the folder the last build wrote to"))
+    for i in range(RB_ROWS):
+        ry = gy + 34 + i * 23
+        b = builds[i] if i < len(builds) else None
+        hidden = b is None
+        S.append(pill("pdx_rb%d_fw" % (i + 1), gx + 20, ry + 3.5, 50, 13, b["fw"] if b else "LCR", EM[200], EM[950],
+                      size=6, border=Line(0.75, EM[800], 1), descr="framework"))
+        S[-1].hidden = hidden
+        S.append(text("pdx_rb%d_name" % (i + 1), gx + 78, ry, 236, 12, T(b["name"] if b else " ", 8.5, TX_1, F_BODY),
+                      wrap=False, clip=True, hidden=hidden, descr="workbook"))
+        S.append(text("pdx_rb%d_meta" % (i + 1), gx + 78, ry + 11.5, 236, 10, T(b["meta"] if b else " ", 6.5, TX_3, F_BODY),
+                      wrap=False, clip=True, hidden=hidden, descr="when and how many sheets"))
+        S.append(Shape("pdx_rb%d_open" % (i + 1), gx + gw - 20 - 52, ry + 2, 52, 17, "roundRect", 8.5,
+                       fill=Solid("FFFFFF", 0.03), line=Line(0.75, HAIR_2, 1),
+                       body=Body([T("Open", 7.5, TX_1, F_SEMI, align="ctr")], "ctr", False),
+                       macro="PD_OpenBuild", hidden=hidden, descr="Open this workbook"))
+        S.append(hit("pdx_rb%d_hit" % (i + 1), gx + 16, ry - 1, gw - 20 - 52 - 24, 22, "PD_OpenBuild",
+                     "Open this workbook"))
+        S[-1].hidden = hidden
+        if i < RB_ROWS - 1:
+            S.append(Shape("pdx_rb%d_rule" % (i + 1), gx + 20, ry + 22.25, gw - 40, 0.5, fill=Solid(HAIR, 0.8),
+                           hidden=i + 1 >= len(builds), descr="rule"))
+    S.append(text("pdx_rb_empty", gx + 20, gy + 34, gw - 40, 60,
+                  [T("Nothing built yet.", 8.5, TX_2, F_SEMI),
+                   T("Each workbook you build is listed here, newest first, ready to open.", 8, TX_3, F_BODY)],
+                  anchor="ctr", hidden=bool(builds), descr="nothing built yet"))
 
     # --- footer -------------------------------------------------------------
     S.append(text("pdx_foot", MARGIN, 642, 700, 12,
-                  T("PivotDesk %s  ·  Every workbook it writes is live PivotTables on one cache — drag a field, "
+                  T("Avati ALM Desk %s  ·  Every workbook it writes is live PivotTables on one cache — drag a field, "
                     "add a slicer, double-click a total." % st["version"], 7, TX_3, F_BODY), wrap=False,
                   descr="about"))
     S.append(text("pdx_keys", W - MARGIN - 440, 642, 440, 12,
-                  T("F1 Tour  ·  Ctrl+Shift+  D Desk  ·  F Files  ·  P Pivot config  ·  R Reconciliation  ·  A Activity",
+                  T("F1 Tour  ·  Ctrl+Shift+  D Desk  ·  F Files  ·  P Reports  ·  R Reconciliation  ·  A Activity",
                     7, TX_3, F_BODY, align="r"),
                   wrap=False, descr="keyboard shortcuts"))
 
@@ -524,38 +517,12 @@ def desk(st):
 
 
 # ---------------------------------------------------------------------------
-#  The maturity gap chart and the tour, as arithmetic both sides share
+#  The tour, as arithmetic both sides share
 # ---------------------------------------------------------------------------
-GAP_MAX = 12
-GAP_PAD = (20, 36)                                    # chart offset inside its card
-GAP_CHART = (GAP_X + GAP_PAD[0], BOT_Y + GAP_PAD[1], 264, 50)     # x, top, width, height
-# The empty chart's ghost: a gap shape, so the card says what it will hold.
-GAP_GHOST = [0.62, 0.38, 0.22, -0.12, -0.3, -0.46, -0.6, -0.36, 0.28]
-
-
-def gap_bars(values, cx, top, cw, ch):
-    """Bars around a zero line, centred in the chart. modPD_Desk.PaintGap
-    lays them out with the same numbers."""
-    n = max(1, len(values))
-    gap = 5.0 if n > 8 else 8.0
-    bw = min(26.0, (cw - (n - 1) * gap) / n)
-    total = n * bw + (n - 1) * gap
-    x0 = cx + (cw - total) / 2
-    pos = max([0.0] + [v for v in values])
-    neg = max([0.0] + [-v for v in values])
-    span = (pos + neg) or 1.0
-    zero = top + ch * pos / span
-    out = []
-    for i, v in enumerate(values):
-        h = max(1.0, ch * abs(v) / span)
-        out.append((x0 + i * (bw + gap), zero - h if v >= 0 else zero, bw, h))
-    return out, zero, bw, gap
-
-
 TOUR_W, TOUR_H, TOUR_PAD, TOUR_GAP = 300, 144, 6, 14
 TOUR = [
     (["pdx_hero_greet", "pdx_hero_lede", "pdx_cta", "pdx_cta2"], "The next step, always",
-     "PivotDesk reads the desk and puts the next sensible step on this button. The sentence above it says why."),
+     "Avati reads the desk and puts the next sensible step on this button. The sentence above it says why."),
     (["pdx_card1"], "Put the files on the desk",
      "Scan a folder or pick files. Each is recognised by its columns, not its name. Click a row to choose "
      "the file for that slot."),
@@ -565,9 +532,9 @@ TOUR = [
     (["pdx_card3"], "Breaks before anyone asks",
      "Reconcile the outputs against control reports 3 and 6. Each cell of the matrix is one control against "
      "one framework."),
-    (["pdx_gap"], "The shape of the book",
-     "After a build, the net balance in each maturity bucket is drawn here, shortest tenor first. The chip "
-     "switches framework."),
+    (["pdx_rb"], "Open what you built",
+     "Every workbook a build writes is listed here, newest first. Open one straight from the Desk, or the "
+     "whole folder."),
     (["pdx_nav"], "Everything is one click away",
      "The bar goes to every sheet, as do Ctrl+Shift+D, F, P, R and A. Excel view brings the ribbon back. "
      "F1 plays this tour again."),
@@ -616,12 +583,12 @@ def tour_place(tx, ty, tw, th):
 # ---------------------------------------------------------------------------
 def empty_state(today="SATURDAY  ·  26 SEPTEMBER 2026", greeting="Good evening."):
     return {
-        "version": "2.1",
+        "version": "3.0",
         "asof": "NO DATA LOADED",
         "view_label": "Excel view",
         "date": today,
         "greeting": greeting,
-        "lede": "Nothing is on the desk yet. Point PivotDesk at the folder holding your framework outputs "
+        "lede": "Nothing is on the desk yet. Point Avati at the folder holding your framework outputs "
                 "and control reports 3 and 6 - it works out which file is which.",
         "cta": "Scan a folder",
         "cta2": "Pick files",
@@ -663,7 +630,7 @@ def empty_state(today="SATURDAY  ·  26 SEPTEMBER 2026", greeting="Good evening.
         "toast": None,
         "busy": False,
         "macros_banner": True,
-        "gap": None,
+        "builds": [],
         "tour": None,
     }
 
@@ -697,8 +664,8 @@ def showcase_state():
             {"label": "NSFR", "state": "on", "meta": "388,120 rows  ·  as of 30 Nov 2025"},
             {"label": "Maturity ladder", "state": "on", "meta": "506,332 rows  ·  as of 30 Nov 2025"},
         ],
-        "last_build": "Last built 26 Sep 14:05  ·  3 workbooks",
-        "build_label": "Build 3 workbooks",
+        "last_build": "Last built 26 Sep 14:06  ·  9 workbooks",
+        "build_label": "Build 3 frameworks",
         "build_kind": "soft",
         "open_kind": "ghost",
         "controls": [
@@ -718,18 +685,15 @@ def showcase_state():
              "msg": "Control 3 vs LCR - 664 key(s) on both sides, covering 99.82% of the output's balances. Every shared key agrees."},
             {"when": "26 Sep 14:21", "level": "OK", "stage": "Recon",
              "msg": "Control 3 vs Maturity ladder - 664 key(s) on both sides. Every shared key agrees."},
-            {"when": "26 Sep 14:05", "level": "OK", "stage": "Pivots",
-             "msg": "506,332 row(s) staged, 58 pivot sheet(s), 41.2s."},
+            {"when": "26 Sep 14:06", "level": "OK", "stage": "Pivots",
+             "msg": "Maturity ladder - 506,332 row(s) staged, 7 workbooks (one per currency), 214 sheets, 58.9s."},
         ],
-        "gap": {
-            "fw": "LADDER",
-            "unit": "NET PRE-FACTOR  ·  LCY  ·  10 BUCKETS",
-            "buckets": [("≤1M", 18.4, ""), ("1–3M", 6.2, ""), ("3–6M", 2.9, ""), ("6–12M", -3.1, ""),
-                        ("1–2Y", -7.4, ""), ("2–3Y", -9.8, ""), ("3–5Y", -12.6, ""), (">5Y", -8.1, ""),
-                        ("NM", 11.3, ""), ("—", 1.4, "none")],
-            "stats": [("NET", "−0.8 bn"), ("GROSS", "212.6 bn"), ("FACTOR", "71.4%")],
-        },
-        "toast": {"level": "OK", "text": "3 workbooks written to D:\\ALM\\Pivots\\30 Nov. Each opens on its Start here sheet."},
+        "builds": [
+            {"fw": "LADDER", "name": "Maturity Ladder - Egyptian Pound.xlsx", "meta": "26 Sep 14:06  ·  38 sheets"},
+            {"fw": "LADDER", "name": "Maturity Ladder - US Dollar.xlsx", "meta": "26 Sep 14:06  ·  31 sheets"},
+            {"fw": "NSFR", "name": "NSFR.xlsx", "meta": "26 Sep 14:05  ·  24 sheets"},
+        ],
+        "toast": {"level": "OK", "text": "9 workbooks written to D:\\ALM\\Pivots\\30 Nov, one per currency for the ladder. Each opens on its Start here sheet."},
         "macros_banner": False,
     })
     return s

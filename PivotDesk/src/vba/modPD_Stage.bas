@@ -53,11 +53,9 @@ Private mMissing As String
 Private mSplitCols As Object          ' signature -> Array of stage columns
 Private mSplitWeights As Object       ' signature -> Dictionary
 
-' The shape of the book, measured in the same pass: net and gross pre-factor
-' per maturity bucket, and each bucket's average maturity date for labels too
-' odd to read a tenor from. The Desk draws it; the pivots order by it.
-Private mBktNet As Object             ' bucket -> sum of pre-factor
-Private mBktGross As Object           ' bucket -> sum of |pre-factor|
+' The buckets seen in the pass, and each one's average maturity date for labels
+' too odd to read a tenor from: every pivot orders its buckets by it.
+Private mBktNet As Object             ' bucket -> rows
 Private mBktMat As Object             ' bucket -> sum of maturity serials
 Private mBktMatN As Object            ' bucket -> rows that had a maturity date
 Private mPreAbs As Double
@@ -80,20 +78,13 @@ Public Function AmountFieldNote() As String
         AmountFieldNote = mPreField & "  /  " & mPostField & "   (no native-currency field found)"
     End If
 End Function
-' Totals of the last pass, for the Start here tiles: gross is the sum of the
-' amounts' sizes, net keeps their signs.
+' Totals of the last pass, for the Start here tiles: the sum of the amounts'
+' sizes, before and after the factors.
 Public Function GrossPre() As Double
     GrossPre = mPreAbs
 End Function
 Public Function GrossPost() As Double
     GrossPost = mPostAbs
-End Function
-Public Function NetPre() As Double
-    Dim k As Variant
-    If mBktNet Is Nothing Then Exit Function
-    For Each k In mBktNet.keys
-        NetPre = NetPre + SafeNum(mBktNet(k))
-    Next k
 End Function
 
 Public Function UsedNativeAmounts() As Boolean
@@ -209,7 +200,6 @@ Public Function StageFramework(ByVal fw As String, ByVal dstWb As Workbook, ByRe
     mRows = wrote
 
     If wrote = 0 Then errOut = "every row in that file was empty": Exit Function
-    NoteGap fw
     Set StageFramework = MakeTable(stage, outRow - 1)
     modPD_Files.NoteRows key, wrote, mAsOf
     modPD_Files.NoteAmountField key, AmountFieldNote()
@@ -237,7 +227,6 @@ Private Sub ResetPass()
     Set mSplitCols = NewMap()
     Set mSplitWeights = NewMap()
     Set mBktNet = NewMap()
-    Set mBktGross = NewMap()
     Set mBktMat = NewMap()
     Set mBktMatN = NewMap()
     mPreAbs = 0: mPostAbs = 0: mAsOfNum = 0
@@ -489,8 +478,7 @@ Private Function EmitBlock(ByRef buf As Variant, ByVal n As Long, ByVal ix As Ob
         out(k, C_PRE) = pre
         out(k, C_POST) = post
 
-        mBktNet(bkt) = SafeNum(mBktNet(bkt)) + pre
-        mBktGross(bkt) = SafeNum(mBktGross(bkt)) + Abs(pre)
+        mBktNet(bkt) = SafeNum(mBktNet(bkt)) + 1
         mPreAbs = mPreAbs + Abs(pre)
         mPostAbs = mPostAbs + Abs(post)
         If iMat > 0 Then
@@ -827,27 +815,3 @@ Public Function BucketOrder() As Variant
     BucketOrder = lbl
 End Function
 
-' What the Desk's maturity-gap card draws for this framework, kept on the
-' settings sheet so it survives closing the workbook: per bucket, in tenor
-' order, its short label, net, gross and kind; then the totals.
-Private Sub NoteGap(ByVal fw As String)
-    Dim order As Variant, i As Long, s As String, sh As String, lbl As String, kind As String
-    Dim net As Double
-    On Error Resume Next
-    order = BucketOrder()
-    If UBound(order) < 0 Then Exit Sub
-    For i = 0 To UBound(order)
-        lbl = CStr(order(i))
-        BucketKey lbl, sh
-        If StrComp(lbl, "(no bucket)", vbTextCompare) = 0 Then kind = "none" Else kind = ""
-        sh = Replace(Replace(sh, "|", "/"), ";", ",")
-        If i > 0 Then s = s & ";"
-        s = s & sh & "|" & NumTxt(SafeNum(mBktNet(lbl))) & "|" & NumTxt(SafeNum(mBktGross(lbl))) & "|" & kind
-        net = net + SafeNum(mBktNet(lbl))
-    Next i
-    SettingSet "gap_" & fw, s
-    SettingSet "gap_" & fw & "_tot", NumTxt(net) & "|" & NumTxt(mPreAbs) & "|" & NumTxt(mPostAbs) & "|" & _
-                                    CStr(UBound(order) + 1) & "|" & mAsOf
-    SettingSet "gap_fw", fw
-    Err.Clear
-End Sub

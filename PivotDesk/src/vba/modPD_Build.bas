@@ -72,6 +72,7 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
     On Error GoTo SaveFailed
     Application.DisplayAlerts = False
     wb.SaveAs Path, 51            ' xlOpenXMLWorkbook - no macros, opens anywhere
+    modPD_Desk.NoteWorkbook Path, fw, nSheets
     Application.DisplayAlerts = True
     wb.Close SaveChanges:=False
     On Error GoTo 0
@@ -362,20 +363,6 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     ws.Rows(r + 1).RowHeight = 66
     Glance ws, ws.Cells(r + 1, 1).Top + 6, wide
 
-    ' --- the shape of the book --------------------------------------------------
-    r = r + 3
-    Section ws, r, "MATURITY GAP  " & ChrW(183) & "  NET PRE-FACTOR IN EACH BUCKET, LOCAL AND FOREIGN CURRENCY"
-    ws.Rows(r + 1).RowHeight = 238
-    If Not modPD_Pivot.GapChart(wb, ws, ws.Cells(r + 1, 1).Left + 6, ws.Cells(r + 1, 1).Top + 8, wide, 222) Then
-        With ws.Cells(r + 1, 1)
-            .Value2 = "This output has no maturity buckets, so there is no gap to draw."
-            .Font.Color = modPD_Theme.C_MUTED
-            .IndentLevel = 1
-            .VerticalAlignment = xlCenter
-        End With
-        ws.Rows(r + 1).RowHeight = 28
-    End If
-
     ' --- the index -----------------------------------------------------------------
     r = r + 3
     Section ws, r, "IN THIS BOOK"
@@ -432,7 +419,7 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
         Note ws, r, "Built from", "The Pivot config sheet in " & ThisWorkbook.Name & " - every pivot here is a " & _
             "row there, and changing the row changes the next build."
     Else
-        Note ws, r, "Built from", "PivotDesk 1.0's fixed layout (Pivot config's Engine is set to it)."
+        Note ws, r, "Built from", "the 1.0 layout (Pivot config's Engine is set to it)."
     End If
     If Len(modPD_Stage.MissingFields()) > 0 Then
         r = r + 1
@@ -479,9 +466,9 @@ Private Sub Glance(ByVal ws As Worksheet, ByVal top As Double, ByVal wide As Dou
     Dim items As Variant, i As Long, n As Long, w As Double, gp As Double, gross As Double
     gross = modPD_Stage.GrossPre()
     items = Array(Array("ROWS STAGED", Fmt(modPD_Stage.StagedRows())), _
-                  Array("GROSS PRE-FACTOR", Compact(gross)), _
-                  Array("NET PRE-FACTOR", Replace(Compact(modPD_Stage.NetPre()), "-", ChrW(8722))), _
-                  Array("WEIGHTED FACTOR", IIf(gross > 0, Format$(modPD_Stage.GrossPost() / IIf(gross > 0, gross, 1), "0.0%"), ChrW(8212))), _
+                  Array("PRE-FACTOR", Compact(gross)), _
+                  Array("POST-FACTOR", Compact(modPD_Stage.GrossPost())), _
+                  Array("SHEETS", CStr(modPD_Pivot.MadeSheets().count)), _
                   Array("LOCAL CURRENCY", modPD_Stage.LocalCurrency()), _
                   Array("DATA AS OF", modPD_Stage.StagedAsOf()))
     n = UBound(items) + 1
@@ -597,7 +584,7 @@ Private Sub Brand(ByVal wb As Workbook, ByVal fw As String)
     End With
     wb.BuiltinDocumentProperties("Title").value = FwLabel(fw) & " pivots  -  " & BANK_NAME
     wb.BuiltinDocumentProperties("Subject").value = FwLabel(fw) & " output, staged into live PivotTables"
-    wb.BuiltinDocumentProperties("Keywords").value = "ALM; " & FwLabel(fw) & "; PivotDesk; " & BANK_NAME
+    wb.BuiltinDocumentProperties("Keywords").value = "ALM; " & FwLabel(fw) & "; Avati; " & BANK_NAME
     wb.BuiltinDocumentProperties("Comments").value = "Built by " & TOOL_NAME & " " & TOOL_VERSION & " on " & _
         Format$(Now, "dd mmm yyyy hh:nn") & "."
     Err.Clear

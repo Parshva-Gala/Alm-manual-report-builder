@@ -12,7 +12,7 @@ LibreOffice's VBA-compatible Basic, the one place it can execute off Windows.
 LibreOffice has no Scripting.Dictionary (it is a Windows COM object), so
 anything built on one cannot run here; that stays on the Windows walk-through.
 
-usage:  python3 lo_run.py ../dist/PivotDesk.xlsm
+usage:  python3 lo_run.py ../dist/Avati.xlsm
 """
 import os
 import subprocess

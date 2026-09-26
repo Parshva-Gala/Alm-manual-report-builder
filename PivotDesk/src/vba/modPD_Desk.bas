@@ -35,16 +35,8 @@ Private Const DESK_H As Double = 660
 
 Private Const TOAST_SECONDS As Long = 9
 
-' The maturity-gap chart, relative to its card (build/desk.py GAP_PAD and
-' GAP_CHART; the build checks the two agree). Rows are exact points; columns
-' can come out a little wider or narrower with the screen's DPI, so widths
-' are scaled by how wide the card actually is.
-Private Const GAP_CARD_W As Double = 436
-Private Const GAP_PAD_X As Double = 20
-Private Const GAP_PAD_Y As Double = 36
-Private Const GAP_CW As Double = 264
-Private Const GAP_CH As Double = 50
-Private Const GAP_BARS As Long = 12
+' Recent builds on the Desk: this many workbooks listed (build/desk.py RB_ROWS).
+Private Const RB_ROWS As Long = 3
 
 ' The tour (build/desk.py TOUR, tour_place).
 Private Const TOUR_STEPS As Long = 6
@@ -328,7 +320,7 @@ Private Function NextAction(ByRef label As String, ByRef lede As String) As Stri
 
     If nFiles = 0 And Len(missingKey) = 0 Then
         label = "Scan a folder"
-        lede = "Nothing is on the desk yet. Point PivotDesk at the folder holding your framework outputs " & _
+        lede = "Nothing is on the desk yet. Point Avati at the folder holding your framework outputs " & _
                "and control reports 3 and 6 - it works out which file is which."
         NextAction = "SCAN"
     ElseIf Len(missingKey) > 0 Then
@@ -364,7 +356,7 @@ Private Function NextAction(ByRef label As String, ByRef lede As String) As Stri
         End If
     ElseIf Len(ctl) = 0 Then
         label = "Add a control report"
-        lede = "The pivots are built. Add control report 3 or 6 and PivotDesk will reconcile the outputs " & _
+        lede = "The pivots are built. Add control report 3 or 6 and Avati will reconcile the outputs " & _
                "against the ledger."
         NextAction = "PICK"
     ElseIf Not reconciled Then
@@ -424,7 +416,7 @@ Public Sub RefreshDesk()
     PaintBuild ws
     PaintRecon ws
     PaintActivity ws
-    PaintGap ws
+    PaintRecent ws
     SetVisible ws, "pdx_busy", False
     SetVisible ws, "pdx_macros", False
     SetText ws, "pdx_btn_view", IIf(AppView(), "Excel view", "App view")
@@ -612,7 +604,7 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
         SetText ws, "pdx_c2_config", SettingGet("config_on", "4") & " pivots  " & ChrW(8594)
     End If
     If nSel > 0 Then
-        SetText ws, "pdx_c2_build", "Build " & nSel & Plural(nSel, " workbook", " workbooks")
+        SetText ws, "pdx_c2_build", "Build " & nSel & Plural(nSel, " framework", " frameworks")
         PaintButton ws, "pdx_c2_build", "soft"
     ElseIf nReady > 0 Then
         SetText ws, "pdx_c2_build", "Switch one on"
@@ -781,169 +773,71 @@ Private Sub PaintActivity(ByVal ws As Worksheet)
     SetVisible ws, "pdx_act_art", n = 0
 End Sub
 
-' ===================== the maturity gap =====================================
+' ===================== recent builds ========================================
 '
-' The net pre-factor balance in each maturity bucket of the framework last
-' built, shortest tenor first: bars above the zero line in emerald, below it
-' in grey, "(no bucket)" dim at the end. The numbers are what staging measured
-' (modPD_Stage.NoteGap), so the card costs nothing to paint.
+' The last workbooks built, newest first: framework, file, when, how many
+' sheets, and Open. Kept on the settings sheet as rb_1 .. rb_n, each
+' "path|framework|when|sheets", so the list survives closing the workbook.
 
-Private Sub PaintGap(ByVal ws As Worksheet)
-    Dim fw As String, raw As String, parts As Variant, n As Long, i As Long, f As Variant, bits As Variant
-    Dim lbl() As String, v() As Double, kind() As String, nShow As Long, tot As Variant
-    Dim card As Shape, sx As Double, cx As Double, top As Double, cw As Double, ch As Double
-    Dim gp As Double, bw As Double, x0 As Double, pos As Double, neg As Double, span As Double
-    Dim zero As Double, h As Double, bar As Shape, lab As Shape, nm As String, nData As Long
+Private Sub PaintRecent(ByVal ws As Worksheet)
+    Dim i As Long, v As String, bits As Variant, n As Long, nm As String
     On Error Resume Next      ' one label that will not paint must not stop the rest
-
-    fw = SettingGet("gap_fw")
-    If Len(fw) > 0 Then raw = SettingGet("gap_" & fw)
-    If Len(raw) = 0 Then
-        For Each f In Frameworks()
-            raw = SettingGet("gap_" & CStr(f))
-            If Len(raw) > 0 Then fw = CStr(f): Exit For
-        Next f
-    End If
-    For Each f In Frameworks()
-        If Len(SettingGet("gap_" & CStr(f))) > 0 Then nData = nData + 1
-    Next f
-
-    Set card = Shp(ws, "pdx_gap")
-    If card Is Nothing Then Exit Sub
-    sx = card.Width / GAP_CARD_W
-    If sx <= 0 Then sx = 1
-    cx = card.Left + GAP_PAD_X * sx
-    top = card.Top + GAP_PAD_Y
-    cw = GAP_CW * sx
-    ch = GAP_CH
-
-    If Len(raw) = 0 Then
-        ' Nothing built yet: the ghost of a gap under a pill that says so.
-        nShow = 9
-        ReDim v(1 To nShow)
-        bits = Array(0.62, 0.38, 0.22, -0.12, -0.3, -0.46, -0.6, -0.36, 0.28)
-        For i = 1 To nShow
-            v(i) = CDbl(bits(i - 1))
-        Next i
-    Else
-        parts = Split(raw, ";")
-        n = UBound(parts) + 1
-        nShow = n
-        If nShow > GAP_BARS Then nShow = GAP_BARS
-        ReDim lbl(1 To nShow)
-        ReDim v(1 To nShow)
-        ReDim kind(1 To nShow)
-        For i = 1 To n
-            bits = Split(CStr(parts(i - 1)), "|")
-            If UBound(bits) >= 3 Then
-                If i < GAP_BARS Or n = GAP_BARS Then
-                    lbl(i) = CStr(bits(0)): v(i) = Val(bits(1)): kind(i) = CStr(bits(3))
-                Else
-                    ' More buckets than bars: the longest tenors share the last.
-                    lbl(GAP_BARS) = "MORE": v(GAP_BARS) = v(GAP_BARS) + Val(bits(1)): kind(GAP_BARS) = ""
-                End If
-            End If
-        Next i
-    End If
-
-    ' The same arithmetic as build/desk.py gap_bars.
-    If nShow > 8 Then gp = 5 * sx Else gp = 8 * sx
-    bw = (cw - (nShow - 1) * gp) / nShow
-    If bw > 26 * sx Then bw = 26 * sx
-    x0 = cx + (cw - (nShow * bw + (nShow - 1) * gp)) / 2
-    For i = 1 To nShow
-        If v(i) > pos Then pos = v(i)
-        If -v(i) > neg Then neg = -v(i)
-    Next i
-    span = pos + neg
-    If span <= 0 Then span = 1
-    zero = top + ch * pos / span
-
-    For i = 1 To GAP_BARS
-        nm = "pdx_gap_bar" & i
-        Set bar = Shp(ws, nm)
-        Set lab = Shp(ws, "pdx_gap_lbl" & i)
-        If i <= nShow And Not bar Is Nothing Then
-            h = ch * Abs(v(i)) / span
-            If h < 1 Then h = 1
-            bar.Left = x0 + (i - 1) * (bw + gp)
-            bar.Width = bw
-            bar.Height = h
-            If v(i) >= 0 Then bar.Top = zero - h Else bar.Top = zero
-            If Len(raw) = 0 Then
-                SetFill ws, nm, HX("FFFFFF"), 0.95
-            ElseIf kind(i) = "none" Then
-                SetFill ws, nm, HX("4A5E55")
-            ElseIf v(i) >= 0 Then
-                SetFill ws, nm, HX("16B07F")
-            Else
-                SetFill ws, nm, HX("7E9388")
-            End If
-            SetVisible ws, nm, True
-            If Not lab Is Nothing Then
-                lab.Left = bar.Left - gp / 2 - 4
-                lab.Width = bw + gp + 8
-                lab.Top = top + ch + 3
-                If Len(raw) > 0 Then SetText ws, "pdx_gap_lbl" & i, lbl(i)
-            End If
-            SetVisible ws, "pdx_gap_lbl" & i, Len(raw) > 0
-        Else
-            SetVisible ws, nm, False
-            SetVisible ws, "pdx_gap_lbl" & i, False
+    For i = 1 To RB_ROWS
+        nm = "pdx_rb" & i
+        v = SettingGet("rb_" & i)
+        If Len(v) > 0 Then
+            bits = Split(v & "|||", "|")
+            n = n + 1
+            SetText ws, nm & "_fw", RecentChip(CStr(bits(1)))
+            SetText ws, nm & "_name", MidTrim(FileLeaf(CStr(bits(0))), 44)
+            SetText ws, nm & "_meta", CStr(bits(2)) & "  " & ChrW(183) & "  " & CStr(bits(3)) & _
+                                      Plural(CLng(Val(bits(3))), " sheet", " sheets")
         End If
+        SetVisible ws, nm & "_fw", Len(v) > 0
+        SetVisible ws, nm & "_name", Len(v) > 0
+        SetVisible ws, nm & "_meta", Len(v) > 0
+        SetVisible ws, nm & "_open", Len(v) > 0
+        SetVisible ws, nm & "_hit", Len(v) > 0
+        If i < RB_ROWS Then SetVisible ws, nm & "_rule", Len(SettingGet("rb_" & (i + 1))) > 0
     Next i
-    Set bar = Shp(ws, "pdx_gap_zero")
-    If Not bar Is Nothing Then bar.Top = zero - bar.Height / 2
-
-    SetVisible ws, "pdx_gap_empty", Len(raw) = 0
-    SetVisible ws, "pdx_gap_fw", Len(raw) > 0
-    If Len(raw) = 0 Then
-        SetText ws, "pdx_gap_unit", "NET PRE-FACTOR  " & ChrW(183) & "  BY BUCKET"
-        SetText ws, "pdx_gap_v1", ChrW(8212)
-        SetText ws, "pdx_gap_v2", ChrW(8212)
-        SetText ws, "pdx_gap_v3", ChrW(8212)
-        Exit Sub
-    End If
-
-    SetText ws, "pdx_gap_fw", GapChip(fw) & IIf(nData > 1, "  " & ChrW(8250), "")
-    tot = Split(SettingGet("gap_" & fw & "_tot") & "||||", "|")
-    SetText ws, "pdx_gap_unit", "NET PRE-FACTOR  " & ChrW(183) & "  LCY  " & ChrW(183) & "  " & _
-                                n & Plural(n, " BUCKET", " BUCKETS")
-    SetText ws, "pdx_gap_v1", Replace(Compact(Val(tot(0))), "-", ChrW(8722))
-    SetText ws, "pdx_gap_v2", Compact(Val(tot(1)))
-    If Val(tot(1)) > 0 Then
-        SetText ws, "pdx_gap_v3", Format$(Val(tot(2)) / Val(tot(1)), "0.0%")
-    Else
-        SetText ws, "pdx_gap_v3", ChrW(8212)
-    End If
+    SetVisible ws, "pdx_rb_empty", n = 0
 End Sub
 
-Private Function GapChip(ByVal fw As String) As String
-    If StrComp(fw, FW_ML, vbTextCompare) = 0 Then GapChip = "LADDER" Else GapChip = UCase$(FwLabel(fw))
+Private Function RecentChip(ByVal fw As String) As String
+    If StrComp(fw, FW_ML, vbTextCompare) = 0 Then RecentChip = "LADDER" Else RecentChip = UCase$(FwLabel(fw))
 End Function
 
-' The chip on the card: the next framework that has been built.
-Public Sub PD_GapNext()
-    Dim fws As Variant, cur As String, i As Long, k As Long, f As String, ws As Worksheet
-    If PD_Busy Then Exit Sub
+' Called for every workbook a build saves. The newest goes on top.
+Public Sub NoteWorkbook(ByVal path As String, ByVal fw As String, ByVal nSheets As Long)
+    Dim i As Long
     On Error Resume Next
-    fws = Frameworks()
-    cur = SettingGet("gap_fw")
-    For i = 0 To UBound(fws)
-        If StrComp(CStr(fws(i)), cur, vbTextCompare) = 0 Then k = i
+    For i = RB_ROWS To 2 Step -1
+        SettingSet "rb_" & i, SettingGet("rb_" & (i - 1))
     Next i
-    For i = 1 To UBound(fws) + 1
-        f = CStr(fws((k + i) Mod (UBound(fws) + 1)))
-        If Len(SettingGet("gap_" & f)) > 0 Then
-            SettingSet "gap_fw", f
-            Exit For
-        End If
-    Next i
-    Set ws = DeskSheet()
-    If ws Is Nothing Then Exit Sub
-    ws.Unprotect
-    PaintGap ws
-    ws.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True, UserInterfaceOnly:=True
+    SettingSet "rb_1", path & "|" & fw & "|" & Format$(Now, "dd mmm hh:nn") & "|" & nSheets
+    Err.Clear
+End Sub
+
+' Open, or the whole row, on Recent builds.
+Public Sub PD_OpenBuild()
+    Dim nm As String, i As Long, v As String, f As String, there As Boolean
+    If PD_Busy Then Exit Sub
+    ToastHide
+    nm = CallerName()
+    If Not nm Like "pdx_rb#_*" Then Exit Sub
+    i = CLng(Mid$(nm, 7, 1))
+    v = SettingGet("rb_" & i)
+    If Len(v) = 0 Then Exit Sub
+    f = CStr(Split(v, "|")(0))
+    On Error Resume Next
+    there = (Len(Dir$(f)) > 0)
+    Err.Clear
+    If Not there Then
+        Toast "That workbook is not where it was written any more: " & f, "CHECK"
+        Exit Sub
+    End If
+    Workbooks.Open f
+    If Err.Number <> 0 Then Toast "Excel could not open " & FileLeaf(f) & ": " & Err.Description, "BREAK"
     Err.Clear
 End Sub
 
@@ -1114,7 +1008,7 @@ Public Sub PD_Console()
     modPD_Theme.GoTo_ SH_HOME
 End Sub
 
-' The PivotDesk tab on the ribbon (build/ribbon.py), for Excel view. Every
+' The Avati tab on the ribbon (build/ribbon.py), for Excel view. Every
 ' button calls this, and it dispatches on the button's id. Declared As Object
 ' rather than IRibbonControl, so it needs no reference to the Office library.
 Public Sub PD_RibbonClick(control As Object)
@@ -1257,7 +1151,7 @@ Private Sub TourStep(ByVal n As Long, ByRef targets As String, ByRef title As St
         Case 1
             targets = "pdx_hero_greet,pdx_hero_lede,pdx_cta,pdx_cta2"
             title = "The next step, always"
-            body = "PivotDesk reads the desk and puts the next sensible step on this button. " & _
+            body = "Avati reads the desk and puts the next sensible step on this button. " & _
                    "The sentence above it says why."
         Case 2
             targets = "pdx_card1"
@@ -1275,10 +1169,10 @@ Private Sub TourStep(ByVal n As Long, ByRef targets As String, ByRef title As St
             body = "Reconcile the outputs against control reports 3 and 6. Each cell of the matrix is one " & _
                    "control against one framework."
         Case 5
-            targets = "pdx_gap"
-            title = "The shape of the book"
-            body = "After a build, the net balance in each maturity bucket is drawn here, shortest tenor " & _
-                   "first. The chip switches framework."
+            targets = "pdx_rb"
+            title = "Open what you built"
+            body = "Every workbook a build writes is listed here, newest first. Open one straight from the " & _
+                   "Desk, or the whole folder."
         Case Else
             targets = "pdx_nav"
             title = "Everything is one click away"
@@ -1707,8 +1601,8 @@ Public Sub Opened()
         If SettingGet("toured") <> "1" And DeskInFront() Then
             TourShow 1
         Else
-            Toast "New in " & TOOL_VERSION & ": the maturity gap of each build on the Desk, buckets in tenor " & _
-                  "order in every pivot, and a tour of the desk on F1.", V_OK
+            Toast "New in " & TOOL_VERSION & ": Avati's dark theme on every sheet and every workbook it builds, " & _
+                  "far more report options, custom charts and a report gallery under Reports.", V_OK
         End If
     End If
     Err.Clear

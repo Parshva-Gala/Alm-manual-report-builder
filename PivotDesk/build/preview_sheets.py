@@ -472,7 +472,7 @@ def main():
     if SAMPLE and os.path.exists(SAMPLE):
         pv, local = pivot_sheet()
         jobs.append(("built-balance-sheet", pv, 1500, 880))
-    built = "Built by PivotDesk 2.1 on 26 Sep 2026 14:05   -   data as of 30 Nov 2025"
+    built = "Built by Avati 3.0 on 26 Sep 2026 14:05   -   data as of 30 Nov 2025"
     if SAMPLE and os.path.exists(SAMPLE):
         made = [("LCR Output", "Rule-level output"), ("Balance sheet", "Balance sheet"),
                 ("Deposits from all instituti LCY", "Deposits from all institutions for operational purposes ... - LCY"),
