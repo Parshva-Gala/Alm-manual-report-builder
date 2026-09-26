@@ -151,6 +151,8 @@ Public Sub BuildConfigSheet(Optional ByVal withDefaults As Boolean = False)
     Hints ws
     modPD_Theme.PrintReady ws, K_LAST
     BuildFieldsSheet withDefaults
+    ' Workbooks keeps its own rows: it has its own Restore defaults.
+    modPD_Books.BuildBooksSheet False
     mDirty = False
 Done:
     ' Events are Excel's, not this workbook's: they go back on whatever happened.
@@ -372,7 +374,7 @@ Private Sub FieldHints(ByVal ws As Worksheet)
     Hint ws, r1, r2, G_FORMAT, "Number format", "For Number and Date fields."
 End Sub
 
-Private Sub Hint(ByVal ws As Worksheet, ByVal r1 As Long, ByVal r2 As Long, ByVal c As Long, _
+Public Sub Hint(ByVal ws As Worksheet, ByVal r1 As Long, ByVal r2 As Long, ByVal c As Long, _
                  ByVal title As String, ByVal msg As String)
     On Error Resume Next
     With ws.Range(ws.Cells(r1, c), ws.Cells(r2, c)).Validation
@@ -388,7 +390,7 @@ End Sub
 
 ' A dropdown. Strict refuses anything else; not strict offers the list and
 ' takes what is typed - "Data bars on Share".
-Private Sub ListRule(ByVal ws As Worksheet, ByVal r1 As Long, ByVal r2 As Long, ByVal c As Long, _
+Public Sub ListRule(ByVal ws As Worksheet, ByVal r1 As Long, ByVal r2 As Long, ByVal c As Long, _
                      ByVal items As String, ByVal title As String, ByVal msg As String, _
                      Optional ByVal strict As Boolean = True)
     On Error Resume Next
@@ -592,7 +594,7 @@ End Function
 ' heading before the sheet is rebuilt and written back under the same headings
 ' after, so adding a column never shifts anyone's rows.
 
-Private Function HeadersMatch(ByVal ws As Worksheet, ByVal heads As Variant) As Boolean
+Public Function HeadersMatch(ByVal ws As Worksheet, ByVal heads As Variant) As Boolean
     Dim c As Long
     For c = 0 To UBound(heads)
         If StrComp(SafeText(ws.Cells(modPD_Theme.R_HDR, c + 1).Value2), CStr(heads(c)), vbTextCompare) <> 0 Then Exit Function
@@ -600,7 +602,7 @@ Private Function HeadersMatch(ByVal ws As Worksheet, ByVal heads As Variant) As 
     HeadersMatch = True
 End Function
 
-Private Function Remember(ByVal ws As Worksheet) As Collection
+Public Function Remember(ByVal ws As Worksheet) As Collection
     Dim out As Collection, r As Long, c As Long, lastC As Long, lastR As Long, d As Object, h As String, any_ As Boolean
     Set out = New Collection
     Set Remember = out
@@ -620,7 +622,7 @@ Private Function Remember(ByVal ws As Worksheet) As Collection
     Next r
 End Function
 
-Private Sub PutBack(ByVal ws As Worksheet, ByVal rows As Collection, ByVal heads As Variant)
+Public Sub PutBack(ByVal ws As Worksheet, ByVal rows As Collection, ByVal heads As Variant)
     Dim d As Object, r As Long, c As Long
     r = modPD_Theme.R_FIRST
     For Each d In rows
@@ -693,12 +695,14 @@ Public Sub PD_ConfigDefaults()
     Dim ws As Worksheet
     If PD_Busy Then Exit Sub
     If MsgBox("Put the Pivot config back to its defaults?" & vbCrLf & vbCrLf & _
-              "Every recipe, and every field on Pivot fields, is replaced. The defaults build exactly what " & _
-              "version 1.0 built.", vbQuestion + vbYesNo, TOOL_NAME) <> vbYes Then Exit Sub
+              "Every recipe, and every field on Pivot fields, is replaced. The defaults build the Output, the " & _
+              "Balance sheet, one sheet per rule and the top counterparties, with more ready to switch on.", _
+              vbQuestion + vbYesNo, TOOL_NAME) <> vbYes Then Exit Sub
     Application.ScreenUpdating = False
     BuildConfigSheet True
     modPD_Theme.Rail GetSheet(SH_CONFIG)
     modPD_Theme.Rail GetSheet(SH_FIELDS)
+    modPD_Theme.Rail GetSheet(SH_BOOKS)
     Application.ScreenUpdating = True
     PD_ConfigCheck
 End Sub
@@ -887,6 +891,11 @@ Public Sub LiveCheck(ByVal sh As Object, ByVal target As Range)
             End If
         Next rc
         If Len(msg) = 0 Then msg = "Row " & r & " is empty."
+    ElseIf StrComp(sh.Name, SH_BOOKS, vbTextCompare) = 0 Then
+        If target.Row < modPD_Theme.R_FIRST Then Exit Sub
+        mDirty = True
+        msg = modPD_Books.RowSays(target.Row)
+        If Len(msg) = 0 Then Exit Sub
     ElseIf StrComp(sh.Name, SH_FIELDS, vbTextCompare) = 0 Then
         If target.Row < modPD_Theme.R_FIRST Then Exit Sub
         mDirty = True
@@ -914,11 +923,13 @@ Public Sub LeaveCheck(ByVal sh As Object)
     Dim ev As Boolean
     On Error Resume Next
     If Not mDirty Then Exit Sub
-    If StrComp(sh.Name, SH_CONFIG, vbTextCompare) <> 0 And StrComp(sh.Name, SH_FIELDS, vbTextCompare) <> 0 Then Exit Sub
+    If StrComp(sh.Name, SH_CONFIG, vbTextCompare) <> 0 And StrComp(sh.Name, SH_FIELDS, vbTextCompare) <> 0 And _
+       StrComp(sh.Name, SH_BOOKS, vbTextCompare) <> 0 Then Exit Sub
     mDirty = False
     ev = Application.EnableEvents
     Application.EnableEvents = False
     CheckAll True
+    modPD_Books.CheckBooks True
     Application.EnableEvents = ev
     Application.StatusBar = False
     modPD_Desk.RefreshDesk

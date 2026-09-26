@@ -772,7 +772,8 @@ End Function
 ' The Reports section: every sheet that shapes what a build makes, as the
 ' tabs across its toolbar.
 Public Function ReportsSheets() As Variant
-    ReportsSheets = Array(Array(SH_CONFIG, "Pivots", "PD_GoConfig"), Array(SH_FIELDS, "Fields", "PD_GoFields"))
+    ReportsSheets = Array(Array(SH_CONFIG, "Pivots", "PD_GoConfig"), Array(SH_BOOKS, "Workbooks", "PD_GoBooks"), _
+                          Array(SH_FIELDS, "Fields", "PD_GoFields"))
 End Function
 
 ' Row 4: for the Reports sheets, their tabs; then what this sheet can do.
@@ -814,6 +815,9 @@ Public Sub Toolbar(ByVal ws As Worksheet)
             End If
         Case SH_FIELDS
             x = Action(ws, "Check", "PD_ConfigCheck", x, y, 62)
+        Case SH_BOOKS
+            x = Action(ws, "Check", "PD_BooksCheck", x, y, 62)
+            x = Action(ws, "Restore defaults", "PD_BooksDefaults", x, y, 112)
         Case SH_RECON
             x = Action(ws, "Reconcile now", "PD_Reconcile", x, y, 102)
         Case SH_LOG
@@ -942,15 +946,20 @@ Public Sub PD_GoFields()
     EnsureConfig
     GoTo_ SH_FIELDS
 End Sub
+Public Sub PD_GoBooks()
+    EnsureConfig
+    GoTo_ SH_BOOKS
+End Sub
 
 Private Sub EnsureConfig()
     On Error Resume Next
-    If GetSheet(SH_CONFIG) Is Nothing Or GetSheet(SH_FIELDS) Is Nothing Then
+    If GetSheet(SH_CONFIG) Is Nothing Or GetSheet(SH_FIELDS) Is Nothing Or GetSheet(SH_BOOKS) Is Nothing Then
         Application.ScreenUpdating = False
         modPD_Config.BuildConfigSheet
         modPD_Config.CheckAll True
         Rail GetSheet(SH_CONFIG)
         Rail GetSheet(SH_FIELDS)
+        Rail GetSheet(SH_BOOKS)
         Application.ScreenUpdating = True
     End If
     Err.Clear

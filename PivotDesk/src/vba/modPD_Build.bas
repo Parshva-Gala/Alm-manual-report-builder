@@ -1,7 +1,10 @@
 Option Explicit
 
-' When one framework is split into several workbooks, the value this one is for.
+' When one framework is split into several workbooks: the field it is split
+' by, the value this one is for, and how many the last build made.
+Private mPer As String
 Private mPart As String
+Private mBooks As Long
 
 ' ============================================================================
 '  Building one framework's workbook.
@@ -18,9 +21,88 @@ Private mPart As String
 
 Private Const GUIDE_COLS As Long = 5
 
+' How many workbooks the last BuildFramework wrote.
+Public Function BooksMade() As Long
+    BooksMade = mBooks
+End Function
+
+' One framework, as Workbooks says: one workbook, or one per value of a
+' field. Returns the first workbook's path, or "" with errOut saying why.
 Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, ByRef errOut As String) As String
+    Dim plan As Object, parts As Variant, i As Long, first As String, p As String, e As String
+    Dim weights As Object, made As Long, one As String, recipes As Collection, skipped As String
+
+    mBooks = 0
+    mPer = ""
+    mPart = ""
+    Set plan = modPD_Books.PlanFor(fw)
+    If modPD_Config.Engine() <> "recipes" Or Len(plan("Per")) = 0 Then
+        BuildFramework = BuildBook(fw, outFolder, errOut, modPD_Books.FileBase(plan, fw, ""))
+        If Len(BuildFramework) > 0 Then mBooks = 1
+        Exit Function
+    End If
+
+    Set recipes = modPD_Recipe.RecipesFor(fw)
+    If recipes.count = 0 Then
+        errOut = "no pivot on the Pivot config sheet is switched on for " & FwLabel(fw)
+        Exit Function
+    End If
+    mPer = CStr(plan("Per"))
+    Step_ FwLabel(fw) & " - finding every " & mPer
+    modPD_Stage.HoldSource True
+    On Error GoTo Failed
+    Set weights = modPD_Stage.SurveyPart(fw, mPer, modPD_Recipe.ExtraFields(recipes, mPer), errOut)
+    If weights Is Nothing Then GoTo Done
+    parts = BySize(weights)
+    If IsArray(parts) Then
+        For i = 0 To UBound(parts)
+            one = CStr(parts(i))
+            If modPD_Books.Wanted(plan, one) Then
+                If made >= CLng(plan("Max")) Then
+                    skipped = skipped & IIf(Len(skipped) > 0, ", ", "") & one
+                Else
+                    mPart = one
+                    modPD_Stage.SetPart mPer, one
+                    e = ""
+                    p = BuildBook(fw, outFolder, e, modPD_Books.FileBase(plan, fw, one))
+                    If Len(p) > 0 Then
+                        made = made + 1
+                        If Len(first) = 0 Then first = p
+                    Else
+                        LogIt V_BREAK, "Pivots", FwLabel(fw) & " " & one & " not built - " & e, FwLabel(fw)
+                    End If
+                End If
+            End If
+        Next i
+    End If
+    If Len(skipped) > 0 Then
+        LogIt V_CHECK, "Pivots", "Max workbooks reached - not built: " & MidTrim(skipped, 200) & _
+              ". Raise it on Workbooks, or name the ones wanted under Only these.", FwLabel(fw)
+    End If
+    If made = 0 And Len(errOut) = 0 Then errOut = "no " & mPer & " had rows to build a workbook from"
+
+Done:
+    On Error Resume Next
+    modPD_Stage.SetPart "", ""
+    modPD_Stage.HoldSource False
+    mPart = ""
+    mPer = ""
+    mBooks = made
+    BuildFramework = first
+    Exit Function
+Failed:
+    errOut = Err.Number & " " & Err.Description
+    Resume Done
+End Function
+
+' One workbook: staged, its pivots built, its guide written, saved as
+' fileBase.xlsx in outFolder.
+Private Function BuildBook(ByVal fw As String, ByVal outFolder As String, ByRef errOut As String, _
+                           ByVal fileBase As String) As String
     Dim wb As Workbook, lo As ListObject, nSheets As Long, capped As Boolean
-    Dim Path As String, t0 As Single, recipes As Collection, fromConfig As Boolean
+    Dim Path As String, t0 As Single, recipes As Collection, fromConfig As Boolean, what As String
+
+    what = FwLabel(fw) & IIf(Len(mPart) > 0, " " & mPart, "")
 
     t0 = Timer
     fromConfig = (modPD_Config.Engine() = "recipes")
@@ -32,14 +114,14 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
         End If
     End If
 
-    Step_ FwLabel(fw) & " - opening a new workbook"
+    Step_ what & " - opening a new workbook"
     Set wb = Workbooks.Add(xlWBATWorksheet)
     Brand wb, fw
 
     modPD_Pivot.ResetPivots
-    Step_ FwLabel(fw) & " - staging the output"
+    Step_ what & " - staging the output"
     If fromConfig Then
-        Set lo = modPD_Stage.StageFramework(fw, wb, errOut, modPD_Recipe.ExtraFields(recipes), Signatures(recipes))
+        Set lo = modPD_Stage.StageFramework(fw, wb, errOut, modPD_Recipe.ExtraFields(recipes, mPer), Signatures(recipes))
     Else
         Set lo = modPD_Stage.StageFramework(fw, wb, errOut)
     End If
@@ -56,9 +138,9 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
     If fromConfig Then
         nSheets = RecipeSheets(wb, fw, recipes, capped)
     Else
-        Step_ FwLabel(fw) & " - the Output pivot"
+        Step_ what & " - the Output pivot"
         modPD_Pivot.BuildOutputSheet wb, fw
-        Step_ FwLabel(fw) & " - the Balance sheet pivot"
+        Step_ what & " - the Balance sheet pivot"
         modPD_Pivot.BuildBalanceSheet wb, fw
         If SplitsByCurrency(fw) Then
             nSheets = CurrencySheets(wb, capped)
@@ -72,8 +154,8 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
     modPD_Pivot.LinkSiblings wb
     Tidy wb
 
-    Path = PathJoin(outFolder, SafeFileName(FwLabel(fw)) & ".xlsx")
-    Step_ FwLabel(fw) & " - saving"
+    Path = PathJoin(outFolder, fileBase & ".xlsx")
+    Step_ what & " - saving"
     On Error GoTo SaveFailed
     Application.DisplayAlerts = False
     wb.SaveAs Path, 51            ' xlOpenXMLWorkbook - no macros, opens anywhere
@@ -84,8 +166,9 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
 
     LogIt V_OK, "Pivots", Fmt(modPD_Stage.StagedRows()) & " row(s) staged, " & _
           nSheets & " pivot sheet(s), " & Format$(Timer - t0, "0.0") & "s" & _
-          IIf(fromConfig, ", from Pivot config.", ", 1.0 layout."), FwLabel(fw)
-    BuildFramework = Path
+          IIf(fromConfig, ", from Pivot config.", ", 1.0 layout.") & IIf(Len(mPart) > 0, " " & mPer & ": " & mPart & ".", ""), _
+          FwLabel(fw)
+    BuildBook = Path
     Exit Function
 
 SaveFailed:
@@ -320,7 +403,7 @@ Private Function tabName(ByVal ruleName As String, ByVal side As String) As Stri
     tabName = SafeSheetName(body & " " & side)
 End Function
 
-Private Function SafeFileName(ByVal s As String) As String
+Public Function SafeFileName(ByVal s As String) As String
     Dim bad As Variant, b As Variant, o As String
     o = s
     bad = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
@@ -560,7 +643,7 @@ Private Sub Brand(ByVal wb As Workbook, ByVal fw As String)
         .Name = modPD_Theme.UI_FONT
         .Size = 10
     End With
-    wb.BuiltinDocumentProperties("Title").value = FwLabel(fw) & " pivots  -  " & BANK_NAME
+    wb.BuiltinDocumentProperties("Title").value = Replace(BookTitle(fw), ChrW(183), "-") & " pivots  -  " & BANK_NAME
     wb.BuiltinDocumentProperties("Subject").value = FwLabel(fw) & " output, staged into live PivotTables"
     wb.BuiltinDocumentProperties("Keywords").value = "ALM; " & FwLabel(fw) & "; Avati; " & BANK_NAME
     wb.BuiltinDocumentProperties("Comments").value = "Built by " & TOOL_NAME & " " & TOOL_VERSION & " on " & _

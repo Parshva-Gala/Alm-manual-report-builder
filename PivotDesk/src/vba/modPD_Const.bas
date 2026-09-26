@@ -39,6 +39,7 @@ Public Const SH_LOG As String = "Activity"
 Public Const SH_SETTINGS As String = "_Settings"
 Public Const SH_CONFIG As String = "Pivot config"
 Public Const SH_FIELDS As String = "Pivot fields"
+Public Const SH_BOOKS As String = "Workbooks"
 
 ' --- sheets in a generated framework workbook -------------------------------
 Public Const SH_STAGE As String = "_data"

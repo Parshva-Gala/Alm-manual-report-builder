@@ -151,13 +151,15 @@ Private Sub PrintSetup()
     Set ws = GetSheet(SH_CONFIG)
     If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 21
     Set ws = GetSheet(SH_FIELDS)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 7
+    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
+    Set ws = GetSheet(SH_BOOKS)
+    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
 End Sub
 
 Private Sub OrderSheets()
     Dim order As Variant, i As Long, ws As Worksheet
     On Error Resume Next
-    order = Array(SH_HOME, SH_SOURCES, SH_CONFIG, SH_FIELDS, SH_RECON, SH_LOG)
+    order = Array(SH_HOME, SH_SOURCES, SH_CONFIG, SH_BOOKS, SH_FIELDS, SH_RECON, SH_LOG)
     For i = 0 To UBound(order)
         Set ws = GetSheet(CStr(order(i)))
         If Not ws Is Nothing Then ws.Move Before:=ThisWorkbook.Worksheets(i + 1)
@@ -207,6 +209,13 @@ Public Sub BuildPivotsFor(ByVal args As String)
             modPD_Config.BuildConfigSheet
             modPD_Theme.Rail GetSheet(SH_CONFIG)
             modPD_Theme.Rail GetSheet(SH_FIELDS)
+            modPD_Theme.Rail GetSheet(SH_BOOKS)
+        End If
+        If GetSheet(SH_BOOKS) Is Nothing Then modPD_Books.BuildBooksSheet
+        If modPD_Books.CheckBooks(True) > 0 Then
+            Notify "A row on Workbooks will not build - the reason is beside it, under What to fix.", V_BREAK
+            modPD_Theme.GoTo_ SH_BOOKS
+            Exit Sub
         End If
         If modPD_Config.CheckAll(True) > 0 Then
             modPD_Desk.RefreshDesk
@@ -232,8 +241,12 @@ Public Sub BuildPivotsFor(ByVal args As String)
             Progress_ FwLabel(fw) & " - starting", i / (UBound(parts) + 1)
             Path = modPD_Build.BuildFramework(fw, folder, errOut)
             If Len(Path) > 0 Then
-                n = n + 1
-                made = made & IIf(Len(made) > 0, ", ", "") & FileLeaf(Path)
+                n = n + modPD_Build.BooksMade()
+                If modPD_Build.BooksMade() > 1 Then
+                    made = made & IIf(Len(made) > 0, ", ", "") & FwLabel(fw) & " (" & modPD_Build.BooksMade() & ")"
+                Else
+                    made = made & IIf(Len(made) > 0, ", ", "") & FileLeaf(Path)
+                End If
             Else
                 LogIt V_BREAK, "Pivots", "Not built - " & errOut, FwLabel(fw)
                 notBuilt = notBuilt & IIf(Len(notBuilt) > 0, ", ", "") & FwLabel(fw)

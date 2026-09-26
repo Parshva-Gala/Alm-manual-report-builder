@@ -48,6 +48,16 @@ Private mXFrom() As Long
 Private mXAbs() As Boolean            ' the computed column without its sign
 Private mXBy() As String              ' a group: year, quarter, month, day or step
 Private mXStep() As Double
+
+' One workbook per: the field and the value this staging pass keeps, and the
+' output held open between the passes so it is read from disk once.
+Private mPartField As String
+Private mPartVal As String
+Private mPartCol As Long
+Private mSurvey As Boolean
+Private mHold As Boolean
+Private mHeldWb As Workbook
+Private mHeldPath As String
 Private mMissing As String
 
 ' "One sheet per" families: signature (field names joined by Chr(30)) ->
@@ -135,6 +145,44 @@ Public Function MissingFields() As String
     MissingFields = mMissing
 End Function
 
+' ===================== one workbook per =====================================
+
+' Keeps the output open between staging passes - or, switched off, closes it.
+Public Sub HoldSource(ByVal hold As Boolean)
+    mHold = hold
+    If Not hold Then ReleaseHeld
+End Sub
+
+Private Sub ReleaseHeld()
+    On Error Resume Next
+    If Not mHeldWb Is Nothing Then mHeldWb.Close SaveChanges:=False
+    Set mHeldWb = Nothing
+    mHeldPath = ""
+    Err.Clear
+End Sub
+
+' The rows the next staging pass keeps: those whose field reads value. Blank
+' keeps every row.
+Public Sub SetPart(ByVal fieldName As String, ByVal value As String)
+    mPartField = fieldName
+    mPartVal = value
+End Sub
+
+' Every value of a field in this framework's output, with the gross amount
+' under each - read with the same pass that stages, so the values are
+' spelt exactly as the part filter will compare them. Nothing is written.
+Public Function SurveyPart(ByVal fw As String, ByVal fieldName As String, ByVal extras As Collection, _
+                           ByRef errOut As String) As Object
+    Dim sigs As Collection
+    Set sigs = New Collection
+    sigs.Add fieldName
+    SetPart "", ""
+    mSurvey = True
+    StageFramework fw, Nothing, errOut, extras, sigs
+    mSurvey = False
+    If Len(errOut) = 0 Then Set SurveyPart = SplitWeightsFor(fieldName)
+End Function
+
 ' ============================================================================
 '  Read one framework's output into a staging table in the target workbook.
 '  Returns the ListObject, or Nothing.
@@ -156,7 +204,16 @@ Public Function StageFramework(ByVal fw As String, ByVal dstWb As Workbook, ByRe
     ResetPass
 
     On Error GoTo Failed
-    Set src = Workbooks.Open(Path, UpdateLinks:=0, ReadOnly:=True, AddToMru:=False, IgnoreReadOnlyRecommended:=True)
+    If mHold And Not mHeldWb Is Nothing And StrComp(mHeldPath, Path, vbTextCompare) = 0 Then
+        Set src = mHeldWb
+    Else
+        ReleaseHeld
+        Set src = Workbooks.Open(Path, UpdateLinks:=0, ReadOnly:=True, AddToMru:=False, IgnoreReadOnlyRecommended:=True)
+        If mHold Then
+            Set mHeldWb = src
+            mHeldPath = Path
+        End If
+    End If
     Set ws = modPD_Files.SheetOfSlot(src, key, hdr)
     If ws Is Nothing Then errOut = "the sheet recorded for that file is not in it any more": GoTo CloseFail
 
@@ -174,6 +231,11 @@ Public Function StageFramework(ByVal fw As String, ByVal dstWb As Workbook, ByRe
     PlanExtras extras, fieldMap, ix
     PlanSplits splits
     PlanTidy
+    mPartCol = 0
+    If Len(mPartField) > 0 Then
+        mPartCol = StageCol(mPartField)
+        If mPartCol = 0 Then errOut = mPartField & " is not staged, so the workbooks cannot be split by it": GoTo CloseFail
+    End If
 
     BuildWanted ix, cols, nCols
     BuildRuns cols, nCols, runStart, runEnd, nRuns
@@ -187,8 +249,10 @@ Public Function StageFramework(ByVal fw As String, ByVal dstWb As Workbook, ByRe
     Set mCurrencies = pass1
 
     ' --- the staging table ---------------------------------------------------
-    Set stage = NewStageSheet(dstWb)
-    WriteStageHeader stage
+    If Not mSurvey Then
+        Set stage = NewStageSheet(dstWb)
+        WriteStageHeader stage
+    End If
     outRow = 2
 
     r = hdr + 1
@@ -206,25 +270,36 @@ Public Function StageFramework(ByVal fw As String, ByVal dstWb As Workbook, ByRe
                   wrote / (lastR - hdr)
     Loop
 
-    src.Close SaveChanges:=False
+    If Not mHold Then src.Close SaveChanges:=False
     Set src = Nothing
     mRows = wrote
 
-    If wrote = 0 Then errOut = "every row in that file was empty": Exit Function
+    If mSurvey Then Exit Function
+    If wrote = 0 Then
+        If mPartCol > 0 Then
+            errOut = "no rows for " & mPartField & " " & mPartVal
+        Else
+            errOut = "every row in that file was empty"
+        End If
+        Exit Function
+    End If
     Set StageFramework = MakeTable(stage, outRow - 1)
-    modPD_Files.NoteRows key, wrote, mAsOf
+    ' The file's own count, not one part's.
+    If mPartCol = 0 Then modPD_Files.NoteRows key, wrote, mAsOf
     modPD_Files.NoteAmountField key, AmountFieldNote()
     Exit Function
 
 CloseFail:
     On Error Resume Next
     If Not src Is Nothing Then src.Close SaveChanges:=False
+    Set mHeldWb = Nothing
     Err.Clear
     Exit Function
 Failed:
     errOut = Err.Number & " " & Err.Description
     On Error Resume Next
     If Not src Is Nothing Then src.Close SaveChanges:=False
+    Set mHeldWb = Nothing
     Err.Clear
 End Function
 
@@ -539,6 +614,16 @@ Private Function EmitBlock(ByRef buf As Variant, ByVal n As Long, ByVal ix As Ob
         out(k, C_BUCKET) = bkt
         out(k, C_PRE) = pre
         out(k, C_POST) = post
+        If mXCount > 0 Then EmitExtras buf, i, out, k
+
+        ' One workbook per: a row of another part goes no further - it is
+        ' overwritten by the next, and counts towards nothing.
+        If mPartCol > 0 Then
+            If StrComp(CStr(out(k, mPartCol)), mPartVal, vbTextCompare) <> 0 Then
+                k = k - 1
+                GoTo NextRow
+            End If
+        End If
 
         mBktNet(bkt) = SafeNum(mBktNet(bkt)) + 1
         mPreAbs = mPreAbs + Abs(pre)
@@ -554,7 +639,6 @@ Private Function EmitBlock(ByRef buf As Variant, ByVal n As Long, ByVal ix As Ob
             End If
         End If
 
-        If mXCount > 0 Then EmitExtras buf, i, out, k
         If mSplitCols.count > 0 Then Weigh out, k, pre
         If Len(rule) > 0 Then mRuleNames(rule) = SafeNum(mRuleNames(rule)) + Abs(pre)
         ' AsOfText, not Txt: the block was read with .Value2, which hands a date
@@ -564,12 +648,14 @@ Private Function EmitBlock(ByRef buf As Variant, ByVal n As Long, ByVal ix As Ob
             m = DateValueOf(buf(i, iAsOf))
             If Not IsEmpty(m) Then mAsOfNum = CDbl(m)
         End If
+NextRow:
     Next i
 
     If k = 0 Then Exit Function
+    EmitBlock = k
+    If stage Is Nothing Then Exit Function          ' a survey: counted, not written
     stage.Range(stage.Cells(outRow, 1), stage.Cells(outRow + k - 1, C_COLS + mXCount)).Value2 = out
     outRow = outRow + k
-    EmitBlock = k
 End Function
 
 ' The extra fields of one row. Text keeps its blank label, a number stays a

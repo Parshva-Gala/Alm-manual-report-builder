@@ -978,11 +978,15 @@ End Function
 ' Fields named by the recipes that 1.0 did not stage - what the stager has to
 ' add for this build: the extra columns, the columns a calculated field reads,
 ' and a column for every group.
-Public Function ExtraFields(ByVal recipes As Collection) As Collection
+'
+' alsoField: one more the build needs staged - the field a framework is split
+' into workbooks by.
+Public Function ExtraFields(ByVal recipes As Collection, Optional ByVal alsoField As String = "") As Collection
     Dim out As Collection, seen As Object, fl As Object, rc As Object, nm As Variant, g As Object
     Set out = New Collection
     Set seen = NewMap()
     Set fl = modPD_Config.Fields()
+    If Len(alsoField) > 0 Then NeedField out, seen, fl, alsoField
     For Each rc In recipes
         For Each nm In FieldNamesOf(rc)
             NeedField out, seen, fl, CStr(nm)
