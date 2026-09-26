@@ -1,0 +1,12 @@
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const source=path.join(root,'web','dist');
+const target=path.join(root,'android','app','src','main','assets','www');
+if(path.relative(root,target)!==path.join('android','app','src','main','assets','www'))throw Error('Invalid asset destination');
+await fs.access(path.join(source,'index.html'));
+await fs.rm(target,{recursive:true,force:true});
+await fs.mkdir(target,{recursive:true});
+await fs.cp(source,target,{recursive:true});
+console.log('Bundled the compiled application into Android assets.');

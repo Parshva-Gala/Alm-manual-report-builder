@@ -1,0 +1,12 @@
+**/node_modules/
+**/dist/
+**/build/
+**/.gradle/
+**/local.properties
+**/*.jks
+**/*.keystore
+**/*.p12
+**/.env
+**/.env.*
+**/*.tsbuildinfo
+!**/.env.example

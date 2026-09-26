@@ -1,0 +1,15 @@
+{
+  "apk": "ESG-Banking-1.0.0.apk",
+  "bytes": 5887725,
+  "sha256": "6d42d1cc7db0da29322f090277477ea74c3d84e5b021b204f2682a5e324180e8",
+  "applicationId": "com.esgbanking.workbench",
+  "versionName": "1.0.0",
+  "versionCode": 1,
+  "minSdk": 28,
+  "targetSdk": 35,
+  "debuggable": false,
+  "signing": "Demonstration release certificate",
+  "signatureVerification": "Verifies\nVerified using v1 scheme (JAR signing): false\nVerified using v2 scheme (APK Signature Scheme v2): false\nVerified using v3 scheme (APK Signature Scheme v3): true\nVerified using v3.1 scheme (APK Signature Scheme v3.1): false\nVerified using v4 scheme (APK Signature Scheme v4): false\nVerified for SourceStamp: false\nNumber of signers: 1\nSigner #1 certificate DN: CN=ESG Banking Demonstration, OU=Local Demo Release, O=ESG Workbench\nSigner #1 certificate SHA-256 digest: 0cf28ef0a1efc2ca9b45cead9f03cf5f95f31da2494703d5e9f750c0c63bd6c9\nSigner #1 certificate SHA-1 digest: e37cf1560b8d3200049d1862ad2fc914f386954b\nSigner #1 certificate MD5 digest: 39d59b41b5e08d9d4feeba82b69cb62f\nSigner #1 key algorithm: RSA\nSigner #1 key size (bits): 3072\nSigner #1 public key SHA-256 digest: 9bb6b9c3f4edd9d93466eb9bd87f2438a7a49ec88767abe68ccf5038f3088391\nSigner #1 public key SHA-1 digest: d0cbe578c997d4b7c55d0defa97e68ffd58df8b4\nSigner #1 public key MD5 digest: cfcda3231c327220e93f1907954c7f3d\n",
+  "permissions": "package: com.esgbanking.workbench\npermission: com.esgbanking.workbench.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\nuses-permission: name='com.esgbanking.workbench.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'\n",
+  "deviceTested": false
+}

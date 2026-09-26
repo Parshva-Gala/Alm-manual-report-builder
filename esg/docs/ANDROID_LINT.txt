@@ -1,0 +1,38 @@
+C:\Users\Admin\ESG\esg-android\android\app\build.gradle:31: Warning: A newer version of androidx.activity:activity than 1.10.1 is available: 1.13.0 [GradleDependency]
+    implementation 'androidx.activity:activity:1.10.1'
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Admin\ESG\esg-android\android\app\build.gradle:32: Warning: A newer version of androidx.core:core than 1.15.0 is available: 1.19.1 [GradleDependency]
+    implementation 'androidx.core:core:1.15.0'
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Admin\ESG\esg-android\android\app\build.gradle:33: Warning: A newer version of androidx.webkit:webkit than 1.12.1 is available: 1.17.1 [GradleDependency]
+    implementation 'androidx.webkit:webkit:1.12.1'
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "GradleDependency":
+   This detector looks for usages of libraries where the version you are using
+   is not the current stable release. Using older versions is fine, and there
+   are cases where you deliberately want to stick with an older version.
+   However, you may simply not be aware that a more recent version is
+   available, and that is what this lint check helps find.
+
+C:\Users\Admin\ESG\esg-android\android\app\src\main\java\com\esgbanking\workbench\MainActivity.java:436: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+        Button update=new Button(this);update.setText("Update WebView / Chrome");update.setId(View.generateViewId());update.setTag("update");update.setOnClickListener(v->openExternalHttps(Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.webview")));errorPanel.addView(update);
+                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Admin\ESG\esg-android\android\app\src\main\java\com\esgbanking\workbench\MainActivity.java:437: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+        Button close=new Button(this);close.setText("Close");close.setOnClickListener(v->finish());errorPanel.addView(close);errorPanel.setVisibility(View.GONE);content.addView(errorPanel,new FrameLayout.LayoutParams(-1,-1));setContentView(root);
+                                                    ~~~~~~~
+
+   Explanation for issues of type "SetTextI18n":
+   When calling TextView#setText
+   * Never call Number#toString() to format numbers; it will not handle
+   fraction separators and locale-specific digits properly. Consider using
+   String#format with proper format specifications (%d or %f) instead.
+   * Do not pass a string literal (e.g. "Hello") to display text. Hardcoded
+   text can not be properly translated to other languages. Consider using
+   Android resource strings instead.
+   * Do not build messages by concatenating text chunks. Such messages can not
+   be properly translated.
+
+   https://developer.android.com/guide/topics/resources/localization.html
+
+0 errors, 5 warnings

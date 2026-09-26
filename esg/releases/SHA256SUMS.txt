@@ -1,0 +1,4 @@
+6d42d1cc7db0da29322f090277477ea74c3d84e5b021b204f2682a5e324180e8  ESG-Banking-1.0.0.apk
+f15000f4b8a6f2474bdc81d5589a04ed8fd4658dd1f998b3ab0540938293a4d3  ESG-Banking-Source-1.0.0.zip
+d4a4f537718e1dea0ecf3b00b32e1188d6335f05f040b483655a2feeb389dc16  ESG-Banking-Technical-Notes.md
+8d0cea4bbcb883e5451d736b68789386c2eb7d6b580db1d8f8cceaa1428512d3  release-manifest.json
