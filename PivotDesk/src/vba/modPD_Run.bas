@@ -199,6 +199,13 @@ Public Sub BuildPivotsFor(ByVal args As String)
     ' Build what the Pivot config says, or nothing: a recipe that will not
     ' build is reported before twenty minutes are spent finding out.
     If modPD_Config.Engine() = "recipes" Then
+        ' A deleted Pivot config comes back as the defaults - which build
+        ' exactly what 1.0 built - rather than a build that makes nothing.
+        If GetSheet(SH_CONFIG) Is Nothing Then
+            modPD_Config.BuildConfigSheet
+            modPD_Theme.Rail GetSheet(SH_CONFIG)
+            modPD_Theme.Rail GetSheet(SH_FIELDS)
+        End If
         If modPD_Config.CheckAll(True) > 0 Then
             modPD_Desk.RefreshDesk
             Notify "Some pivots on Pivot config will not build - the reason is beside each, under What to fix. " & _

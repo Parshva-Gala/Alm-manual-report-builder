@@ -619,8 +619,23 @@ Public Sub PD_GoLog()
     GoTo_ SH_LOG
 End Sub
 Public Sub PD_GoConfig()
+    EnsureConfig
     GoTo_ SH_CONFIG
 End Sub
 Public Sub PD_GoFields()
+    EnsureConfig
     GoTo_ SH_FIELDS
+End Sub
+
+Private Sub EnsureConfig()
+    On Error Resume Next
+    If GetSheet(SH_CONFIG) Is Nothing Or GetSheet(SH_FIELDS) Is Nothing Then
+        Application.ScreenUpdating = False
+        modPD_Config.BuildConfigSheet
+        modPD_Config.CheckAll True
+        Rail GetSheet(SH_CONFIG)
+        Rail GetSheet(SH_FIELDS)
+        Application.ScreenUpdating = True
+    End If
+    Err.Clear
 End Sub

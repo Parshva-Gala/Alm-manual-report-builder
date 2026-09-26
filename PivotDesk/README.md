@@ -57,7 +57,7 @@ workbook. **App view** hides it again.
   format and tab colour. Any of the output's columns can be used, not just
   the thirteen 1.0 staged. The defaults build exactly what 1.0 built. See
   [docs/PIVOT_CONFIG.md](docs/PIVOT_CONFIG.md).
-- Fourteen bugs found along the way were fixed. They are listed in
+- Seventeen bugs found along the way were fixed. They are listed in
   [docs/PLAN.md](docs/PLAN.md), section R.
 
 The full look-and-feel plan, with a status for every item, is in

@@ -233,6 +233,9 @@ with the reason.
 - [x] R12 Slicers were placed at a fixed 74 pt, which the taller 2.0 masthead would have overlapped; they now get a band of their own
 - [x] R13 1.0 made an FCY sheet for every rule even when the rule had no FCY rows; PickOne then failed silently and the sheet showed every side unfiltered. Recipe families only build combinations that exist
 - [x] R14 The field catalog was first laid out under the recipes and would have shared their 7-wide first column; caught in preview and moved to its own sheet
+- [x] R15 A sheet name with an apostrophe ("Customer's deposits") broke its Start here link; now escaped
+- [x] R16 A deleted Pivot config sheet would have made a build produce nothing; it now comes back as the defaults
+- [x] R17 First open added and dressed sheets with events on, so each new sheet was "activated" half-built; events and repainting now pause until the desk is ready
 
 ## Q. Configurable pivots (separate workstream)
 
@@ -268,3 +271,5 @@ User guide: [PIVOT_CONFIG.md](PIVOT_CONFIG.md).
 - [x] Q28 Desk: the next action points at Pivot config when a recipe that is on will not build
 - [x] Q29 VBA lint now also enforces VBA's 24-continuation and 1023-character limits
 - [x] Q30 Previews of both sheets, drawn from the defaults in the VBA source itself
+- [x] Q31 Four ready-made recipes ship switched off: counterparty by product, maturity profile, top counterparties, one sheet per product
+- [x] Q32 VBA lint checks every call's argument count against the procedure's signature
