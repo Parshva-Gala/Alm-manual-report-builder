@@ -15,6 +15,7 @@ anything built on one cannot run here; that stays on the Windows walk-through.
 usage:  python3 lo_run.py ../dist/Avati.xlsm
 """
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -85,6 +86,37 @@ End Function
 '''
 
 
+# modPD_Build's family sort is private; its source is copied into the harness
+# and run on a family where every tie-break matters.
+SORT_TEST = '''
+Function SortTest() As String
+    Dim idx(0 To 4) As Long, heads(0 To 4) As String, w(0 To 4) As Double, g(0 To 4) As Double, i As Long
+    heads(0) = "A": w(0) = 4: g(0) = 10
+    heads(1) = "C": w(1) = 10: g(1) = 10
+    heads(2) = "B": w(2) = 5: g(2) = 20
+    heads(3) = "A": w(3) = 6: g(3) = 10
+    heads(4) = "B": w(4) = 15: g(4) = 20
+    For i = 0 To 4
+        idx(i) = i
+    Next i
+    MergeSort idx, heads, w, g
+    For i = 0 To 4
+        SortTest = SortTest & idx(i)
+    Next i
+End Function
+'''
+
+
+def private_procs(module, names):
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "vba", module + ".bas"),
+               encoding="cp1252").read()
+    out = ""
+    for nm in names:
+        m = re.search(r"^Private (Sub|Function) %s\(.*?^End \1" % nm, src, re.S | re.M)
+        out += "\n" + m.group(0).replace("Private ", "", 1) + "\n"
+    return out
+
+
 def main():
     path = os.path.abspath(sys.argv[1])
     lock = os.path.join(os.path.dirname(path), ".~lock." + os.path.basename(path) + "#")
@@ -113,7 +145,7 @@ def main():
             print("FAIL  LibreOffice could not open the workbook")
             return 1
         lib = doc.BasicLibraries.getByName("VBAProject")
-        body = HARNESS
+        body = HARNESS + private_procs("modPD_Build", ("MergeSort", "Before")) + SORT_TEST
         for i, (expr, _) in enumerate(KNOWN):
             body += "Function K%d() As String\n    K%d = CStr(%s)\nEnd Function\n" % (i, i, expr)
         lib.insertByName("zzHarness", body)
@@ -148,6 +180,12 @@ def main():
         bad += nbad
         print("%s  TidyLabel agrees with labels.py on %d labels in 3 modes" % ("ok  " if not nbad else "FAIL",
                                                                               len(labels.SAMPLES) + 2))
+
+        got = call("SortTest")
+        ok = got == "42301"
+        bad += not ok
+        print("%s  family sort: biggest family first, then its biggest member, ties A to Z = %r%s" % (
+            "ok  " if ok else "FAIL", got, "" if ok else "  (want '42301')"))
 
         for i, (expr, want) in enumerate(KNOWN):
             got = call("K%d" % i)

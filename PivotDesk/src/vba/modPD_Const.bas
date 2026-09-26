@@ -177,6 +177,9 @@ Public PD_Trace As Object
 ' phase started, and how far it had got at the last report.
 Private mProgT0 As Single
 Private mProgLast As Double
+' When the last breadcrumb let Windows in. A build that does not for five
+' seconds is shown as "Not Responding", and its status bar stops painting.
+Private mYieldAt As Single
 
 ' ===================== procedures begin here ================================
 
@@ -258,7 +261,18 @@ Public Sub Step_(ByVal what As String)
     On Error Resume Next
     Application.StatusBar = TOOL_NAME & "   " & ChrW(183) & "   " & what
     If Not PD_Trace Is Nothing Then PD_Trace.Note what
+    LetWindowsIn
     Err.Clear
+End Sub
+
+' DoEvents, a few times a second at most: the status bar repaints and Windows
+' sees Excel alive. The Desk's buttons are held off meanwhile (PD_Busy), and
+' the Working veil covers the Desk.
+Private Sub LetWindowsIn()
+    If Timer < mYieldAt Then mYieldAt = 0            ' past midnight
+    If Timer - mYieldAt < 0.25 Then Exit Sub
+    mYieldAt = Timer
+    DoEvents
 End Sub
 
 ' The same breadcrumb with a measured bar in front of it, for the stages that
@@ -278,6 +292,7 @@ Public Sub Progress_(ByVal what As String, ByVal frac As Double)
     Next i
     Application.StatusBar = TOOL_NAME & "   " & bar & "  " & Format$(frac, "0%") & "   " & what & TimeLeft(frac)
     If Not PD_Trace Is Nothing Then PD_Trace.Note what
+    LetWindowsIn
     Err.Clear
 End Sub
 
