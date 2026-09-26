@@ -353,6 +353,18 @@ Private Sub WriteDefaultRecipes(ByVal ws As Worksheet)
         "Pre factor amount sum as Pre-factor; Pre factor amount %col as Share", "Bucket <> (no bucket)", _
         "Product", "Tabular", "Counterparty", "Both", "Yes", "Pre-factor desc", "Counterparty=34; values=15", _
         "", "Emerald", "", "An example of your own: switch it On to build it."
+    ' A few more worth having, ready to switch on.
+    Recipe ws, r + 5, "No", "{fw} maturity profile", "All", "", "Product, Cashflow element", "Bucket", _
+        "Pre factor amount sum as Pre-factor; Post factor amount sum as Post-factor", "Bucket <> (no bucket)", _
+        "Product", "Tabular", "Product", "Both", "No", "Pre-factor desc", "Product=22; Cashflow element=24", _
+        "", "Emerald", "", "What each product contributes to each bucket, before and after the factors."
+    Recipe ws, r + 6, "No", "{fw} top counterparties", "All", "", "Counterparty", "LCY / FCY", _
+        "Pre factor amount sum as Pre-factor; Pre factor amount %total as Share", "", "", "Tabular", "None", _
+        "Both", "No", "Pre-factor desc", "Counterparty=40; values=15", "", "Emerald", "", _
+        "Counterparties by size, with each one's share of the whole book."
+    Recipe ws, r + 7, "No", "{split}", "All", "Product", "Type, Line, COA name", "Bucket", _
+        "Pre factor amount sum as Pre-factor", "Bucket <> (no bucket)", "", "Tabular", "None", "Both", "No", _
+        "", "", "", "Deep", "20", "One sheet per product: its balances across the maturity buckets."
 End Sub
 
 Private Sub Recipe(ByVal ws As Worksheet, ByVal r As Long, ParamArray v() As Variant)
@@ -531,22 +543,22 @@ End Function
 ' too, so Check can say what is wrong with them before anyone switches them on.
 Public Function AllRecipes() As Collection
     Dim ws As Worksheet, out As Collection, r As Long, lastR As Long, fl As Object
-    Dim names As Object, rc As Object
+    Dim seenNames As Object, rc As Object
     Set out = New Collection
     Set AllRecipes = out
     Set ws = ConfigSheet()
     If ws Is Nothing Then Exit Function
     Set fl = Fields()
-    Set names = NewMap()
+    Set seenNames = NewMap()
     lastR = RecipeLastRow(ws)
     For r = modPD_Theme.R_FIRST To lastR
         If Len(SafeText(ws.Cells(r, K_NAME).Value2)) > 0 Or Len(SafeText(ws.Cells(r, K_ROWS).Value2)) > 0 Then
             Set rc = ParseRow(ws, r, fl)
             If CBool(rc("On")) And Len(rc("Problem")) = 0 Then
-                If names.Exists(rc("Name") & "|" & rc("Frameworks")) Then
+                If seenNames.Exists(rc("Name") & "|" & rc("Frameworks")) Then
                     rc("Problem") = "Another row that is on has the same pivot name and frameworks."
                 Else
-                    names(rc("Name") & "|" & rc("Frameworks")) = True
+                    seenNames(rc("Name") & "|" & rc("Frameworks")) = True
                 End If
             End If
             out.Add rc

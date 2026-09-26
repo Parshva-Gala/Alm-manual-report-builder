@@ -95,9 +95,14 @@ The four rows PivotDesk ships with build exactly what 1.0 built:
 | Yes | `{split}` | LCR, NSFR | Rule name, LCY / FCY | Type, Line, Subline, COA name | Bucket | Pre-factor |
 | Yes | `{split}` | Maturity ladder | Currency | Rule name, Type, Line, Subline, COA name | Bucket | Pre-factor |
 
-A fifth row ships switched off, as a worked example of a pivot of your own:
-counterparty by product across buckets, with each counterparty's share of the
-bucket, sorted biggest first.
+Four more ship switched off, ready to turn on:
+
+| Pivot | What it is |
+|---|---|
+| `{fw} by counterparty` | Counterparty by product across buckets, with each counterparty's share of the bucket, biggest first |
+| `{fw} maturity profile` | What each product contributes to each bucket, before and after the factors, subtotalled by product |
+| `{fw} top counterparties` | Counterparties by size, LCY against FCY, with each one's share of the whole book |
+| `{split}` by Product | One sheet per product: its balances across the maturity buckets, at most 20 sheets |
 
 ## Recipes worth having
 

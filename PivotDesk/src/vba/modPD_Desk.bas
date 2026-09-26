@@ -188,7 +188,7 @@ Private Function IsIn(ByVal state As String) As Boolean
 End Function
 
 Private Function SlotMeta(ByVal key As String, ByVal state As String) As String
-    Dim leaf As String, rows As String
+    Dim leaf As String, rowsTxt As String
     Select Case state
         Case "EMPTY"
             SlotMeta = "Not added  " & ChrW(183) & "  click to choose"
@@ -196,11 +196,11 @@ Private Function SlotMeta(ByVal key As String, ByVal state As String) As String
             SlotMeta = "Moved or renamed  " & ChrW(183) & "  click to find it"
         Case Else
             leaf = MidTrim(FileLeaf(modPD_Files.SlotFile(key)), 30)
-            rows = SlotCell(key, modPD_Files.S_ROWS)
+            rowsTxt = SlotCell(key, modPD_Files.S_ROWS)
             If state = "FORCED" Then
                 SlotMeta = leaf & "  " & ChrW(183) & "  placed by hand - check"
-            ElseIf Len(rows) > 0 And IsNumeric(rows) Then
-                SlotMeta = leaf & "  " & ChrW(183) & "  " & Fmt(CDbl(rows)) & " rows"
+            ElseIf Len(rowsTxt) > 0 And IsNumeric(rowsTxt) Then
+                SlotMeta = leaf & "  " & ChrW(183) & "  " & Fmt(CDbl(rowsTxt)) & " rowsTxt"
             Else
                 SlotMeta = leaf
             End If
@@ -519,7 +519,7 @@ End Sub
 
 Private Sub PaintBuild(ByVal ws As Worksheet)
     Dim fws As Variant, j As Long, fw As String, st As String, sel As Boolean, nm As String
-    Dim nReady As Long, nSel As Long, rows As String, asOf As String, meta As String
+    Dim nReady As Long, nSel As Long, rowsTxt As String, asOf As String, meta As String
     Dim track As Shape, knob As Shape, lastWhen As String, lastN As String, folder As String
     On Error Resume Next      ' one label that will not paint must not stop the rest
 
@@ -532,10 +532,10 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
         If IsIn(st) Then
             nReady = nReady + 1
             If sel Then nSel = nSel + 1
-            rows = SlotCell("OUTPUT|" & fw, modPD_Files.S_ROWS)
+            rowsTxt = SlotCell("OUTPUT|" & fw, modPD_Files.S_ROWS)
             asOf = SlotCell("OUTPUT|" & fw, modPD_Files.S_ASOF)
-            If Len(rows) > 0 And IsNumeric(rows) Then
-                meta = Fmt(CDbl(rows)) & " rows"
+            If Len(rowsTxt) > 0 And IsNumeric(rowsTxt) Then
+                meta = Fmt(CDbl(rowsTxt)) & " rowsTxt"
             Else
                 meta = MidTrim(FileLeaf(modPD_Files.SlotFile("OUTPUT|" & fw)), 34)
             End If
