@@ -11,11 +11,11 @@ Option Explicit
 '  ordinary row, changed like any other.
 ' ============================================================================
 
-Private Const CARD_W As Double = 300
+Private Const CARD_W As Double = 344
 Private Const CARD_H As Double = 164
-Private Const GAP As Double = 14
+Private Const GAP As Double = 16
 Private Const PER_ROW As Long = 3
-Private Const LEFT0 As Double = 14
+Private Const LEFT0 As Double = 28
 Private Const FIRST_ROW As Long = 7
 
 ' key, kind ("pivot" / "chart"), title, what it does, what it uses, the row
@@ -227,13 +227,11 @@ Private Sub Card(ByVal ws As Worksheet, ByVal t As Variant, ByVal x As Double, B
     Dim sh As Shape, key As String, cap As String, kind As Long
     On Error Resume Next
     key = CStr(t(0))
-    Set sh = ws.Shapes.AddShape(msoShapeRoundedRectangle, x, y, CARD_W, CARD_H)
+    Set sh = modPD_Theme.SurfaceCard(ws, "pdg_card_" & key, x, y, CARD_W, CARD_H)
     sh.Name = "pdg_card_" & key
     sh.Adjustments.Item(1) = 0.06
-    sh.Fill.ForeColor.RGB = modPD_Theme.C_SURFACE
     sh.Line.ForeColor.RGB = IIf(st = "on", modPD_Theme.C_BRAND, modPD_Theme.C_HAIRLINE_2)
     sh.Line.Weight = 0.75
-    sh.Shadow.visible = msoFalse
     sh.Placement = xlFreeFloating
     sh.AlternativeText = CStr(t(2))
     Glyph ws, key, CStr(t(1)), x + CARD_W - 64, y + 16

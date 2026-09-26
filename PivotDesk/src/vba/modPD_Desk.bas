@@ -1514,7 +1514,7 @@ Public Sub PressFx()
     nm = CStr(Application.Caller)
     If Err.Number <> 0 Or Len(nm) = 0 Then Err.Clear: Exit Sub
     If InStr(nm, "_hit") > 0 Or InStr(nm, "_fw") > 0 Then Exit Sub
-    If Left$(nm, 4) <> "pdx_" And Left$(nm, 4) <> "pdr_" Then Exit Sub
+    If Left$(nm, 4) <> "pdx_" And Left$(nm, 4) <> "pdr_" And Left$(nm, 4) <> "pdt_" Then Exit Sub
     Set ws = ActiveSheet
     Set sh = ws.Shapes(nm)
     If sh Is Nothing Then Exit Sub

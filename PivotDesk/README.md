@@ -1,4 +1,4 @@
-# Avati ALM Desk 3.0
+# Avati ALM Desk 3.1
 
 A desk for daily ALM analysis at MIDBANK Cairo. Point it at the LCR, NSFR and
 maturity-ladder outputs and control reports 3 and 6. It recognises each file
@@ -43,6 +43,27 @@ The first time the workbook opens, a six-step tour walks through the Desk.
 
 **Excel view** on the app bar brings the ribbon back, with an **Avati** tab
 first on it. **App view** hides it again.
+
+## What changed in 3.1
+
+The working sheets now carry the Desk's full layout. Files, all five Reports
+pages, Reconciliation and Activity have the same inset emerald hero, star
+lattice, rounded workflow cards, prominent next action and elevated toolbar.
+The numbered workflow cards navigate between Files, Reports and Reconciliation;
+the highlighted card identifies the current section, not completion status.
+Excel/App view and Desk help are available from every page. Gallery cards use
+the same gradient surface as the Desk.
+
+The update preserves the existing data layout: status remains on row 5,
+headings on row 7 and records from row 8. Existing recipes, validation,
+reconciliation logic, filters and workbook outputs are unchanged. Version 3.1
+triggers the existing one-time restyling on open.
+
+![Files with the shared Desk layout](preview/sheet-files.png)
+
+The preview images are generated layout previews, not screenshots from Excel.
+The build checks VBA source, shape actions, package integrity, palette and
+contrast. Native Excel interaction remains a separate acceptance check.
 
 ## What changed in 3.0
 

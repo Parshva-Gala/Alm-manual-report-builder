@@ -152,7 +152,7 @@ def _default_states():
 
 
 def gallery_sheet():
-    card_w, card_h, gap, left0 = 300, 164, 14, 14
+    card_w, card_h, gap, left0 = 344, 164, 16, 28
     tpl = templates()
     states = _default_states()
     out = []
@@ -164,7 +164,7 @@ def gallery_sheet():
         if t["kind"] != kind_prev:
             if kind_prev is not None:
                 y += card_h + gap
-            out.append("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";"
+            out.append("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";"
                        "font-size:%.1fpx;letter-spacing:1.6px;color:#%s'>%s</div>" % (
                            px(left0 + 2), px(y + 12), px(8), C["M300"],
                            "PIVOT REPORTS" if t["kind"] == "pivot" else "CHARTS"))
@@ -186,7 +186,7 @@ def gallery_sheet():
                      "or Chart config, switched on; from there it is a row like any other - change what you like.",
                      "%d pivot reports and %d charts. %d already in the next build." % (npiv, len(tpl) - npiv, n_on),
                      "Idle", [], tab="Gallery", overline="REPORTS &nbsp;&#183;&nbsp; GALLERY") + grid)
-    return P.page("Gallery", body, 1320), px(y + 10) + 250
+    return P.page("Gallery", body, 1500), px(y + 10) + 430
 
 
 def card(t, x, y, w, h, state):
@@ -207,18 +207,18 @@ def card(t, x, y, w, h, state):
     btn_bg, btn_line, btn_tx = ((C["E900"], C["DEEP"], C["TX1"]) if kind == 2 else (C["E950"], C["DEEP"], C["SOFT"]))
     note = ""
     if state == "on":
-        note = ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+        note = ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
                 "letter-spacing:1px;color:#16B07F'>&#9679;&nbsp;&nbsp;IN THE NEXT BUILD</div>") % (
             px(x + 112), px(y + h - 29), px(7))
     elif state == "off":
-        note = ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+        note = ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
                 "letter-spacing:1px;color:#%s'>ON THE SHEET, SWITCHED OFF</div>") % (
             px(x + 112), px(y + h - 29), px(7), C["TX3"])
-    return ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:#%s;"
-            "border-radius:9px;box-shadow:inset 0 0 0 1px #%s'></div>%s"
-            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+    return ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:linear-gradient(#0F1B16,#%s);"
+            "border-radius:14px;box-shadow:0 4px 16px #0004,inset 0 0 0 1px #%s'></div>%s"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
             "letter-spacing:1.2px;color:#%s'>%s</div>"
-            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
             "color:#%s'>%s</div>"
             "<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;font-size:%.1fpx;line-height:1.3;"
             "color:#%s'>%s</div>"
@@ -296,7 +296,7 @@ def fmt_units(v, unit, dec=0):
 def chart_card(w, h, title, inner):
     return ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:#%s;"
             "box-shadow:inset 0 0 0 1px #%s;box-sizing:border-box'>"
-            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
             "color:#%s'>%s</div>%s</div>") % (0, 0, w, h, SURFACE, C["LINE"], 13, 8, px(11), C["TX1"],
                                             html.escape(title), inner)
 
@@ -320,13 +320,13 @@ def doughnut(w, h, title, items, palette):
             am = (a0 + a1) / 2
             rm = (r_out + r_in) / 2
             lbls.append("<text x='%.1f' y='%.1f' fill='#%s' font-size='%.1f' text-anchor='middle' "
-                        "dominant-baseline='middle' font-family='Selawik Semibold'>%d%%</text>" % (
+                        "dominant-baseline='middle' font-family='Segoe UI Semibold'>%d%%</text>" % (
                             cx + rm * math.cos(am), cy + rm * math.sin(am), "000000" if i % len(palette) in (2, 3)
                             else C["TX1"], px(8), round(100 * v / total)))
         a0 = a1
     legend = "".join(
         "<rect x='%.1f' y='%.1f' width='9' height='9' rx='2' fill='#%s'/><text x='%.1f' y='%.1f' fill='#%s' "
-        "font-size='%.1f' dominant-baseline='middle' font-family='Selawik'>%s</text>" % (
+        "font-size='%.1f' dominant-baseline='middle' font-family='Segoe UI'>%s</text>" % (
             w * 0.64, h * 0.34 + i * 20 - 4.5, palette[i % len(palette)], w * 0.64 + 15, h * 0.34 + i * 20,
             C["TX2"], px(8.5), html.escape(name)) for i, (name, _) in enumerate(items))
     svg = "<svg width='%.1f' height='%.1f' style='position:absolute;left:0;top:0'>%s%s%s</svg>" % (
@@ -352,19 +352,19 @@ def hbars(w, h, title, cats, series, palette, legend=None, label_w=None):
         out.append("<line x1='%.1f' x2='%.1f' y1='%.1f' y2='%.1f' stroke='#%s' stroke-width='1'/>" % (
             x, x, top_y - 4, h - bottom, C["LINE"]))
         out.append("<text x='%.1f' y='%.1f' fill='#%s' font-size='%.1f' text-anchor='middle' "
-                   "font-family='Selawik'>%s</text>" % (x, h - bottom + 15, C["TX3"], px(8.5), fmt_units(t, unit, 0 if all(abs(k / unit[0] - round(k / unit[0])) < 1e-9 for k in ticks) else 1)))
+                   "font-family='Segoe UI'>%s</text>" % (x, h - bottom + 15, C["TX3"], px(8.5), fmt_units(t, unit, 0 if all(abs(k / unit[0] - round(k / unit[0])) < 1e-9 for k in ticks) else 1)))
     for i, c in enumerate(cats):
         yc = top_y + band * (i + 0.5)
         name = c if len(c) <= (lw - 16) / 6.3 else c[:int((lw - 16) / 6.3) - 1] + "…"
         out.append("<text x='%.1f' y='%.1f' fill='#%s' font-size='%.1f' text-anchor='end' dominant-baseline='middle' "
-                   "font-family='Selawik'>%s</text>" % (x0 - 8, yc, C["TX2"], px(8.5), html.escape(name)))
+                   "font-family='Segoe UI'>%s</text>" % (x0 - 8, yc, C["TX2"], px(8.5), html.escape(name)))
         for k, s in enumerate(series):
             y = yc - nser * bar / 2 + k * bar
             bw = (x1 - x0) * s[i] / ticks[-1]
             out.append("<rect x='%.1f' y='%.1f' width='%.1f' height='%.1f' fill='#%s'/>" % (
                 x0, y + 1, max(bw, 1), bar - 2, palette[k % len(palette)]))
             out.append("<text x='%.1f' y='%.1f' fill='#%s' font-size='%.1f' dominant-baseline='middle' "
-                       "font-family='Selawik'>%s</text>" % (x0 + bw + 5, y + bar / 2, C["TX1"], px(8),
+                       "font-family='Segoe UI'>%s</text>" % (x0 + bw + 5, y + bar / 2, C["TX1"], px(8),
                                                           fmt_units(s[i], unit, 2 if unit[1] == "bn" else 1)))
     out.append("<line x1='%.1f' x2='%.1f' y1='%.1f' y2='%.1f' stroke='#%s' stroke-width='1'/>" % (
         x0, x0, top_y - 4, h - bottom, C["LINE2"]))
@@ -372,7 +372,7 @@ def hbars(w, h, title, cats, series, palette, legend=None, label_w=None):
         lx = 13
         for k, name in enumerate(legend):
             out.append("<rect x='%.1f' y='34' width='9' height='9' rx='2' fill='#%s'/><text x='%.1f' y='39' fill='#%s' "
-                       "font-size='%.1f' dominant-baseline='middle' font-family='Selawik'>%s</text>" % (
+                       "font-size='%.1f' dominant-baseline='middle' font-family='Segoe UI'>%s</text>" % (
                            lx, palette[k], lx + 14, C["TX2"], px(8.5), name))
             lx += 14 + len(name) * 7 + 18
     svg = "<svg width='%.1f' height='%.1f' style='position:absolute;left:0;top:0'>%s</svg>" % (w, h, "".join(out))
@@ -426,17 +426,17 @@ def start_here(rows):
 
     def section(text):
         return ("<div style='height:%.1fpx;width:%dpx;box-sizing:border-box;border-bottom:1px solid #%s;display:flex;"
-                "align-items:flex-end;padding:0 0 5px 9px;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+                "align-items:flex-end;padding:0 0 5px 9px;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
                 "letter-spacing:.6px;color:#%s'>%s</div>") % (px(30), P.colw(38) + P.colw(110), C["DEEP"], px(8),
                                                              C["M300"], text)
     status = ("<div style='width:1060px;height:%.1fpx;background:#%s;border-left:4px solid #%s;display:flex;"
-              "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Selawik Semibold\";"
+              "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Segoe UI Semibold\";"
               "font-size:%.1fpx;color:#%s'>&#9679;&nbsp;&nbsp;%s rows staged into one pivot cache.&nbsp; Every sheet "
               "below is a live PivotTable over it - drag a field, drop a slicer, drill a total.</div>") % (
         px(26), C["OK_BG"], C["OK"], px(9), C["OK"], format(len(rows), ","))
     tbl = P.table(["Sheet", "What is on it"], [38, 110], [[a, b] for a, b in made], muted_cols=(1,))
     tbl = re.sub(r'(<tr style="height:[0-9.]+px;background:#[0-9A-F]+"><td style=")',
-                 r"\1color:#%s;font-family:'Selawik Semibold';" % C["M300"], tbl)
+                 r"\1color:#%s;font-family:'Segoe UI Semibold';" % C["M300"], tbl)
     built = "Built by Avati ALM Desk 3.0 on 26 Sep 2026, 14:05   ·   data as of 30 Nov 2025"
     body = (P.book_bar("LCR  ·  MIDBANK CAIRO", back=False, prev_next=False) +
             P.title_block("START HERE &nbsp;&#183;&nbsp; MIDBANK CAIRO", "LCR", built) +
@@ -453,7 +453,7 @@ def top_counterparties(rows):
     # FitPivot: the label column as wide as its longest label, capped at 62.
     widths = [min(62, max(len(k) for k, _ in cps)) + 3, 16, 12, 14]
     cols = "".join('<col style="width:%dpx">' % P.colw(w) for w in widths)
-    hd = "font-family:\"Selawik Semibold\";color:#%s;background:#000;border-bottom:3px solid #%s" % (C["SOFT"],
+    hd = "font-family:\"Segoe UI Semibold\";color:#%s;background:#000;border-bottom:3px solid #%s" % (C["SOFT"],
                                                                                                    C["BRAND"])
     head = "<tr style='height:%.1fpx'>%s</tr>" % (px(22), "".join(
         "<td style='%s;%s'>%s</td>" % (hd, "text-align:right;padding-right:9px" if i else "", h)
@@ -473,14 +473,14 @@ def top_counterparties(rows):
              "<td style='border-bottom:1px solid #%s;text-align:right;padding-right:9px'>%.1f%%</td></tr>") % (
                 px(20), bg, C["LINE"], html.escape(name), C["LINE"], "00794F", wbar, wbar,
                 "{:,.1f}".format(v / 1e6), C["LINE"], 100 * v / tot, C["LINE"], 100 * run / tot))
-    total_row = ("<tr style='height:%.1fpx;background:#%s'><td style='font-family:\"Selawik Semibold\";"
+    total_row = ("<tr style='height:%.1fpx;background:#%s'><td style='font-family:\"Segoe UI Semibold\";"
                  "border-top:3px solid #%s'>Total</td>%s</tr>") % (
         px(20), C["E950"], C["BRAND"], "".join(
-            "<td style='text-align:right;padding-right:9px;font-family:\"Selawik Semibold\";border-top:3px solid #%s'>"
+            "<td style='text-align:right;padding-right:9px;font-family:\"Segoe UI Semibold\";border-top:3px solid #%s'>"
             "%s</td>" % (C["BRAND"], t) for t in ("{:,.1f}".format(tot / 1e6), "100.0%", "")))
     slicer = ("<div style='padding:%.1fpx 0 0 %.1fpx;height:%.1fpx;box-sizing:border-box'>"
               "<div style='width:%.1fpx;height:%.1fpx;background:#%s;box-shadow:inset 0 0 0 1px #%s;border-radius:4px;"
-              "padding:6px 8px;box-sizing:border-box'><div style='color:#%s;font-family:\"Selawik Semibold\";"
+              "padding:6px 8px;box-sizing:border-box'><div style='color:#%s;font-family:\"Segoe UI Semibold\";"
               "font-size:11.5px;margin-bottom:2px'>LCY / FCY</div>%s</div></div>") % (
         px(6), px(14), px(74), px(156), px(62), C["ROW"], C["LINE2"], C["TX1"], "".join(
             "<div style='height:%.1fpx;border-radius:3px;margin:3px 0;padding-left:8px;font-size:11px;"
@@ -499,10 +499,10 @@ def top_counterparties(rows):
 def main():
     out = P.OUT
     os.makedirs(out, exist_ok=True)
-    jobs = [("sheet-chart-config", chart_config_sheet(), 3400, 470),
-            ("sheet-workbooks", workbooks_sheet(), 1700, 380)]
+    jobs = [("sheet-chart-config", chart_config_sheet(), 3400, 650),
+            ("sheet-workbooks", workbooks_sheet(), 1700, 560)]
     g, gh = gallery_sheet()
-    jobs.append(("sheet-gallery", g, 1320, int(gh)))
+    jobs.append(("sheet-gallery", g, 1500, int(gh)))
     if SAMPLE and os.path.exists(SAMPLE):
         rows = staged()
         jobs.append(("built-start-here", start_here(rows), 1500, 1330))

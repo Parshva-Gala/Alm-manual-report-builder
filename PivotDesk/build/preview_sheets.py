@@ -57,44 +57,38 @@ def px(pt):
 
 def page(title, body, width):
     return ('<!doctype html><html><head><meta charset="utf-8"><title>%s</title><style>'
-            'html,body{margin:0;background:#%s;font-family:Selawik;color:#%s}'
+            'html,body{margin:0;background:#%s;font-family:"Segoe UI",Segoe UI;color:#%s}'
             '.wrap{width:%dpx;overflow:hidden;background:#%s}'
             'table{border-collapse:collapse;table-layout:fixed}'
             'td{padding:0 0 0 9px;white-space:nowrap;overflow:hidden;text-overflow:clip;font-size:%.1fpx}'
             '.pill{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;'
-            'font-family:"Selawik Semibold";font-size:11.3px;box-sizing:border-box;white-space:nowrap}'
+            'font-family:"Segoe UI Semibold";font-size:11.3px;box-sizing:border-box;white-space:nowrap}'
             '</style></head><body><div class="wrap">%s</div></body></html>' % (
                 title, C["CANVAS"], C["TX1"], width, C["CANVAS"], 9.5 * PT, body))
 
 
-NAV = [("Desk", "desk", 52), ("Files", "files", 52), ("Reports", "reports", 70),
-       ("Reconciliation", "recon", 102), ("Activity", "log", 66)]
+NAV = [("Desk", "desk", 66), ("Files", "files", 64), ("Reports", "reports", 84),
+       ("Reconciliation", "recon", 110), ("Activity", "log", 80)]
 TABS = [("Pivots", "Pivot config"), ("Charts", "Chart config"), ("Workbooks", "Workbooks"),
         ("Fields", "Pivot fields"), ("Gallery", "Report gallery")]
 
 
 def app_bar(section):
-    """modPD_Theme.Rail: the mark, ALM DESK over the bank, and the nav pills."""
-    lw = 16 * LOGO_RATIO
+    """modPD_Theme.Rail, aligned with the Desk's 52-point app bar."""
     nav = "".join(
-        "<span class='pill' style='width:%.1fpx;height:%.1fpx;margin-right:%.1fpx;%s'>%s</span>" % (
-            px(w), px(22), px(2),
-            ("background:#%s;box-shadow:inset 0 0 0 1px #%s;color:#%s" % (C["E900"], C["DEEP"], C["TX1"])
-             if key == section else "color:#%s" % C["TX2"]), label)
+        f"<span class='pill' style='width:{px(w)}px;height:{px(22)}px;margin-right:{px(2)}px;"
+        + (f"background:#{C['E900']};box-shadow:inset 0 0 0 1px #{C['DEEP']};color:#{C['TX1']}"
+           if key == section else f"color:#{C['TX2']}") + f"'>{label}</span>"
         for label, key, w in NAV)
-    return ("<div style='height:%.1fpx;background:#000;border-bottom:1px solid #%s;display:flex;align-items:center;"
-            "position:relative'>"
-            "<img src='file://%s' style='position:absolute;left:%.1fpx;height:%.1fpx'>"
-            "<div style='position:absolute;left:%.1fpx;width:1px;height:%.1fpx;background:#%s'></div>"
-            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
-            "letter-spacing:1.6px;color:#%s'>ALM DESK</div>"
-            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
-            "letter-spacing:1.4px;color:#%s'>MIDBANK &nbsp;&#183;&nbsp; CAIRO</div>"
-            "<div style='position:absolute;left:%.1fpx;height:%.1fpx;border-radius:999px;background:#%s;"
-            "box-shadow:inset 0 0 0 1px #%s;display:flex;align-items:center;padding:0 %.1fpx'>%s</div></div>") % (
-        px(44), C["DEEP"], LOGO, px(16), px(16), px(16 + lw + 10), px(16), C["LINE2"],
-        px(16 + lw + 22), px(10), px(7.5), C["TX1"], px(16 + lw + 22), px(23), px(6), C["TX3"],
-        px(16 + lw + 22 + 104), px(26), C["WELL"], C["LINE"], px(3), nav)
+    return f"""<div style="height:{px(52)}px;background:#000;border-bottom:1px solid #{C['DEEP']};position:relative">
+      <img src="file://{LOGO}" style="position:absolute;left:{px(28)}px;top:{px(16)}px;height:{px(20)}px">
+      <div style="position:absolute;left:{px(28 + 20*LOGO_RATIO + 10)}px;top:20px;width:1px;height:30px;background:#{C['LINE2']}"></div>
+      <div style="position:absolute;left:{px(28 + 20*LOGO_RATIO + 22)}px;top:{px(12.5)}px;font-size:{px(8)}px;letter-spacing:1.6px">ALM DESK</div>
+      <div style="position:absolute;left:{px(28 + 20*LOGO_RATIO + 22)}px;top:{px(27)}px;font-size:{px(6.5)}px;letter-spacing:1.4px;color:#{C['TX3']}">MIDBANK · CAIRO</div>
+      <div style="position:absolute;left:{px(262)}px;top:{px(13)}px;height:{px(26)}px;border-radius:999px;background:#{C['WELL']};box-shadow:inset 0 0 0 1px #{C['LINE']};display:flex;align-items:center;padding:0 {px(3)}px">{nav}</div>
+      <span class="pill" style="position:absolute;left:{px(816)}px;top:{px(13)}px;width:{px(132)}px;height:{px(26)}px;background:#{C['E950']};border:1px solid #{C['DEEP']};color:#{C['SOFT']}">Excel / App view</span>
+      <span class="pill" style="position:absolute;left:{px(958)}px;top:{px(13)}px;width:{px(106)}px;height:{px(26)}px;background:#{C['E950']};border:1px solid #{C['DEEP']};color:#{C['SOFT']}">Desk help</span>
+    </div>"""
 
 
 def toolbar(actions, tab=None):
@@ -114,23 +108,45 @@ def toolbar(actions, tab=None):
         h.append("<span class='pill' style='height:%.1fpx;padding:0 %.1fpx;margin-right:%.1fpx;background:#%s;"
                  "box-shadow:inset 0 0 0 1px #%s;color:#%s'>%s</span>" % (
                      px(24), px(14), px(6), C["E950"], C["DEEP"], C["SOFT"], html.escape(a)))
-    return "<div style='height:%.1fpx;display:flex;align-items:center;padding-left:%.1fpx'>%s</div>" % (
-        px(34), px(14), "".join(h))
+    return (f"<div style='height:{px(48)}px;box-sizing:border-box;padding:{px(3)}px {px(28)}px;'>"
+            f"<div style='height:{px(40)}px;width:{px(1064)}px;box-sizing:border-box;padding-left:{px(14)}px;"
+            f"display:flex;align-items:center;border-radius:14px;border:1px solid #{C['LINE2']};"
+            f"background:linear-gradient(#0F1B16,#{C['ROW']})'>{''.join(h)}</div></div>")
 
 
 def chrome(section, title, about, status, level, actions, tab=None, overline=None, status_w=1040, band_row=None):
     """Rows 1 to 6 of every tool sheet: modPD_Theme.Dress, Rail, Toolbar and SetStatus."""
     overline = overline or "ALM DESK &nbsp;&#183;&nbsp; MIDBANK CAIRO"
     fg, bg = lv(level)
-    title_html = ("<div style='height:%.1fpx;display:flex;flex-direction:column;justify-content:flex-end;"
-                  "padding:0 0 %.1fpx %.1fpx;box-sizing:border-box'>"
-                  "<div style='font-family:\"Selawik Semibold\";font-size:%.1fpx;letter-spacing:1.4px;color:#%s'>%s</div>"
-                  "<div style='font-family:\"Selawik Light\";font-size:%.1fpx;color:#%s;line-height:1.1'>%s</div></div>"
-                  "<div style='height:%.1fpx;padding-left:%.1fpx;font-size:%.1fpx;color:#%s'>%s</div>") % (
-        px(44), px(1), px(14), px(7.5), C["M300"], overline, px(19), C["TX1"], html.escape(title),
-        px(20), px(14), px(9), C["TX2"], html.escape(about))
+    captions = {"Files": "Pick files", "Pivot config": "Check reports", "Pivot fields": "Check reports",
+                "Chart config": "Check charts", "Workbooks": "Check workbooks", "Gallery": "Open pivot config",
+                "Reconciliation": "Reconcile now", "Activity": "Return to Desk"}
+    cta = captions.get(title, "Return to Desk")
+    tiles = []
+    for i, (label, help_text, key) in enumerate((("Add files", "Identify inputs", "files"),
+                                               ("Build reports", "Pivots and charts", "reports"),
+                                               ("Reconcile", "Review differences", "recon"))):
+        edge = C["BRAND"] if key == section else C["LINE2"]
+        meter = "16B07F" if key == section else C["LINE2"]
+        tiles.append(f"""<div style="position:absolute;left:{px(592+i*151)}px;top:{px(20)}px;width:{px(139)}px;height:{px(112)}px;border-radius:14px;border:1px solid #{edge};box-sizing:border-box;background:rgba(11,19,16,.88);box-shadow:0 4px 16px #0004">
+          <div style="position:absolute;left:{px(14)}px;top:{px(14)}px;font-size:{px(22)}px;font-weight:300;color:#{C['M300']}">{i+1:02d}</div>
+          <div style="position:absolute;left:{px(14)}px;top:{px(52)}px;font-size:{px(10)}px;font-weight:600">{label}</div>
+          <div style="position:absolute;left:{px(14)}px;top:{px(71)}px;font-size:{px(7)}px;color:#{C['TX2']}">{help_text}</div>
+          <div style="position:absolute;left:{px(14)}px;top:{px(96)}px;width:{px(111)}px;height:{px(3)}px;border-radius:4px;background:#{meter}"></div>
+        </div>""")
+    star = " ".join(f"{x:.1f},{y:.1f}" for x, y in assets.khatam_points(38, 38, 38))
+    lattice = "".join(f"<svg style='position:absolute;left:{px(582+i*49)}px;top:{px(12+(i%2)*40)}px;width:{px(76)}px;height:{px(76)}px;opacity:.14' viewBox='0 0 76 76'><polygon points='{star}' fill='none' stroke='#16B07F' stroke-width='.75'/></svg>" for i in range(9))
+    title_html = f"""<div style="height:{px(176)}px;position:relative">
+      <div style="position:absolute;left:{px(28)}px;top:{px(16)}px;width:{px(1064)}px;height:{px(152)}px;box-sizing:border-box;overflow:hidden;border:1px solid #{C['LINE2']};border-radius:18px;background:linear-gradient(100deg,#{C['ROW']},#{C['E900']});box-shadow:0 5px 18px #0005">
+      {lattice}
+      <div style="position:absolute;left:{px(28)}px;top:{px(18)}px;font-size:{px(7)}px;letter-spacing:1.6px;color:#{C['M300']}">{overline}</div>
+      <div style="position:absolute;left:{px(26)}px;top:{px(32)}px;font-size:{px(25)}px;font-weight:300">{html.escape(title)}</div>
+      <div style="position:absolute;left:{px(28)}px;top:{px(72)}px;width:{px(526)}px;max-height:{px(38)}px;font-size:{px(9)}px;line-height:1.3;color:#{C['TX2']}">{html.escape(about)}</div>
+      <span class="pill" style="position:absolute;left:{px(28)}px;top:{px(114)}px;width:{px(166)}px;height:{px(28)}px;color:#000;background:linear-gradient(90deg,#16B07F,#009060);font-weight:600;box-shadow:0 3px 12px #00906030">{cta}</span>
+      {''.join(tiles)}
+      </div></div>"""
     status_html = ("<div style='width:%dpx;height:%.1fpx;background:#%s;border-left:4px solid #%s;display:flex;"
-                   "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Selawik Semibold\";"
+                   "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Segoe UI Semibold\";"
                    "font-size:%.1fpx;color:#%s'>&#9679;&nbsp;&nbsp;%s</div>") % (
         status_w, px(26), bg, fg, px(9), fg, html.escape(status))
     spacer = band_row if band_row is not None else "<div style='height:%.1fpx'></div>" % px(8)
@@ -146,7 +162,7 @@ def table(headers, widths, rows, verdict_col=None, mono_cols=(), muted_cols=(), 
     h = ['<table style="width:%dpx">%s%s<tr style="height:%.1fpx;background:#000">' % (
         sum(colw(w) for w in widths), cols, pre_rows, px(28))]
     for t in headers:
-        h.append('<td style="font-family:\'Selawik Semibold\';font-size:%.1fpx;color:#%s;border-bottom:3px solid #%s;'
+        h.append('<td style="font-family:\'Segoe UI Semibold\';font-size:%.1fpx;color:#%s;border-bottom:3px solid #%s;'
                  'border-right:1px solid #%s">%s</td>' % (px(8.5), C["SOFT"], C["BRAND"], C["LINE"], html.escape(t)))
     h.append("</tr>")
     maxbar = max((abs(r[bars_col]) for r in rows if bars_col is not None and isinstance(r[bars_col], (int, float))),
@@ -165,16 +181,16 @@ def table(headers, widths, rows, verdict_col=None, mono_cols=(), muted_cols=(), 
             if j == verdict_col and str(v):
                 fg, bg = lv(str(v))
                 st = ["border-bottom:1px solid #%s" % C["LINE"], "text-align:center", "background:#%s" % bg,
-                      "color:#%s" % fg, "font-family:'Selawik Semibold'", "font-size:%.1fpx" % px(8.5)]
+                      "color:#%s" % fg, "font-family:'Segoe UI Semibold'", "font-size:%.1fpx" % px(8.5)]
                 txt = "&#9679;&nbsp;&nbsp;" + html.escape(str(v))
             else:
                 txt = html.escape(str(txt))
             if j in mono_cols:
-                st.append("font-family:'DejaVu Sans Mono';font-size:11px;color:#%s" % C["TX3"])
+                st.append("font-family:'Consolas';font-size:11px;color:#%s" % C["TX3"])
             if j in muted_cols:
                 st.append("color:#%s" % C["TX3"])
             if j in semi_cols:
-                st.append("font-family:'Selawik Semibold'")
+                st.append("font-family:'Segoe UI Semibold'")
             if j == bars_col and isinstance(v, (int, float)) and v:
                 w = abs(v) / maxbar * 100
                 st.append("background:linear-gradient(90deg, rgba(244,162,154,.55) %.1f%%, transparent %.1f%%)" % (w, w))
@@ -316,9 +332,9 @@ def book_bar(crumb, back=True, prev_next=True):
     return ("<div style='height:%.1fpx;background:#000;border-bottom:1px solid #%s;position:relative'>"
             "<img src='file://%s' style='position:absolute;left:%.1fpx;top:%.1fpx;height:%.1fpx'>"
             "<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:1px;height:%.1fpx;background:#%s'></div>"
-            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
             "letter-spacing:1.6px;color:#%s'>ALM DESK</div>"
-            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
             "letter-spacing:1.4px;color:#%s'>%s</div>%s</div>") % (
         px(40), C["DEEP"], LOGO, px(16), px(12.5), px(15), px(16 + lw + 10), px(12), px(16), C["LINE2"],
         px(x), px(8), px(7.5), C["TX1"], px(x), px(21), px(6), C["TX3"],
@@ -328,8 +344,8 @@ def book_bar(crumb, back=True, prev_next=True):
 def title_block(overline, title, about):
     return ("<div style='height:%.1fpx;display:flex;flex-direction:column;justify-content:flex-end;"
             "padding:0 0 %.1fpx %.1fpx;box-sizing:border-box'>"
-            "<div style='font-family:\"Selawik Semibold\";font-size:%.1fpx;letter-spacing:1.4px;color:#%s'>%s</div>"
-            "<div style='font-family:\"Selawik Light\";font-size:%.1fpx;color:#%s;line-height:1.1'>%s</div></div>"
+            "<div style='font-family:\"Segoe UI Semibold\";font-size:%.1fpx;letter-spacing:1.4px;color:#%s'>%s</div>"
+            "<div style='font-family:\"Segoe UI Light\";font-size:%.1fpx;color:#%s;line-height:1.1'>%s</div></div>"
             "<div style='height:%.1fpx;padding-left:%.1fpx;font-size:%.1fpx;color:#%s'>%s</div>") % (
         px(44), px(1), px(14), px(7.5), C["M300"], overline, px(19), C["TX1"], html.escape(title),
         px(20), px(14), px(9), C["TX2"], html.escape(about))
@@ -346,9 +362,9 @@ def tiles(items, w_pt=196, gap_pt=10, h_row=66, fixed_w=None):
         out.append(("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:#%s;"
                     "box-shadow:inset 0 0 0 1px #%s;border-radius:7px;box-sizing:border-box'>"
                     "<div style='position:absolute;left:0;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:#%s'></div>"
-                    "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";"
+                    "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";"
                     "font-size:%.1fpx;letter-spacing:1px;color:#%s'>%s</div>"
-                    "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Light\";"
+                    "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Light\";"
                     "font-size:%.1fpx;color:#%s;white-space:nowrap'>%s</div></div>") % (
             px(14 + i * (w + gap_pt)), px(8), px(w), px(50), C["ROW"], C["LINE2"], px(12), px(2.5), px(26),
             C["BRAND"], px(14), px(8), px(6.5), C["TX3"], label, px(13), px(19), px(size), C["TX1"],
@@ -366,7 +382,7 @@ def slicers():
             for t, s_ in zip(items, sel))
         return ("<div style='width:%.1fpx;height:%.1fpx;background:#%s;box-shadow:inset 0 0 0 1px #%s;border-radius:4px;"
                 "padding:6px 8px;box-sizing:border-box;margin-right:%.1fpx;display:inline-block;vertical-align:top;"
-                "overflow:hidden'><div style='color:#%s;font-family:\"Selawik Semibold\";font-size:11.5px;"
+                "overflow:hidden'><div style='color:#%s;font-family:\"Segoe UI Semibold\";font-size:11.5px;"
                 "margin-bottom:2px'>%s</div><div style='column-count:2;column-gap:6px'>%s</div></div>") % (
             px(156), px(62), C["ROW"], C["LINE2"], px(6), C["TX1"], title, chips)
     return ("<div style='padding:%.1fpx 0 0 %.1fpx;height:%.1fpx;box-sizing:border-box'>%s%s%s</div>" % (
@@ -383,8 +399,8 @@ def pivot_sheet():
     tot = [sum(v[0] for _, v in items), sum(v[1] for _, v in items)]
     tot.append(tot[0] + tot[1])
     cols = "".join('<col style="width:%dpx">' % colw(w) for w in widths)
-    hd = "font-family:\"Selawik Semibold\";color:#%s;background:#000" % C["SOFT"]
-    head = ("<tr style='height:%.1fpx'><td colspan=4 style='background:#000;color:#%s;font-family:\"Selawik Semibold\"'>"
+    hd = "font-family:\"Segoe UI Semibold\";color:#%s;background:#000" % C["SOFT"]
+    head = ("<tr style='height:%.1fpx'><td colspan=4 style='background:#000;color:#%s;font-family:\"Segoe UI Semibold\"'>"
             "Pre-factor</td><td colspan=3 style='%s'>LCY / FCY&nbsp;&#9662;</td></tr>"
             "<tr style='height:%.1fpx'>%s</tr>") % (
         px(20), C["SOFT"], hd, px(22),
@@ -401,20 +417,20 @@ def pivot_sheet():
         prev = list(key[:3])
         bg = C["ROW_ALT"] if i % 2 else C["ROW"]
         tds = "".join('<td style="border-bottom:1px solid #%s;%s">%s</td>' % (
-            C["LINE"], "font-family:'Selawik Semibold'" if (j == 0 and c) else "", html.escape(str(c)))
+            C["LINE"], "font-family:'Segoe UI Semibold'" if (j == 0 and c) else "", html.escape(str(c)))
             for j, c in enumerate(cells))
         for k, v in enumerate((lcy, fcy, lcy + fcy)):
             tds += '<td style="border-bottom:1px solid #%s;text-align:right;padding-right:9px;%s%s">%s</td>' % (
                 C["LINE"], "color:#FF0000;" if v < -0.5 else "",
-                "background:#16271F;font-family:'Selawik Semibold';" if k == 2 else "", fmt_num(v))
+                "background:#16271F;font-family:'Segoe UI Semibold';" if k == 2 else "", fmt_num(v))
         rows_html.append('<tr style="height:%.1fpx;background:#%s">%s</tr>' % (px(20), bg, tds))
-    total_row = ("<tr style='height:%.1fpx;background:#%s'><td colspan=4 style='font-family:\"Selawik Semibold\";"
+    total_row = ("<tr style='height:%.1fpx;background:#%s'><td colspan=4 style='font-family:\"Segoe UI Semibold\";"
                  "border-top:3px solid #%s'>Total</td>%s</tr>") % (
         px(20), C["E950"], C["BRAND"], "".join(
-            "<td style='text-align:right;padding-right:9px;font-family:\"Selawik Semibold\";border-top:3px solid #%s;"
+            "<td style='text-align:right;padding-right:9px;font-family:\"Segoe UI Semibold\";border-top:3px solid #%s;"
             "%s'>%s</td>" % (C["BRAND"], "color:#FF0000" if v < -0.5 else "", fmt_num(v)) for v in tot))
     filt = ("<table style='margin:0'>%s<tr style='height:%.1fpx'><td style='background:#%s;color:#%s;"
-            "font-family:\"Selawik Semibold\"'>Bucket</td><td style='background:#%s'>(Multiple Items)&nbsp;&#9662;</td>"
+            "font-family:\"Segoe UI Semibold\"'>Bucket</td><td style='background:#%s'>(Multiple Items)&nbsp;&#9662;</td>"
             "</tr></table><div style='height:%.1fpx'></div>") % (
         "".join('<col style="width:%dpx">' % colw(w) for w in widths[:2]), px(20), C["ROW_ALT"], C["M300"], C["ROW"],
         px(10))
@@ -431,8 +447,8 @@ def pivot_sheet():
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    jobs = [("sheet-files", files_sheet(), 1500, 560), ("sheet-recon", recon_sheet(), 1500, 470),
-            ("sheet-activity", log_sheet(), 1500, 520)]
+    jobs = [("sheet-files", files_sheet(), 1500, 720), ("sheet-recon", recon_sheet(), 1500, 650),
+            ("sheet-activity", log_sheet(), 1500, 700)]
     if SAMPLE and os.path.exists(SAMPLE):
         pv, _ = pivot_sheet()
         jobs.append(("built-balance-sheet", pv, 1500, 1030))
@@ -550,7 +566,7 @@ def band_row(widths, groups):
     cols = "".join('<col style="width:%dpx">' % colw(w) for w in widths)
     g = "<tr style='height:%.1fpx'>" % px(20)
     for c1, c2, label in groups:
-        g += ("<td colspan=%d style='background:#%s;color:#%s;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+        g += ("<td colspan=%d style='background:#%s;color:#%s;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
               "letter-spacing:.8px;border-left:3px solid #%s'>%s</td>") % (c2 - c1 + 1, C["E950"], C["M300"], px(7.5),
                                                                           C["BRAND"], label)
     return g + "</tr>"
@@ -594,7 +610,7 @@ def fields_sheet():
 
 
 if __name__ == "__main__" and os.environ.get("CONFIG_ONLY"):
-    assets.render(config_sheet(), os.path.join(OUT, "sheet-pivot-config.png"), CONFIG_W, 600, scale=1,
+    assets.render(config_sheet(), os.path.join(OUT, "sheet-pivot-config.png"), CONFIG_W, 760, scale=1,
                   transparent=False)
-    assets.render(fields_sheet(), os.path.join(OUT, "sheet-pivot-fields.png"), 1600, 1440, scale=1, transparent=False)
+    assets.render(fields_sheet(), os.path.join(OUT, "sheet-pivot-fields.png"), 1600, 1600, scale=1, transparent=False)
     print("config previews")

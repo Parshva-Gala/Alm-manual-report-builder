@@ -107,6 +107,8 @@ REVIEWED_CONSTANTS = {
     "xlwhole": 1,
     "msoshapeoval": 9,
     "msogradienthorizontal": 1,
+    "msogradientvertical": 2,            # MsoGradientStyle (Office reference)
+    "msoshape8pointstar": 93,            # MsoAutoShapeType (Office reference)
     "msoanchorcenter": 2,
     "msotextorientationhorizontal": 1,
     "vbmodeless": 0,
