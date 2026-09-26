@@ -359,6 +359,7 @@ Private Sub FinishRecipe(ByVal pt As PivotTable, ByVal ws As Worksheet, ByVal rc
         .DisplayNullString = True
         .ManualUpdate = False
     End With
+    OrderBuckets pt
     SortRecipe pt, rc
     FitRecipe ws, pt, rc, fl
     PrintPivot ws, pt
@@ -607,8 +608,36 @@ Private Sub Finish(ByVal pt As PivotTable, ByVal ws As Worksheet)
         .DisplayNullString = True
         .ManualUpdate = False
     End With
+    OrderBuckets pt
     FitColumns ws, pt
     PrintPivot ws, pt
+    Err.Clear
+End Sub
+
+' Buckets in tenor order - UPTO 1 MONTH, 1 - 3 MONTHS, ... OVER 5 YEARS,
+' NON MATURITY - rather than alphabetical, which puts OVER 5 YEARS before UPTO
+' 1 MONTH. The order is the staging pass's (modPD_Stage.BucketOrder), set item
+' by item on this pivot; a Bucket field that is only a filter is left alone.
+Private Sub OrderBuckets(ByVal pt As PivotTable)
+    Dim pf As PivotField, order As Variant, i As Long, pos As Long, pi As PivotItem
+    On Error Resume Next
+    Set pf = pt.PivotFields(H_BUCKET)
+    If pf Is Nothing Then Exit Sub
+    If pf.Orientation <> xlRowField And pf.Orientation <> xlColumnField Then Exit Sub
+    order = modPD_Stage.BucketOrder()
+    If UBound(order) < 1 Then Exit Sub
+    pt.ManualUpdate = True
+    For i = 0 To UBound(order)
+        Set pi = Nothing
+        Set pi = pf.PivotItems(CStr(order(i)))
+        If Not pi Is Nothing Then
+            If pi.visible Then
+                pos = pos + 1
+                pi.Position = pos
+            End If
+        End If
+    Next i
+    pt.ManualUpdate = False
     Err.Clear
 End Sub
 

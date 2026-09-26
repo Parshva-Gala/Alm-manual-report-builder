@@ -167,6 +167,11 @@ Public PD_Busy As Boolean
 Public PD_Quiet As Boolean
 Public PD_Trace As Object
 
+' The clock behind the time-left estimate in Progress_: when the current
+' phase started, and how far it had got at the last report.
+Private mProgT0 As Single
+Private mProgLast As Double
+
 ' ===================== procedures begin here ================================
 
 Public Function Frameworks() As Variant
@@ -265,7 +270,25 @@ Public Sub Progress_(ByVal what As String, ByVal frac As Double)
     For i = 1 To 20
         If i <= n Then bar = bar & ChrW(9632) Else bar = bar & ChrW(9633)
     Next i
-    Application.StatusBar = TOOL_NAME & "   " & bar & "  " & Format$(frac, "0%") & "   " & what
+    Application.StatusBar = TOOL_NAME & "   " & bar & "  " & Format$(frac, "0%") & "   " & what & TimeLeft(frac)
     If Not PD_Trace Is Nothing Then PD_Trace.Note what
     Err.Clear
 End Sub
+
+' "  -  about 40s left", once a phase has run long enough to say. Progress
+' going backwards means a new phase (the next framework, the next pass), and
+' the clock starts again; so does midnight, where Timer wraps to zero.
+Private Function TimeLeft(ByVal frac As Double) As String
+    Dim now_ As Single, took As Double, left_ As Double
+    now_ = Timer
+    If mProgT0 = 0 Or frac < mProgLast Or now_ < mProgT0 Then mProgT0 = now_
+    mProgLast = frac
+    took = now_ - mProgT0
+    If frac < 0.08 Or frac >= 0.995 Or took < 3 Then Exit Function
+    left_ = took * (1 - frac) / frac
+    If left_ < 60 Then
+        TimeLeft = "   " & ChrW(183) & "   about " & (Int(left_ / 5) + 1) * 5 & "s left"
+    Else
+        TimeLeft = "   " & ChrW(183) & "   about " & Int(left_ / 60 + 0.5) & " min left"
+    End If
+End Function

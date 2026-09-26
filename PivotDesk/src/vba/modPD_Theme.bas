@@ -562,6 +562,7 @@ Public Sub Rail(ByVal ws As Worksheet)
             x = Button(ws, "Use a file for this row", "PD_UseFileHere", x, 138, 1)
             x = Button(ws, "Clear this row", "PD_ClearRow", x, 94, 1)
         Case SH_CONFIG
+            x = Button(ws, "Add a pivot", "PD_ConfigAdd", x, 82, 1)
             x = Button(ws, "Check", "PD_ConfigCheck", x, 60, 1)
             x = Button(ws, "Fields", "PD_GoFields", x, 56, 1)
             x = Button(ws, "Restore defaults", "PD_ConfigDefaults", x, 108, 1)

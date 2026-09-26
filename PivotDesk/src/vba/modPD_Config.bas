@@ -52,6 +52,9 @@ Private Const K_LAST As Long = 21
 ' Rows dressed for recipes. More can be added below; they are read to the
 ' last row in use.
 Private Const RECIPE_ROWS As Long = 30
+
+' Pivot config or Pivot fields edited since the Check column was last written.
+Private mDirty As Boolean
 Private Const R_GROUPS As Long = 6
 
 ' --- the field catalog --------------------------------------------------------
@@ -101,7 +104,11 @@ End Function
 ' Dresses both sheets and, when they are new or asked to, fills them with the
 ' defaults. An existing configuration is never overwritten by a restyle.
 Public Sub BuildConfigSheet(Optional ByVal withDefaults As Boolean = False)
-    Dim ws As Worksheet, fresh As Boolean
+    Dim ws As Worksheet, fresh As Boolean, ev As Boolean
+    ' Writing a few hundred cells here must not run the live check on each.
+    ev = Application.EnableEvents
+    Application.EnableEvents = False
+    On Error GoTo Done
     Set ws = GetSheet(SH_CONFIG)
     fresh = ws Is Nothing
     Set ws = EnsureSheet(SH_CONFIG)
@@ -127,6 +134,10 @@ Public Sub BuildConfigSheet(Optional ByVal withDefaults As Boolean = False)
     Hints ws
     modPD_Theme.PrintReady ws, K_LAST
     BuildFieldsSheet withDefaults
+    mDirty = False
+Done:
+    ' Events are Excel's, not this workbook's: they go back on whatever happened.
+    Application.EnableEvents = ev
 End Sub
 
 Public Sub BuildFieldsSheet(Optional ByVal withDefaults As Boolean = False)
@@ -985,6 +996,104 @@ Public Function CheckAll(Optional ByVal quiet As Boolean = False) As Long
     CheckAll = nBad
     Err.Clear
 End Function
+
+' A new row, ready to edit: switched off, so a half-finished pivot cannot stop
+' a build, and holding a working pivot to change rather than a blank to fill.
+Public Sub PD_ConfigAdd()
+    Dim ws As Worksheet, r As Long, lastR As Long, ev As Boolean
+    If PD_Busy Then Exit Sub
+    modPD_Desk.PressFx
+    Set ws = ConfigSheet()
+    If ws Is Nothing Then Exit Sub
+    On Error Resume Next
+    lastR = RecipeLastRow(ws)
+    For r = modPD_Theme.R_FIRST To lastR + 1
+        If Len(Cell(ws, r, K_NAME)) = 0 And Len(Cell(ws, r, K_ROWS)) = 0 And Len(Cell(ws, r, K_VALUES)) = 0 Then Exit For
+    Next r
+    ev = Application.EnableEvents
+    Application.EnableEvents = False
+    Recipe ws, r, "No", "{fw} new pivot " & (r - modPD_Theme.R_FIRST + 1), "All", "", "Type, Line", "Bucket", _
+           "Pre factor amount sum as Pre-factor", "Bucket <> (no bucket)", "", "Tabular", "None", "Both", "No", _
+           "", "", "", "Auto", "", "A new pivot. Change any cell, then set On to Yes."
+    If r > lastR Then
+        DressRecipes ws
+        Hints ws
+    End If
+    CheckAll True
+    Application.EnableEvents = ev
+    mDirty = False
+    ws.Activate
+    ws.Cells(r, K_NAME).Select
+    Notify "A new pivot is on row " & r & ", switched off. Change what you need, then set On to Yes.", V_OK
+    Err.Clear
+End Sub
+
+' ===================== live check ============================================
+'
+' Typing on Pivot config answers at once, in the status bar: whether the row
+' just edited will build and, if not, what to fix. Nothing is written to the
+' sheet while you type - a macro that writes cells empties Excel's undo, and
+' undo matters most while editing. The Check column catches up when you leave
+' the sheet, and a build always checks first.
+Public Sub LiveCheck(ByVal sh As Object, ByVal target As Range)
+    Dim rc As Object, r As Long, nBad As Long, nOn As Long, msg As String
+    On Error Resume Next
+    If PD_Busy Then Exit Sub
+    If StrComp(sh.Name, SH_CONFIG, vbTextCompare) = 0 Then
+        r = target.Row
+        If r < modPD_Theme.R_FIRST Or target.Column > K_DESC Then Exit Sub
+        mDirty = True
+        For Each rc In AllRecipes()
+            If CLng(rc("Row")) = r Then
+                If Not CBool(rc("On")) Then
+                    msg = "Row " & r & " is off"
+                    If Len(rc("Problem")) > 0 Then msg = msg & ". When switched on it will not build: " & rc("Problem")
+                ElseIf Len(rc("Problem")) > 0 Then
+                    msg = "Row " & r & " will not build: " & rc("Problem")
+                Else
+                    msg = "Row " & r & " is ready to build."
+                End If
+                Exit For
+            End If
+        Next rc
+        If Len(msg) = 0 Then msg = "Row " & r & " is empty."
+    ElseIf StrComp(sh.Name, SH_FIELDS, vbTextCompare) = 0 Then
+        If target.Row < modPD_Theme.R_FIRST Then Exit Sub
+        mDirty = True
+        For Each rc In AllRecipes()
+            If CBool(rc("On")) Then
+                nOn = nOn + 1
+                If Len(rc("Problem")) > 0 Then nBad = nBad + 1
+            End If
+        Next rc
+        If nBad = 0 Then
+            msg = "Fields changed. Every pivot that is on still builds."
+        Else
+            msg = "Fields changed. " & nBad & " of " & nOn & " pivot(s) that are on will not build now."
+        End If
+    Else
+        Exit Sub
+    End If
+    Application.StatusBar = TOOL_NAME & "   " & ChrW(183) & "   Pivot config   " & ChrW(183) & "   " & msg
+    Err.Clear
+End Sub
+
+' Leaving Pivot config or Pivot fields after an edit: the Check column and the
+' Desk are brought up to date.
+Public Sub LeaveCheck(ByVal sh As Object)
+    Dim ev As Boolean
+    On Error Resume Next
+    If Not mDirty Then Exit Sub
+    If StrComp(sh.Name, SH_CONFIG, vbTextCompare) <> 0 And StrComp(sh.Name, SH_FIELDS, vbTextCompare) <> 0 Then Exit Sub
+    mDirty = False
+    ev = Application.EnableEvents
+    Application.EnableEvents = False
+    CheckAll True
+    Application.EnableEvents = ev
+    Application.StatusBar = False
+    modPD_Desk.RefreshDesk
+    Err.Clear
+End Sub
 
 Public Sub PD_ConfigCheck()
     Dim n As Long

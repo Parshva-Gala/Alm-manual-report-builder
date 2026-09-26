@@ -44,6 +44,16 @@ Private Sub Workbook_SheetActivate(ByVal Sh As Object)
     modPD_Desk.SheetChrome Sh
 End Sub
 
+' Pivot config answers as you type, and catches up its Check column when
+' you leave it.
+Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    modPD_Config.LiveCheck Sh, Target
+End Sub
+
+Private Sub Workbook_SheetDeactivate(ByVal Sh As Object)
+    modPD_Config.LeaveCheck Sh
+End Sub
+
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
     modPD_Desk.AppLeave True
 End Sub

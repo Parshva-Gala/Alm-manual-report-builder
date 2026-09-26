@@ -1114,6 +1114,29 @@ Public Sub PD_Console()
     modPD_Theme.GoTo_ SH_HOME
 End Sub
 
+' The PivotDesk tab on the ribbon (build/ribbon.py), for Excel view. Every
+' button calls this, and it dispatches on the button's id. Declared As Object
+' rather than IRibbonControl, so it needs no reference to the Office library.
+Public Sub PD_RibbonClick(control As Object)
+    Dim id As String
+    On Error Resume Next
+    id = CStr(control.id)
+    On Error GoTo 0
+    Select Case id
+        Case "pdDesk": modPD_Theme.PD_GoHome
+        Case "pdFiles": modPD_Theme.PD_GoFiles
+        Case "pdConfig": modPD_Theme.PD_GoConfig
+        Case "pdRecon": modPD_Theme.PD_GoRecon
+        Case "pdLog": modPD_Theme.PD_GoLog
+        Case "pdScan": modPD_Files.PD_LoadFolder
+        Case "pdPick": modPD_Files.PD_LoadFiles
+        Case "pdBuild": PD_BuildSelected
+        Case "pdReconcile": modPD_Recon.PD_Reconcile
+        Case "pdApp": PD_ToggleAppView
+        Case "pdTour": PD_TourStart
+    End Select
+End Sub
+
 ' ===================== toast ================================================
 
 ' A one-line report on the Desk's bar that clears itself. It replaces the

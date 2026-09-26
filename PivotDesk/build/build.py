@@ -41,6 +41,7 @@ sys.path.insert(0, HERE)
 
 import contrast  # noqa: E402
 import desk  # noqa: E402
+import ribbon  # noqa: E402
 import vbalint  # noqa: E402
 import vbaproj  # noqa: E402
 from design_tokens import EM, CANVAS, GRID_COL_PT, GRID_ROW_PT  # noqa: E402
@@ -192,9 +193,9 @@ def drop_drawing(sheet: str) -> str:
     return re.sub(r"<drawing r:id=\"[^\"]*\"/>", "", sheet)
 
 
-def core_props(old: str) -> str:
+def core_props(old: str, version: str) -> str:
     now = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    extra = ("<dc:title>PivotDesk 2.0 - MIDBANK Cairo</dc:title>"
+    extra = ("<dc:title>PivotDesk " + version + " - MIDBANK Cairo</dc:title>"
              "<dc:subject>ALM outputs staged into live PivotTables, and reconciled against control reports 3 and 6</dc:subject>"
              "<cp:keywords>ALM; LCR; NSFR; maturity ladder; reconciliation; PivotDesk</cp:keywords>"
              "<dc:description>Open, enable content, and work from the Desk.</dc:description>"
@@ -236,6 +237,20 @@ def build():
             if p in order:
                 order.remove(p)
 
+    # the PivotDesk tab on the ribbon, for Excel view
+    ui, ui_rels, ui_images = ribbon.custom_ui()
+    parts[ribbon.PART] = ui.encode("utf-8")
+    parts["customUI/_rels/customUI14.xml.rels"] = ui_rels.encode("utf-8")
+    order += [ribbon.PART, "customUI/_rels/customUI14.xml.rels"]
+    for name, data in ui_images.items():
+        parts[name] = data
+        order.append(name)
+    root = parts["_rels/.rels"].decode("utf-8")
+    if ribbon.REL_TYPE not in root:
+        root = root.replace("</Relationships>", '<Relationship Id="rIdPivotDeskUI" Type="%s" Target="%s"/>'
+                            "</Relationships>" % (ribbon.REL_TYPE, ribbon.PART))
+    parts["_rels/.rels"] = root.encode("utf-8")
+
     parts["xl/worksheets/sheet5.xml"] = settings_sheet(parts["xl/worksheets/sheet5.xml"].decode("utf-8")).encode("utf-8")
 
     wb = parts["xl/workbook.xml"].decode("utf-8")
@@ -257,7 +272,8 @@ def build():
             ct = ct.replace("<Default Extension=\"xml\"", '<Default Extension="%s" ContentType="%s"/><Default Extension="xml"' % (ext, typ), 1)
     parts["[Content_Types].xml"] = ct.encode("utf-8")
 
-    parts["docProps/core.xml"] = core_props(parts["docProps/core.xml"].decode("utf-8")).encode("utf-8")
+    version = re.search(r'TOOL_VERSION As String = "([^"]+)"', sources["modPD_Const"]).group(1)
+    parts["docProps/core.xml"] = core_props(parts["docProps/core.xml"].decode("utf-8"), version).encode("utf-8")
 
     os.makedirs(os.path.dirname(DIST), exist_ok=True)
     buf = io.BytesIO()
@@ -409,6 +425,23 @@ def check_palette(sources):
     return problems
 
 
+def check_ribbon(parts, sources):
+    """Every ribbon button reaches code that handles it."""
+    problems = []
+    code = "\n".join(_code_only(src) for src in sources.values())
+    if not re.search(r"^Public Sub %s\(control As Object\)" % ribbon.CALLBACK, code, re.M):
+        problems.append("ribbon: no Public Sub %s(control As Object) for the buttons to call" % ribbon.CALLBACK)
+    for bid in ribbon.ids():
+        if not re.search(r'Case "%s":' % bid, code):
+            problems.append("ribbon: button %s does nothing - %s has no Case for it" % (bid, ribbon.CALLBACK))
+    ui = parts[ribbon.PART].decode("utf-8")
+    rels = parts["customUI/_rels/customUI14.xml.rels"].decode("utf-8")
+    for rid in set(re.findall(r'image="([^"]+)"', ui)):
+        if 'Id="%s"' % rid not in rels:
+            problems.append("ribbon: image %s has no relationship" % rid)
+    return problems
+
+
 def check_geometry(sources):
     """The numbers modPD_Desk lays the gap chart and the tour out with are the
     design's, and the tour says in Excel what it says in the preview."""
@@ -444,6 +477,7 @@ def main():
     problems += check_package(parts)
     problems += check_palette(sources)
     problems += check_geometry(sources)
+    problems += check_ribbon(parts, sources)
     tour = desk.showcase_state()
     tour.update({"toast": None, "tour": 5})
     for label, st in (("shipped", shipped_state()), ("showcase", desk.showcase_state()), ("tour", tour)):
