@@ -28,7 +28,7 @@ Option Explicit
 ' ============================================================================
 
 Public Const TOOL_NAME As String = "PivotDesk"
-Public Const TOOL_VERSION As String = "2.0"
+Public Const TOOL_VERSION As String = "2.1"
 Public Const BANK_NAME As String = "MIDBANK  Cairo"
 
 ' --- sheets in the desk itself ----------------------------------------------
@@ -75,6 +75,7 @@ Public Const F_BUCKET As String = "BUCKET_DISPLAY_NAME"
 Public Const F_FRAMEWORK As String = "ALM_FRAMEWORK_NAME"
 Public Const F_ACCOUNT As String = "ACCOUNT_NUMBER"
 Public Const F_AS_OF As String = "AS_OF_DATE"
+Public Const F_MATURITY As String = "MATURITY_DATE"
 
 ' --- the amount fields ------------------------------------------------------
 '

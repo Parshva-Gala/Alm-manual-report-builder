@@ -298,6 +298,7 @@ Public Sub PD_Reset()
     SettingClear "build_sig"
     SettingClear "ctl3_"
     SettingClear "ctl6_"
+    SettingClear "gap_"
     SettingSet "styled_version", ""
     PD_Setup
     RestoreState st: PD_Busy = False

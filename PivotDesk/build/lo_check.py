@@ -42,6 +42,11 @@ def connect(port=2002):
 
 def main():
     path = os.path.abspath(sys.argv[1])
+    # A run that died leaves LibreOffice's lock beside the file, and the next
+    # load then quietly returns nothing.
+    lock = os.path.join(os.path.dirname(path), ".~lock." + os.path.basename(path) + "#")
+    if os.path.exists(lock):
+        os.remove(lock)
     probes = sys.argv[2:]
     port = 2002
     import tempfile

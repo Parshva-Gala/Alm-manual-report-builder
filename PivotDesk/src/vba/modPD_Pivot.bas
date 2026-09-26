@@ -341,7 +341,11 @@ Private Sub FinishRecipe(ByVal pt As PivotTable, ByVal ws As Worksheet, ByVal rc
         .ShowTableStyleColumnHeaders = True
         .ShowTableStyleRowHeaders = True
         .RowAxisLayout CLng(rc("Layout"))
-        If CBool(rc("Repeat")) Then .RepeatAllLabels xlRepeatLabels Else .RepeatAllLabels xlDoNotRepeatLabels
+        If CBool(rc("Repeat")) Then
+            .RepeatAllLabels xlRepeatLabels
+        Else
+            .RepeatAllLabels xlDoNotRepeatLabels
+        End If
         .ShowDrillIndicators = True
         .EnableDrilldown = True
         .EnableFieldList = True

@@ -26,13 +26,30 @@ Option Explicit
 '  stops because the Desk failed to repaint is not.
 ' ============================================================================
 
-' The design's canvas - 75 columns and 42 rows of 15 pt, the 1120 x 630 pt
+' The design's canvas - 75 columns and 44 rows of 15 pt, the 1120 x 660 pt
 ' drawing in build/desk.py - and a cell under the black app bar where the
 ' cursor can sit without drawing a selection box on the design.
-Private Const FIT_RANGE As String = "A1:BW42"
+Private Const FIT_RANGE As String = "A1:BW44"
 Private Const PARK_CELL As String = "A1"
+Private Const DESK_H As Double = 660
 
 Private Const TOAST_SECONDS As Long = 9
+
+' The maturity-gap chart, relative to its card (build/desk.py GAP_PAD and
+' GAP_CHART; the build checks the two agree). Rows are exact points; columns
+' can come out a little wider or narrower with the screen's DPI, so widths
+' are scaled by how wide the card actually is.
+Private Const GAP_CARD_W As Double = 436
+Private Const GAP_PAD_X As Double = 20
+Private Const GAP_PAD_Y As Double = 36
+Private Const GAP_CW As Double = 264
+Private Const GAP_CH As Double = 50
+Private Const GAP_BARS As Long = 12
+
+' The tour (build/desk.py TOUR, tour_place).
+Private Const TOUR_STEPS As Long = 6
+Private Const TOUR_PAD As Double = 6
+Private Const TOUR_GAP As Double = 14
 
 Private mPainting As Boolean
 
@@ -200,7 +217,7 @@ Private Function SlotMeta(ByVal key As String, ByVal state As String) As String
             If state = "FORCED" Then
                 SlotMeta = leaf & "  " & ChrW(183) & "  placed by hand - check"
             ElseIf Len(rowsTxt) > 0 And IsNumeric(rowsTxt) Then
-                SlotMeta = leaf & "  " & ChrW(183) & "  " & Fmt(CDbl(rowsTxt)) & " rowsTxt"
+                SlotMeta = leaf & "  " & ChrW(183) & "  " & Fmt(CDbl(rowsTxt)) & " rows"
             Else
                 SlotMeta = leaf
             End If
@@ -407,6 +424,7 @@ Public Sub RefreshDesk()
     PaintBuild ws
     PaintRecon ws
     PaintActivity ws
+    PaintGap ws
     SetVisible ws, "pdx_busy", False
     SetVisible ws, "pdx_macros", False
     SetText ws, "pdx_btn_view", IIf(AppView(), "Excel view", "App view")
@@ -535,7 +553,7 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
             rowsTxt = SlotCell("OUTPUT|" & fw, modPD_Files.S_ROWS)
             asOf = SlotCell("OUTPUT|" & fw, modPD_Files.S_ASOF)
             If Len(rowsTxt) > 0 And IsNumeric(rowsTxt) Then
-                meta = Fmt(CDbl(rowsTxt)) & " rowsTxt"
+                meta = Fmt(CDbl(rowsTxt)) & " rows"
             Else
                 meta = MidTrim(FileLeaf(modPD_Files.SlotFile("OUTPUT|" & fw)), 34)
             End If
@@ -613,7 +631,11 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
     Else
         SetText ws, "pdx_c2_last", "Nothing built yet."
     End If
-    If Len(folder) > 0 Then PaintButton ws, "pdx_c2_open", "ghost" Else PaintButton ws, "pdx_c2_open", "off"
+    If Len(folder) > 0 Then
+        PaintButton ws, "pdx_c2_open", "ghost"
+    Else
+        PaintButton ws, "pdx_c2_open", "off"
+    End If
 End Sub
 
 Private Sub PaintRecon(ByVal ws As Worksheet)
@@ -734,7 +756,7 @@ Private Sub PaintActivity(ByVal ws As Worksheet)
     Dim lg As Worksheet, a As Long, r As Long, n As Long, lvl As String, msg As String
     On Error Resume Next      ' one label that will not paint must not stop the rest
     Set lg = GetSheet(SH_LOG)
-    For a = 1 To 3
+    For a = 1 To 4
         r = modPD_Theme.R_FIRST + a - 1
         msg = ""
         If Not lg Is Nothing Then msg = SafeText(lg.Cells(r, 4).Value2)
@@ -757,6 +779,172 @@ Private Sub PaintActivity(ByVal ws As Worksheet)
     Next a
     SetVisible ws, "pdx_act_empty", n = 0
     SetVisible ws, "pdx_act_art", n = 0
+End Sub
+
+' ===================== the maturity gap =====================================
+'
+' The net pre-factor balance in each maturity bucket of the framework last
+' built, shortest tenor first: bars above the zero line in emerald, below it
+' in grey, "(no bucket)" dim at the end. The numbers are what staging measured
+' (modPD_Stage.NoteGap), so the card costs nothing to paint.
+
+Private Sub PaintGap(ByVal ws As Worksheet)
+    Dim fw As String, raw As String, parts As Variant, n As Long, i As Long, f As Variant, bits As Variant
+    Dim lbl() As String, v() As Double, kind() As String, nShow As Long, tot As Variant
+    Dim card As Shape, sx As Double, cx As Double, top As Double, cw As Double, ch As Double
+    Dim gp As Double, bw As Double, x0 As Double, pos As Double, neg As Double, span As Double
+    Dim zero As Double, h As Double, bar As Shape, lab As Shape, nm As String, nData As Long
+    On Error Resume Next      ' one label that will not paint must not stop the rest
+
+    fw = SettingGet("gap_fw")
+    If Len(fw) > 0 Then raw = SettingGet("gap_" & fw)
+    If Len(raw) = 0 Then
+        For Each f In Frameworks()
+            raw = SettingGet("gap_" & CStr(f))
+            If Len(raw) > 0 Then fw = CStr(f): Exit For
+        Next f
+    End If
+    For Each f In Frameworks()
+        If Len(SettingGet("gap_" & CStr(f))) > 0 Then nData = nData + 1
+    Next f
+
+    Set card = Shp(ws, "pdx_gap")
+    If card Is Nothing Then Exit Sub
+    sx = card.Width / GAP_CARD_W
+    If sx <= 0 Then sx = 1
+    cx = card.Left + GAP_PAD_X * sx
+    top = card.Top + GAP_PAD_Y
+    cw = GAP_CW * sx
+    ch = GAP_CH
+
+    If Len(raw) = 0 Then
+        ' Nothing built yet: the ghost of a gap under a pill that says so.
+        nShow = 9
+        ReDim v(1 To nShow)
+        bits = Array(0.62, 0.38, 0.22, -0.12, -0.3, -0.46, -0.6, -0.36, 0.28)
+        For i = 1 To nShow
+            v(i) = CDbl(bits(i - 1))
+        Next i
+    Else
+        parts = Split(raw, ";")
+        n = UBound(parts) + 1
+        nShow = n
+        If nShow > GAP_BARS Then nShow = GAP_BARS
+        ReDim lbl(1 To nShow)
+        ReDim v(1 To nShow)
+        ReDim kind(1 To nShow)
+        For i = 1 To n
+            bits = Split(CStr(parts(i - 1)), "|")
+            If UBound(bits) >= 3 Then
+                If i < GAP_BARS Or n = GAP_BARS Then
+                    lbl(i) = CStr(bits(0)): v(i) = Val(bits(1)): kind(i) = CStr(bits(3))
+                Else
+                    ' More buckets than bars: the longest tenors share the last.
+                    lbl(GAP_BARS) = "MORE": v(GAP_BARS) = v(GAP_BARS) + Val(bits(1)): kind(GAP_BARS) = ""
+                End If
+            End If
+        Next i
+    End If
+
+    ' The same arithmetic as build/desk.py gap_bars.
+    If nShow > 8 Then gp = 5 * sx Else gp = 8 * sx
+    bw = (cw - (nShow - 1) * gp) / nShow
+    If bw > 26 * sx Then bw = 26 * sx
+    x0 = cx + (cw - (nShow * bw + (nShow - 1) * gp)) / 2
+    For i = 1 To nShow
+        If v(i) > pos Then pos = v(i)
+        If -v(i) > neg Then neg = -v(i)
+    Next i
+    span = pos + neg
+    If span <= 0 Then span = 1
+    zero = top + ch * pos / span
+
+    For i = 1 To GAP_BARS
+        nm = "pdx_gap_bar" & i
+        Set bar = Shp(ws, nm)
+        Set lab = Shp(ws, "pdx_gap_lbl" & i)
+        If i <= nShow And Not bar Is Nothing Then
+            h = ch * Abs(v(i)) / span
+            If h < 1 Then h = 1
+            bar.Left = x0 + (i - 1) * (bw + gp)
+            bar.Width = bw
+            bar.Height = h
+            If v(i) >= 0 Then bar.Top = zero - h Else bar.Top = zero
+            If Len(raw) = 0 Then
+                SetFill ws, nm, HX("FFFFFF"), 0.95
+            ElseIf kind(i) = "none" Then
+                SetFill ws, nm, HX("4A5E55")
+            ElseIf v(i) >= 0 Then
+                SetFill ws, nm, HX("16B07F")
+            Else
+                SetFill ws, nm, HX("7E9388")
+            End If
+            SetVisible ws, nm, True
+            If Not lab Is Nothing Then
+                lab.Left = bar.Left - gp / 2 - 4
+                lab.Width = bw + gp + 8
+                lab.Top = top + ch + 3
+                If Len(raw) > 0 Then SetText ws, "pdx_gap_lbl" & i, lbl(i)
+            End If
+            SetVisible ws, "pdx_gap_lbl" & i, Len(raw) > 0
+        Else
+            SetVisible ws, nm, False
+            SetVisible ws, "pdx_gap_lbl" & i, False
+        End If
+    Next i
+    Set bar = Shp(ws, "pdx_gap_zero")
+    If Not bar Is Nothing Then bar.Top = zero - bar.Height / 2
+
+    SetVisible ws, "pdx_gap_empty", Len(raw) = 0
+    SetVisible ws, "pdx_gap_fw", Len(raw) > 0
+    If Len(raw) = 0 Then
+        SetText ws, "pdx_gap_unit", "NET PRE-FACTOR  " & ChrW(183) & "  BY BUCKET"
+        SetText ws, "pdx_gap_v1", ChrW(8212)
+        SetText ws, "pdx_gap_v2", ChrW(8212)
+        SetText ws, "pdx_gap_v3", ChrW(8212)
+        Exit Sub
+    End If
+
+    SetText ws, "pdx_gap_fw", GapChip(fw) & IIf(nData > 1, "  " & ChrW(8250), "")
+    tot = Split(SettingGet("gap_" & fw & "_tot") & "||||", "|")
+    SetText ws, "pdx_gap_unit", "NET PRE-FACTOR  " & ChrW(183) & "  LCY  " & ChrW(183) & "  " & _
+                                n & Plural(n, " BUCKET", " BUCKETS")
+    SetText ws, "pdx_gap_v1", Replace(Compact(Val(tot(0))), "-", ChrW(8722))
+    SetText ws, "pdx_gap_v2", Compact(Val(tot(1)))
+    If Val(tot(1)) > 0 Then
+        SetText ws, "pdx_gap_v3", Format$(Val(tot(2)) / Val(tot(1)), "0.0%")
+    Else
+        SetText ws, "pdx_gap_v3", ChrW(8212)
+    End If
+End Sub
+
+Private Function GapChip(ByVal fw As String) As String
+    If StrComp(fw, FW_ML, vbTextCompare) = 0 Then GapChip = "LADDER" Else GapChip = UCase$(FwLabel(fw))
+End Function
+
+' The chip on the card: the next framework that has been built.
+Public Sub PD_GapNext()
+    Dim fws As Variant, cur As String, i As Long, k As Long, f As String, ws As Worksheet
+    If PD_Busy Then Exit Sub
+    On Error Resume Next
+    fws = Frameworks()
+    cur = SettingGet("gap_fw")
+    For i = 0 To UBound(fws)
+        If StrComp(CStr(fws(i)), cur, vbTextCompare) = 0 Then k = i
+    Next i
+    For i = 1 To UBound(fws) + 1
+        f = CStr(fws((k + i) Mod (UBound(fws) + 1)))
+        If Len(SettingGet("gap_" & f)) > 0 Then
+            SettingSet "gap_fw", f
+            Exit For
+        End If
+    Next i
+    Set ws = DeskSheet()
+    If ws Is Nothing Then Exit Sub
+    ws.Unprotect
+    PaintGap ws
+    ws.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True, UserInterfaceOnly:=True
+    Err.Clear
 End Sub
 
 ' ===================== results reported by the engine =======================
@@ -835,10 +1023,48 @@ Public Sub PD_FwToggle()
     End If
     If SettingGet("sel_" & fw, "1") = "1" Then
         SettingSet "sel_" & fw, "0"
+        SlideKnob i, False
     Else
         SettingSet "sel_" & fw, "1"
+        SlideKnob i, True
     End If
     RefreshDesk
+End Sub
+
+' The switch slides rather than jumps: four frames over about a tenth of a
+' second, easing out, with the track taking its new colour half way.
+Private Sub SlideKnob(ByVal i As Long, ByVal toOn As Boolean)
+    Dim ws As Worksheet, track As Shape, knob As Shape, x0 As Double, x1 As Double, f As Long, e As Double
+    On Error Resume Next
+    Set ws = DeskSheet()
+    If ws Is Nothing Then Exit Sub
+    Set track = Shp(ws, "pdx_fw" & i & "_track")
+    Set knob = Shp(ws, "pdx_fw" & i & "_knob")
+    If track Is Nothing Or knob Is Nothing Then Exit Sub
+    x0 = knob.Left
+    If toOn Then x1 = track.Left + track.Width - knob.Width - 2 Else x1 = track.Left + 2
+    ws.Unprotect
+    Application.ScreenUpdating = True
+    For f = 1 To 4
+        e = 1 - (1 - f / 4) ^ 3
+        knob.Left = x0 + (x1 - x0) * e
+        If f = 2 Then
+            If toOn Then track.Fill.ForeColor.RGB = HX("16B07F") Else track.Fill.ForeColor.RGB = HX("2A3B33")
+        End If
+        Pause 0.025
+    Next f
+    ws.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True, UserInterfaceOnly:=True
+    Err.Clear
+End Sub
+
+' A short wait that keeps the screen painting.
+Private Sub Pause(ByVal secs As Single)
+    Dim t0 As Single
+    DoEvents
+    t0 = Timer
+    Do While Timer - t0 < secs And Timer >= t0
+        DoEvents
+    Loop
 End Sub
 
 Public Sub PD_BuildSelected()
@@ -913,7 +1139,11 @@ Public Sub Toast(ByVal msg As String, Optional ByVal level As String = "OK")
     SetFill ws, "pdx_toast_dot", clr
     Set dotSh = Shp(ws, "pdx_toast_dot")
     If Not dotSh Is Nothing Then dotSh.Glow.Color.RGB = clr
-    SetVisible ws, "pdx_toast", True
+    If Application.ScreenUpdating And DeskInFront() Then
+        FadeIn ws, "pdx_toast", 0.45
+    Else
+        SetVisible ws, "pdx_toast", True
+    End If
     SetVisible ws, "pdx_toast_dot", True
     ws.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True, UserInterfaceOnly:=True
 
@@ -924,6 +1154,30 @@ Public Sub Toast(ByVal msg As String, Optional ByVal level As String = "OK")
     t = Now + TimeSerial(0, 0, TOAST_SECONDS)
     SettingSet "toast_at", Format$(t, "yyyy-mm-dd hh:nn:ss")
     Application.OnTime t, "PD_ToastAutoHide"
+    Err.Clear
+End Sub
+
+' Comes up over three frames instead of appearing: fill, outline and text
+' from clear to their own opacity.
+Private Sub FadeIn(ByVal ws As Worksheet, ByVal nm As String, ByVal lineTransp As Single)
+    Dim sh As Shape, f As Long, e As Single
+    On Error Resume Next
+    Set sh = Shp(ws, nm)
+    If sh Is Nothing Then Exit Sub
+    sh.Fill.Transparency = 1
+    sh.Line.Transparency = 1
+    sh.TextFrame2.TextRange.Font.Fill.Transparency = 1
+    sh.visible = msoTrue
+    For f = 1 To 3
+        e = f / 3
+        sh.Fill.Transparency = 1 - e
+        sh.Line.Transparency = 1 - e * (1 - lineTransp)
+        sh.TextFrame2.TextRange.Font.Fill.Transparency = 1 - e
+        Pause 0.03
+    Next f
+    sh.Fill.Transparency = 0
+    sh.Line.Transparency = lineTransp
+    sh.TextFrame2.TextRange.Font.Fill.Transparency = 0
     Err.Clear
 End Sub
 
@@ -968,6 +1222,224 @@ Private Sub CancelToastTimer()
     Err.Clear
 End Sub
 
+' ===================== the tour =============================================
+'
+' Six steps, each lighting one part of the desk: four veils darken everything
+' around it, a ring marks it, and a card beside it says what it is for. The
+' placement is build/desk.py's tour_place, so the preview and Excel agree, and
+' the build checks every title here is the one the design shows.
+
+Private Sub TourStep(ByVal n As Long, ByRef targets As String, ByRef title As String, ByRef body As String)
+    Select Case n
+        Case 1
+            targets = "pdx_hero_greet,pdx_hero_lede,pdx_cta,pdx_cta2"
+            title = "The next step, always"
+            body = "PivotDesk reads the desk and puts the next sensible step on this button. " & _
+                   "The sentence above it says why."
+        Case 2
+            targets = "pdx_card1"
+            title = "Put the files on the desk"
+            body = "Scan a folder or pick files. Each is recognised by its columns, not its name. " & _
+                   "Click a row to choose the file for that slot."
+        Case 3
+            targets = "pdx_card2"
+            title = "Build what you need"
+            body = "Switch frameworks on or off, then build. Every sheet comes from a row on Pivot config, " & _
+                   "and every row can be changed."
+        Case 4
+            targets = "pdx_card3"
+            title = "Breaks before anyone asks"
+            body = "Reconcile the outputs against control reports 3 and 6. Each cell of the matrix is one " & _
+                   "control against one framework."
+        Case 5
+            targets = "pdx_gap"
+            title = "The shape of the book"
+            body = "After a build, the net balance in each maturity bucket is drawn here, shortest tenor " & _
+                   "first. The chip switches framework."
+        Case Else
+            targets = "pdx_nav"
+            title = "Everything is one click away"
+            body = "The bar goes to every sheet, as do Ctrl+Shift+D, F, P, R and A. Excel view brings the " & _
+                   "ribbon back. F1 plays this tour again."
+    End Select
+End Sub
+
+Private Function TourCardParts() As Variant
+    TourCardParts = Array("pdx_tour_card", "pdx_tour_step", "pdx_tour_pip1", "pdx_tour_pip2", "pdx_tour_pip3", _
+                          "pdx_tour_pip4", "pdx_tour_pip5", "pdx_tour_pip6", "pdx_tour_title", "pdx_tour_body", _
+                          "pdx_tour_skip", "pdx_tour_back", "pdx_tour_next")
+End Function
+
+Private Function TourVeils() As Variant
+    TourVeils = Array("pdx_tour_dim_t", "pdx_tour_dim_b", "pdx_tour_dim_l", "pdx_tour_dim_r", "pdx_tour_ring")
+End Function
+
+Public Sub PD_TourStart()
+    If PD_Busy Then Exit Sub
+    TourShow 1
+End Sub
+
+Public Sub PD_TourNext()
+    Dim n As Long
+    If PD_Busy Then Exit Sub
+    n = CLng(Val(SettingGet("tour_step", "0"))) + 1
+    If n > TOUR_STEPS Then
+        PD_TourEnd
+    Else
+        TourShow n
+    End If
+End Sub
+
+Public Sub PD_TourBack()
+    Dim n As Long
+    If PD_Busy Then Exit Sub
+    n = CLng(Val(SettingGet("tour_step", "1")))
+    If n > 1 Then TourShow n - 1
+End Sub
+
+Public Sub PD_TourEnd()
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = DeskSheet()
+    If Not ws Is Nothing Then
+        ws.Unprotect
+        TourHide ws
+        ws.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True, UserInterfaceOnly:=True
+    End If
+    SettingSet "toured", "1"
+    Err.Clear
+End Sub
+
+' Hides the tour. The caller has the sheet unprotected.
+Private Sub TourHide(ByVal ws As Worksheet)
+    Dim nm As Variant
+    On Error Resume Next
+    If Len(SettingGet("tour_step")) = 0 Then Exit Sub
+    For Each nm In TourVeils()
+        SetVisible ws, CStr(nm), False
+    Next nm
+    For Each nm In TourCardParts()
+        SetVisible ws, CStr(nm), False
+    Next nm
+    SettingSet "tour_step", ""
+    Err.Clear
+End Sub
+
+Private Sub TourShow(ByVal n As Long)
+    Dim ws As Worksheet, targets As String, title As String, body As String, nm As Variant
+    Dim sh As Shape, card As Shape, found As Boolean, i As Long
+    Dim x0 As Double, y0 As Double, x1 As Double, y1 As Double, wd As Double
+    Dim rx As Double, ry As Double, rw As Double, rh As Double, kx As Double, ky As Double
+    Dim dx As Double, dy As Double
+    On Error Resume Next
+    Set ws = DeskSheet()
+    If ws Is Nothing Then Exit Sub
+    If Not DeskInFront() Then modPD_Theme.GoTo_ SH_HOME
+    CancelToastTimer
+    ToastHide
+    TourStep n, targets, title, body
+
+    For Each nm In Split(targets, ",")
+        Set sh = Shp(ws, CStr(nm))
+        If Not sh Is Nothing Then
+            If Not found Then
+                x0 = sh.Left: y0 = sh.Top: x1 = sh.Left + sh.Width: y1 = sh.Top + sh.Height
+                found = True
+            Else
+                If sh.Left < x0 Then x0 = sh.Left
+                If sh.Top < y0 Then y0 = sh.Top
+                If sh.Left + sh.Width > x1 Then x1 = sh.Left + sh.Width
+                If sh.Top + sh.Height > y1 Then y1 = sh.Top + sh.Height
+            End If
+        End If
+    Next nm
+    Set card = Shp(ws, "pdx_tour_card")
+    If Not found Or card Is Nothing Then Exit Sub
+
+    Set sh = Shp(ws, "pdx_bar")
+    If sh Is Nothing Then wd = 1120 Else wd = sh.Width
+    rx = x0 - TOUR_PAD: ry = y0 - TOUR_PAD
+    rw = x1 - x0 + 2 * TOUR_PAD: rh = y1 - y0 + 2 * TOUR_PAD
+    If ry + rh < 60 Then
+        kx = Clamp(rx, 12, wd - card.Width - 12): ky = ry + rh + TOUR_GAP
+    ElseIf rx + rw + TOUR_GAP + card.Width <= wd - 12 Then
+        kx = rx + rw + TOUR_GAP: ky = Clamp(ry, 60, DESK_H - card.Height - 12)
+    ElseIf rx - TOUR_GAP - card.Width >= 12 Then
+        kx = rx - TOUR_GAP - card.Width: ky = Clamp(ry, 60, DESK_H - card.Height - 12)
+    ElseIf ry + rh + TOUR_GAP + card.Height <= DESK_H - 12 Then
+        kx = Clamp(rx, 12, wd - card.Width - 12): ky = ry + rh + TOUR_GAP
+    Else
+        kx = Clamp(rx, 12, wd - card.Width - 12): ky = ry - TOUR_GAP - card.Height
+    End If
+
+    ws.Unprotect
+    ' Past the canvas on the right and below, for a window wider than the design.
+    Place ws, "pdx_tour_dim_t", 0, 0, wd + 800, Clamp(ry, 0.75, ry)
+    Place ws, "pdx_tour_dim_b", 0, ry + rh, wd + 800, DESK_H + 800 - ry - rh
+    Place ws, "pdx_tour_dim_l", 0, ry, Clamp(rx, 0.75, rx), rh
+    Place ws, "pdx_tour_dim_r", rx + rw, ry, wd + 800 - rx - rw, rh
+    Place ws, "pdx_tour_ring", rx, ry, rw, rh
+    dx = kx - card.Left
+    dy = ky - card.Top
+    For Each nm In TourCardParts()
+        Set sh = Shp(ws, CStr(nm))
+        If Not sh Is Nothing Then
+            sh.Left = sh.Left + dx
+            sh.Top = sh.Top + dy
+        End If
+    Next nm
+
+    SetText ws, "pdx_tour_step", "STEP " & n & " OF " & TOUR_STEPS
+    SetText ws, "pdx_tour_title", title
+    SetText ws, "pdx_tour_body", body
+    For i = 1 To TOUR_STEPS
+        If i = n Then
+            SetFill ws, "pdx_tour_pip" & i, HX("16B07F")
+        ElseIf i < n Then
+            SetFill ws, "pdx_tour_pip" & i, HX("006141")
+        Else
+            SetFill ws, "pdx_tour_pip" & i, HX("243A31")
+        End If
+    Next i
+    If n > 1 Then
+        PaintButton ws, "pdx_tour_back", "ghost"
+    Else
+        PaintButton ws, "pdx_tour_back", "off"
+    End If
+    If n < TOUR_STEPS Then
+        SetText ws, "pdx_tour_next", "Next"
+    Else
+        SetText ws, "pdx_tour_next", "Done"
+    End If
+    For Each nm In TourVeils()
+        SetVisible ws, CStr(nm), True
+    Next nm
+    For Each nm In TourCardParts()
+        SetVisible ws, CStr(nm), True
+    Next nm
+    ws.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True, UserInterfaceOnly:=True
+    SettingSet "tour_step", CStr(n)
+    Err.Clear
+End Sub
+
+Private Sub Place(ByVal ws As Worksheet, ByVal nm As String, ByVal x As Double, ByVal y As Double, _
+                  ByVal w As Double, ByVal h As Double)
+    Dim sh As Shape
+    Set sh = Shp(ws, nm)
+    If sh Is Nothing Then Exit Sub
+    On Error Resume Next
+    If w < 0.75 Then w = 0.75
+    If h < 0.75 Then h = 0.75
+    sh.Left = x: sh.Top = y: sh.Width = w: sh.Height = h
+    Err.Clear
+End Sub
+
+Private Function Clamp(ByVal v As Double, ByVal lo As Double, ByVal hi As Double) As Double
+    If v > hi Then v = hi
+    If v < lo Then v = lo
+    Clamp = v
+End Function
+
 ' ===================== busy =================================================
 
 ' Long work runs with the screen frozen. The overlay is painted first, so the
@@ -979,6 +1451,7 @@ Public Sub BusyOn()
     If Not DeskInFront() Then Exit Sub
     Set ws = DeskSheet()
     ws.Unprotect
+    TourHide ws
     SetVisible ws, "pdx_busy", True
     ws.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True, UserInterfaceOnly:=True
     Application.ScreenUpdating = True
@@ -1066,7 +1539,11 @@ Public Sub PD_ToggleAppView()
     Dim ws As Worksheet
     On Error Resume Next
     PressFx
-    If AppView() Then SettingSet "view", "excel" Else SettingSet "view", "app"
+    If AppView() Then
+        SettingSet "view", "excel"
+    Else
+        SettingSet "view", "app"
+    End If
     ApplyChrome
     Set ws = DeskSheet()
     If Not ws Is Nothing Then
@@ -1171,7 +1648,8 @@ Public Sub FitIfDesk()
     If DeskInFront() Then FitDesk
 End Sub
 
-' Ctrl+Shift+D / F / R / A, only while this workbook is in front.
+' Ctrl+Shift+D / F / R / A / P, and F1 for the tour, only while this
+' workbook is in front.
 Private Sub RegisterKeys(ByVal onOff As Boolean)
     On Error Resume Next
     If onOff Then
@@ -1180,12 +1658,14 @@ Private Sub RegisterKeys(ByVal onOff As Boolean)
         Application.OnKey "^+r", "PD_GoRecon"
         Application.OnKey "^+a", "PD_GoLog"
         Application.OnKey "^+p", "PD_GoConfig"
+        Application.OnKey "{F1}", "PD_TourStart"
     Else
         Application.OnKey "^+d"
         Application.OnKey "^+f"
         Application.OnKey "^+r"
         Application.OnKey "^+a"
         Application.OnKey "^+p"
+        Application.OnKey "{F1}"
     End If
     Err.Clear
 End Sub
@@ -1197,11 +1677,16 @@ Public Sub Opened()
     RefreshDesk
     modPD_Theme.GoTo_ SH_HOME
     AppEnter
-    ' Once, after an upgrade: what moved where.
+    ' Once per version. The first time ever, the tour; after that, a line on
+    ' what is new.
     If SettingGet("welcome") = "1" Then
         SettingSet "welcome", ""
-        Toast "Welcome to " & TOOL_NAME & " " & TOOL_VERSION & ". The console is now this Desk, and Pivot config " & _
-              "lets you shape every pivot a build makes. Excel view brings the ribbon back.", V_OK
+        If SettingGet("toured") <> "1" And DeskInFront() Then
+            TourShow 1
+        Else
+            Toast "New in " & TOOL_VERSION & ": the maturity gap of each build on the Desk, buckets in tenor " & _
+                  "order in every pivot, and a tour of the desk on F1.", V_OK
+        End If
     End If
     Err.Clear
 End Sub
@@ -1219,6 +1704,7 @@ Public Sub BeforeSave()
         SetVisible ws, "pdx_busy", False
         SetVisible ws, "pdx_toast", False
         SetVisible ws, "pdx_toast_dot", False
+        TourHide ws
         ws.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True, UserInterfaceOnly:=True
     End If
     ThisWorkbook.Windows(1).DisplayWorkbookTabs = True

@@ -64,7 +64,7 @@ F_SEMILIGHT = "Segoe UI Semilight"
 F_MONO = "Consolas"
 
 # --- the Desk canvas, in points ---------------------------------------------
-W, H = 1120, 630
+W, H = 1120, 660
 GRID_COL_PT = 15.0        # every Desk column is 20 px = 15 pt
 GRID_ROW_PT = 15.0
 MARGIN = 28

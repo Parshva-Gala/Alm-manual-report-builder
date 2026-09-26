@@ -245,7 +245,7 @@ def build():
     # The Desk prints as a one-page status snapshot.
     if "_xlnm.Print_Area" not in wb:
         wb = wb.replace("<definedNames>", '<definedNames><definedName name="_xlnm.Print_Area" localSheetId="0">'
-                        "Desk!$A$1:$BW$42</definedName>", 1)
+                        "Desk!$A$1:$BW$44</definedName>", 1)
     parts["xl/workbook.xml"] = wb.encode("utf-8")
 
     ct = parts["[Content_Types].xml"].decode("utf-8")
@@ -349,8 +349,12 @@ def check_contract(shapes, sources):
     for r in (1, 2):
         expected += ["pdx_m_%d%d" % (r, c) for c in (1, 2, 3)]
         expected += ["pdx_ctl%d_dot" % r, "pdx_ctl%d_meta" % r, "pdx_ctl%d_hit" % r]
-    for a in (1, 2, 3):
+    for a in range(1, desk.ACT_ROWS + 1):
         expected += ["pdx_act%d_%s" % (a, k) for k in ("when", "lvl", "stage", "msg")]
+    for b in range(1, desk.GAP_MAX + 1):
+        expected += ["pdx_gap_bar%d" % b, "pdx_gap_lbl%d" % b]
+    expected += ["pdx_gap_k%d" % k for k in (1, 2, 3)] + ["pdx_gap_v%d" % k for k in (1, 2, 3)]
+    expected += ["pdx_tour_pip%d" % k for k in range(1, len(desk.TOUR) + 1)]
     for c in (1, 2, 3):
         expected += ["pdx_card%d_count" % c]
     for n in expected:
@@ -405,6 +409,32 @@ def check_palette(sources):
     return problems
 
 
+def check_geometry(sources):
+    """The numbers modPD_Desk lays the gap chart and the tour out with are the
+    design's, and the tour says in Excel what it says in the preview."""
+    problems = []
+    src = sources.get("modPD_Desk", "")
+    consts = {k: float(v) for k, v in re.findall(r"Private Const (\w+) As (?:Double|Long) = ([0-9.]+)", src)}
+    want = {"GAP_CARD_W": desk.GAP_W, "GAP_PAD_X": desk.GAP_PAD[0], "GAP_PAD_Y": desk.GAP_PAD[1],
+            "GAP_CW": desk.GAP_CHART[2], "GAP_CH": desk.GAP_CHART[3], "GAP_BARS": desk.GAP_MAX,
+            "TOUR_STEPS": len(desk.TOUR), "TOUR_PAD": desk.TOUR_PAD, "TOUR_GAP": desk.TOUR_GAP,
+            "DESK_H": desk.H}
+    for k, v in want.items():
+        if k not in consts:
+            problems.append("geometry: modPD_Desk has no constant %s" % k)
+        elif abs(consts[k] - v) > 1e-9:
+            problems.append("geometry: %s is %g in VBA but %g in the design" % (k, consts[k], v))
+    fit = re.search(r'FIT_RANGE As String = "A1:([A-Z]+)(\d+)"', src)
+    if not fit or int(fit.group(2)) * desk.GRID_ROW_PT != desk.H:
+        problems.append("geometry: FIT_RANGE does not cover the %g pt canvas" % desk.H)
+    for n, (targets, title, _) in enumerate(desk.TOUR, start=1):
+        if ('title = "%s"' % title) not in src:
+            problems.append("tour: step %d title %r is not the one modPD_Desk shows" % (n, title))
+        if ('targets = "%s"' % ",".join(targets)) not in src:
+            problems.append("tour: step %d lights %s in the design but not in modPD_Desk" % (n, targets))
+    return problems
+
+
 def main():
     parts, shapes, sources = build()
     problems = []
@@ -413,7 +443,10 @@ def main():
     problems += check_contract(shapes, sources)
     problems += check_package(parts)
     problems += check_palette(sources)
-    for label, st in (("shipped", shipped_state()), ("showcase", desk.showcase_state())):
+    problems += check_geometry(sources)
+    tour = desk.showcase_state()
+    tour.update({"toast": None, "tour": 5})
+    for label, st in (("shipped", shipped_state()), ("showcase", desk.showcase_state()), ("tour", tour)):
         fails, _ = contrast.check(st, label)
         problems += ["contrast %.2f < %.1f on %s (%r)" % (f[0], f[1], f[3], f[4]) for f in fails]
     fails, _ = contrast.check_sheets()

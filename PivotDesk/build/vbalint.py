@@ -180,6 +180,33 @@ def continuation_problems(name, code):
     return out
 
 
+# LibreOffice runs this project's pure functions in build/lo_run.py, which is
+# the only way to execute the VBA off Windows. Its compiler rejects three
+# things Excel's accepts, and one rejection sinks the whole library, so they
+# are kept out: each has a plain equivalent that means the same in Excel.
+LO_RESERVED = {"base"}
+
+
+def lo_compat_problems(name, code):
+    out = []
+    for n, text in logical_lines(code):
+        m = re.match(r"^\s*(?:ElseIf|If)\s+.*?\s+Then\s+(\S.*?)\s+Else\s+", text, re.I)
+        if m:
+            then = m.group(1)
+            is_call = re.match(r"^\.?[A-Za-z_][\w.]*\s+[^=\s:]", then)
+            is_assign = re.match(r"^[A-Za-z_][\w.()\s,\"]*=", then)
+            if is_call and not is_assign and not re.match(r"^(Exit|GoTo|Set|Call)\b", then, re.I):
+                out.append((name, n, "one-line If calling %s with arguments before Else: write it as a block "
+                                      "(LibreOffice cannot parse it)" % then.split()[0]))
+        if re.search(r"\bOptional\s+(ByVal\s+|ByRef\s+)?\w+\s+As\s+\w+\s*=\s*Nothing\b", text, re.I):
+            out.append((name, n, "Optional ... = Nothing: leave the default off, it is Nothing anyway "
+                                 "(LibreOffice cannot parse it)"))
+        for w in LO_RESERVED:
+            if re.search(r"(?<![\w.\"])%s\b(?!\s*\()" % w, text, re.I) and not re.search(r"Option\s+Base", text, re.I):
+                out.append((name, n, "%r is reserved in LibreOffice Basic; use another name" % w))
+    return out
+
+
 def logical_lines(code: str):
     """(first physical line number, text) with continuations joined."""
     buf, start = "", None
@@ -298,6 +325,7 @@ def analyse(modules: dict[str, str], known_constants=None, extra_names=None):
     issues = []
     for n, c in modules.items():
         issues += continuation_problems(n, c)
+        issues += lo_compat_problems(n, c)
 
     # ---- pass 1: declarations and block structure ----------------------------
     for m in mods.values():

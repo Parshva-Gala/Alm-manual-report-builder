@@ -22,7 +22,14 @@ def render_state(name, state, scale=2):
 
 
 if __name__ == "__main__":
-    which = sys.argv[1:] or ["showcase", "empty"]
+    which = sys.argv[1:] or ["showcase", "empty", "tour"]
     for w in which:
-        st = desk.showcase_state() if w == "showcase" else desk.empty_state()
+        if w == "showcase":
+            st = desk.showcase_state()
+        elif w == "tour":
+            # the tour on the step that explains the maturity gap
+            st = desk.showcase_state()
+            st.update({"toast": None, "tour": 5})
+        else:
+            st = desk.empty_state()
         print(render_state(w, st))

@@ -22,6 +22,10 @@ Option Explicit
 '                amounts beside it is worse than no factor.
 ' ============================================================================
 
+' Where non-maturity and "(no bucket)" sort among tenors, in days (see TenorDays).
+Public Const TENOR_NM As Double = 900000#
+Public Const TENOR_NONE As Double = 999999#
+
 ' What a staging pass found out, handed back to the caller.
 Private mAsOf As String
 Private mLocalCcy As String
@@ -48,6 +52,17 @@ Private mMissing As String
 ' biggest sheets can be built first without reading the data twice.
 Private mSplitCols As Object          ' signature -> Array of stage columns
 Private mSplitWeights As Object       ' signature -> Dictionary
+
+' The shape of the book, measured in the same pass: net and gross pre-factor
+' per maturity bucket, and each bucket's average maturity date for labels too
+' odd to read a tenor from. The Desk draws it; the pivots order by it.
+Private mBktNet As Object             ' bucket -> sum of pre-factor
+Private mBktGross As Object           ' bucket -> sum of |pre-factor|
+Private mBktMat As Object             ' bucket -> sum of maturity serials
+Private mBktMatN As Object            ' bucket -> rows that had a maturity date
+Private mPreAbs As Double
+Private mPostAbs As Double
+Private mAsOfNum As Double
 
 Public Function StagedRows() As Double
     StagedRows = mRows
@@ -108,8 +123,8 @@ End Function
 '  Returns the ListObject, or Nothing.
 ' ============================================================================
 Public Function StageFramework(ByVal fw As String, ByVal dstWb As Workbook, ByRef errOut As String, _
-                               Optional ByVal extras As Collection = Nothing, _
-                               Optional ByVal splits As Collection = Nothing) As ListObject
+                               Optional ByVal extras As Collection, _
+                               Optional ByVal splits As Collection) As ListObject
     Dim key As String, Path As String, src As Workbook, ws As Worksheet, hdr As Long
     Dim lastR As Long, lastC As Long, hdrVals As Variant, fieldMap As Object
     Dim cols() As Long, nCols As Long, runStart() As Long, runEnd() As Long, nRuns As Long
@@ -178,6 +193,7 @@ Public Function StageFramework(ByVal fw As String, ByVal dstWb As Workbook, ByRe
     mRows = wrote
 
     If wrote = 0 Then errOut = "every row in that file was empty": Exit Function
+    NoteGap fw
     Set StageFramework = MakeTable(stage, outRow - 1)
     modPD_Files.NoteRows key, wrote, mAsOf
     modPD_Files.NoteAmountField key, AmountFieldNote()
@@ -204,6 +220,11 @@ Private Sub ResetPass()
     mMissing = ""
     Set mSplitCols = NewMap()
     Set mSplitWeights = NewMap()
+    Set mBktNet = NewMap()
+    Set mBktGross = NewMap()
+    Set mBktMat = NewMap()
+    Set mBktMatN = NewMap()
+    mPreAbs = 0: mPostAbs = 0: mAsOfNum = 0
 End Sub
 
 ' Where each extra field comes from in this file, resolved against the header
@@ -323,6 +344,7 @@ Private Function ColumnIndex(ByVal h As Object) As Object
     d("Pre") = At(h, mPreField)
     d("Post") = At(h, mPostField)
     d("AsOf") = At(h, F_AS_OF)
+    d("Mat") = At(h, F_MATURITY)
 End Function
 
 Private Function At(ByVal h As Object, ByVal nm As String) As Long
@@ -404,14 +426,16 @@ End Sub
 Private Function EmitBlock(ByRef buf As Variant, ByVal n As Long, ByVal ix As Object, _
                            ByVal stage As Worksheet, ByRef outRow As Long) As Double
     Dim out() As Variant, i As Long, k As Long, pre As Double, post As Double
-    Dim ccy As String, rule As String, local_ As String
+    Dim ccy As String, rule As String, local_ As String, bkt As String, m As Variant
     Dim iOrder As Long, iCat As Long, iRule As Long, iType As Long, iLine As Long
     Dim iSub As Long, iCoa As Long, iCcy As Long, iBkt As Long, iPre As Long, iPost As Long, iAsOf As Long
+    Dim iMat As Long
 
     iOrder = CLng(ix("Order")): iCat = CLng(ix("Cat")): iRule = CLng(ix("Rule"))
     iType = CLng(ix("Type")): iLine = CLng(ix("Line")): iSub = CLng(ix("Sub"))
     iCoa = CLng(ix("Coa")): iCcy = CLng(ix("Ccy")): iBkt = CLng(ix("Bucket"))
     iPre = CLng(ix("Pre")): iPost = CLng(ix("Post")): iAsOf = CLng(ix("AsOf"))
+    iMat = CLng(ix("Mat"))
     local_ = mLocalCcy
 
     ReDim out(1 To n, 1 To C_COLS + mXCount)
@@ -444,16 +468,36 @@ Private Function EmitBlock(ByRef buf As Variant, ByVal n As Long, ByVal ix As Ob
         out(k, C_COA_NAME) = Blank(Txt(buf, i, iCoa), "(no COA)")
         out(k, C_CURRENCY) = Blank(ccy, "(no currency)")
         out(k, C_CCYCLASS) = IIf(StrComp(ccy, local_, vbTextCompare) = 0, "LCY", "FCY")
-        out(k, C_BUCKET) = Blank(Txt(buf, i, iBkt), "(no bucket)")
+        bkt = Blank(Txt(buf, i, iBkt), "(no bucket)")
+        out(k, C_BUCKET) = bkt
         out(k, C_PRE) = pre
         out(k, C_POST) = post
+
+        mBktNet(bkt) = SafeNum(mBktNet(bkt)) + pre
+        mBktGross(bkt) = SafeNum(mBktGross(bkt)) + Abs(pre)
+        mPreAbs = mPreAbs + Abs(pre)
+        mPostAbs = mPostAbs + Abs(post)
+        If iMat > 0 Then
+            ' Read with .Value2, so a real date arrives as its serial number.
+            m = buf(i, iMat)
+            If VarType(m) = vbDouble Then
+                If m > 0 Then
+                    mBktMat(bkt) = SafeNum(mBktMat(bkt)) + m
+                    mBktMatN(bkt) = SafeNum(mBktMatN(bkt)) + 1
+                End If
+            End If
+        End If
 
         If mXCount > 0 Then EmitExtras buf, i, out, k
         If mSplitCols.count > 0 Then Weigh out, k, pre
         If Len(rule) > 0 Then mRuleNames(rule) = SafeNum(mRuleNames(rule)) + Abs(pre)
         ' AsOfText, not Txt: the block was read with .Value2, which hands a date
         ' over as its serial number, and "45991" is not an as-of date.
-        If Len(mAsOf) = 0 And iAsOf > 0 Then mAsOf = AsOfText(buf(i, iAsOf))
+        If Len(mAsOf) = 0 And iAsOf > 0 Then
+            mAsOf = AsOfText(buf(i, iAsOf))
+            m = DateValueOf(buf(i, iAsOf))
+            If Not IsEmpty(m) Then mAsOfNum = CDbl(m)
+        End If
     Next i
 
     If k = 0 Then Exit Function
@@ -609,3 +653,185 @@ Private Function MakeTable(ByVal ws As Worksheet, ByVal LastRow As Long) As List
     Err.Clear
     Set MakeTable = lo
 End Function
+
+' ===================== tenor ================================================
+'
+' Bucket labels are words - "UPTO 1 MONTH", "1 - 3 MONTHS", "OVER 5 YEARS",
+' "NON MATURITY" - and sorted as words they come out 1-3, 3-6, OVER, UPTO.
+' TenorDays reads the tenor a label names, as days to its far end:
+'
+'   UPTO 1 MONTH        30          1 - 3 MONTHS          90
+'   6 MONTHS TO 1 YEAR  365         OVER 5 YEARS        1825.5  (just past 3-5 years)
+'   OVERNIGHT           1           NON MATURITY        after every tenor
+'
+' and the short form the Desk prints under a bar: "<=1M", "1-3M", ">5Y", "NM".
+' A label it cannot read returns -1; that bucket is placed by the average
+' maturity date of its rows instead, or just before non-maturity if it has none.
+
+
+Public Function TenorDays(ByVal label As String, ByRef shortLbl As String) As Double
+    Dim u As String, i As Long, ch As String, n As Long, tok As String, kind As String
+    Dim nums(1 To 12) As Double, units(1 To 12) As Double, uch(1 To 12) As String
+    Dim overQ As Boolean, uptoQ As Boolean, lo As Double, hi As Double, iLo As Long, iHi As Long
+    Dim words As Collection, w As Variant, per As Double, letter As String
+
+    u = UCase$(Trim$(label))
+    shortLbl = ""
+    TenorDays = -1
+    If Len(u) = 0 Or u = "(NO BUCKET)" Then shortLbl = ChrW(8212): TenorDays = TENOR_NONE: Exit Function
+    If (InStr(u, "NON") > 0 And InStr(u, "MAT") > 0) Or InStr(u, "UNDATED") > 0 Or _
+       InStr(u, "NO MATURITY") > 0 Or InStr(u, "INDETERMIN") > 0 Or InStr(u, "PERPETUAL") > 0 Then
+        shortLbl = "NM": TenorDays = TENOR_NM: Exit Function
+    End If
+    If InStr(u, "OVERNIGHT") > 0 Or u = "O/N" Or u = "ON" Then shortLbl = "O/N": TenorDays = 1: Exit Function
+    If InStr(u, "DEMAND") > 0 Or InStr(u, "AT CALL") > 0 Or InStr(u, "SIGHT") > 0 Then
+        shortLbl = "CALL": TenorDays = 1: Exit Function
+    End If
+
+    ' Numbers, words and the signs < > + in the order they appear. A number
+    ' takes the unit word that follows it; one without borrows the next
+    ' number's, which is how "1 - 3 MONTHS" reads as months at both ends.
+    Set words = New Collection
+    For i = 1 To Len(u) + 1
+        If i <= Len(u) Then ch = Mid$(u, i, 1) Else ch = " "
+        If (ch >= "0" And ch <= "9") Or (ch = "." And kind = "n") Then
+            If kind <> "n" Then FlushTok words, tok, kind: kind = "n"
+            tok = tok & ch
+        ElseIf ch >= "A" And ch <= "Z" Then
+            If kind <> "w" Then FlushTok words, tok, kind: kind = "w"
+            tok = tok & ch
+        Else
+            FlushTok words, tok, kind
+            kind = ""
+            If ch = ">" Or ch = "+" Then overQ = True
+            If ch = "<" Or ch = ChrW(8804) Then uptoQ = True
+        End If
+    Next i
+
+    For Each w In words
+        If Left$(CStr(w), 1) = "n" Then
+            If n < 12 Then n = n + 1: nums(n) = Val(Mid$(CStr(w), 2))
+        Else
+            Select Case Mid$(CStr(w), 2)
+                Case "D", "DAY", "DAYS": per = 1: letter = "D"
+                Case "W", "WK", "WKS", "WEEK", "WEEKS": per = 7: letter = "W"
+                Case "M", "MO", "MOS", "MON", "MTH", "MTHS", "MONTH", "MONTHS": per = 30: letter = "M"
+                Case "Y", "YR", "YRS", "YEAR", "YEARS": per = 365: letter = "Y"
+                Case "OVER", "MORE", "ABOVE", "GREATER", "BEYOND", "AFTER": per = 0: overQ = True
+                Case "UPTO", "UP", "LESS", "UNDER", "WITHIN", "BELOW": per = 0: uptoQ = True
+                Case Else: per = 0
+            End Select
+            If per > 0 And n > 0 Then
+                If units(n) = 0 Then units(n) = per: uch(n) = letter
+            End If
+        End If
+    Next w
+    If n = 0 Then Exit Function
+    For i = n - 1 To 1 Step -1
+        If units(i) = 0 Then units(i) = units(i + 1): uch(i) = uch(i + 1)
+    Next i
+    If units(n) = 0 Then Exit Function
+
+    iLo = 1: iHi = 1
+    For i = 1 To n
+        If nums(i) * units(i) < nums(iLo) * units(iLo) Then iLo = i
+        If nums(i) * units(i) > nums(iHi) * units(iHi) Then iHi = i
+    Next i
+    lo = nums(iLo) * units(iLo)
+    hi = nums(iHi) * units(iHi)
+    If overQ And lo = hi Then
+        TenorDays = hi + 0.5
+        shortLbl = ">" & NumTxt(nums(iHi)) & uch(iHi)
+    ElseIf lo = hi Then
+        TenorDays = hi
+        shortLbl = IIf(uptoQ, ChrW(8804), "") & NumTxt(nums(iHi)) & uch(iHi)
+    Else
+        TenorDays = hi
+        shortLbl = NumTxt(nums(iLo)) & IIf(uch(iLo) = uch(iHi), "", uch(iLo)) & ChrW(8211) & _
+                   NumTxt(nums(iHi)) & uch(iHi)
+    End If
+End Function
+
+Private Sub FlushTok(ByVal words As Collection, ByRef tok As String, ByVal kind As String)
+    If Len(tok) > 0 And Len(kind) > 0 Then words.Add kind & tok
+    tok = ""
+End Sub
+
+Private Function NumTxt(ByVal v As Double) As String
+    NumTxt = Trim$(Str$(v))
+    If Left$(NumTxt, 1) = "." Then NumTxt = "0" & NumTxt
+End Function
+
+' Where a bucket sorts: its tenor if the label names one, else the average
+' maturity of its rows, else just before non-maturity.
+Private Function BucketKey(ByVal label As String, ByRef shortLbl As String) As Double
+    Dim t As Double, n As Double, origin As Double
+    t = TenorDays(label, shortLbl)
+    If t >= 0 Then BucketKey = t: Exit Function
+    shortLbl = UCase$(Left$(Trim$(label), 5))
+    n = 0
+    If Not mBktMatN Is Nothing Then
+        If mBktMatN.Exists(label) Then n = SafeNum(mBktMatN(label))
+    End If
+    If n > 0 Then
+        origin = mAsOfNum
+        If origin <= 0 Then origin = CDbl(Date)
+        BucketKey = SafeNum(mBktMat(label)) / n - origin
+        If BucketKey < 0 Then BucketKey = 0
+    Else
+        BucketKey = TENOR_NM - 1
+    End If
+End Function
+
+' The buckets of the last staging pass, shortest tenor first.
+Public Function BucketOrder() As Variant
+    Dim ks As Variant, n As Long, i As Long, j As Long, d() As Double, lbl() As String
+    Dim sh As String, td As Double, tl As String
+    BucketOrder = Array()
+    If mBktNet Is Nothing Then Exit Function
+    n = mBktNet.count
+    If n = 0 Then Exit Function
+    ks = mBktNet.keys
+    ReDim d(0 To n - 1)
+    ReDim lbl(0 To n - 1)
+    For i = 0 To n - 1
+        lbl(i) = CStr(ks(i))
+        d(i) = BucketKey(lbl(i), sh)
+    Next i
+    For i = 1 To n - 1
+        td = d(i): tl = lbl(i)
+        j = i - 1
+        Do While j >= 0
+            If d(j) < td Or (d(j) = td And StrComp(lbl(j), tl, vbTextCompare) <= 0) Then Exit Do
+            d(j + 1) = d(j): lbl(j + 1) = lbl(j)
+            j = j - 1
+        Loop
+        d(j + 1) = td: lbl(j + 1) = tl
+    Next i
+    BucketOrder = lbl
+End Function
+
+' What the Desk's maturity-gap card draws for this framework, kept on the
+' settings sheet so it survives closing the workbook: per bucket, in tenor
+' order, its short label, net, gross and kind; then the totals.
+Private Sub NoteGap(ByVal fw As String)
+    Dim order As Variant, i As Long, s As String, sh As String, lbl As String, kind As String
+    Dim net As Double
+    On Error Resume Next
+    order = BucketOrder()
+    If UBound(order) < 0 Then Exit Sub
+    For i = 0 To UBound(order)
+        lbl = CStr(order(i))
+        BucketKey lbl, sh
+        If StrComp(lbl, "(no bucket)", vbTextCompare) = 0 Then kind = "none" Else kind = ""
+        sh = Replace(Replace(sh, "|", "/"), ";", ",")
+        If i > 0 Then s = s & ";"
+        s = s & sh & "|" & NumTxt(SafeNum(mBktNet(lbl))) & "|" & NumTxt(SafeNum(mBktGross(lbl))) & "|" & kind
+        net = net + SafeNum(mBktNet(lbl))
+    Next i
+    SettingSet "gap_" & fw, s
+    SettingSet "gap_" & fw & "_tot", NumTxt(net) & "|" & NumTxt(mPreAbs) & "|" & NumTxt(mPostAbs) & "|" & _
+                                    CStr(UBound(order) + 1) & "|" & mAsOf
+    SettingSet "gap_fw", fw
+    Err.Clear
+End Sub

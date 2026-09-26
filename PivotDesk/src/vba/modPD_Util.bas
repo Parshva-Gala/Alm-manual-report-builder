@@ -98,14 +98,14 @@ Public Function IsLocalPath(ByVal p As String) As Boolean
     IsLocalPath = True
 End Function
 
-Public Function GetSheet(ByVal nm As String, Optional ByVal wb As Workbook = Nothing) As Worksheet
+Public Function GetSheet(ByVal nm As String, Optional ByVal wb As Workbook) As Worksheet
     On Error Resume Next
     If wb Is Nothing Then Set wb = ThisWorkbook
     Set GetSheet = wb.Worksheets(nm)
     Err.Clear
 End Function
 
-Public Function EnsureSheet(ByVal nm As String, Optional ByVal wb As Workbook = Nothing) As Worksheet
+Public Function EnsureSheet(ByVal nm As String, Optional ByVal wb As Workbook) As Worksheet
     Dim ws As Worksheet
     If wb Is Nothing Then Set wb = ThisWorkbook
     Set ws = GetSheet(nm, wb)
@@ -118,7 +118,7 @@ Public Function EnsureSheet(ByVal nm As String, Optional ByVal wb As Workbook = 
     Set EnsureSheet = ws
 End Function
 
-Public Sub KillSheet(ByVal nm As String, Optional ByVal wb As Workbook = Nothing)
+Public Sub KillSheet(ByVal nm As String, Optional ByVal wb As Workbook)
     Dim ws As Worksheet
     On Error Resume Next
     If wb Is Nothing Then Set wb = ThisWorkbook
@@ -157,13 +157,13 @@ End Function
 ' A name Excel will accept AND that is free in this workbook, remembering what
 ' it gave out so two callers cannot be handed the same one.
 Public Function FreeSheetName(ByVal wanted As String, ByVal wb As Workbook) As String
-    Dim base As String, nm As String, i As Long
-    base = SafeSheetName(wanted)
-    nm = base
+    Dim stem As String, nm As String, i As Long
+    stem = SafeSheetName(wanted)
+    nm = stem
     i = 1
     Do While Not GetSheet(nm, wb) Is Nothing
         i = i + 1
-        nm = SafeSheetName(Left$(base, 28 - Len(CStr(i))) & " " & i)
+        nm = SafeSheetName(Left$(stem, 28 - Len(CStr(i))) & " " & i)
         If i > 500 Then Exit Do
     Loop
     FreeSheetName = nm
