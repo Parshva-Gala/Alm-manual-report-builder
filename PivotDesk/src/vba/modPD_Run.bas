@@ -9,6 +9,8 @@ Public Sub PD_Setup()
     On Error Resume Next
     BuildDesk
     modPD_Files.BuildFilesSheet
+    modPD_Config.BuildConfigSheet
+    modPD_Config.CheckAll True
     modPD_Recon.BuildReconSheet
     BuildLogSheet
     OrderSheets
@@ -30,6 +32,9 @@ Public Sub Restyle()
     If SettingGet("styled_version") = TOOL_VERSION Then Exit Sub
 
     modPD_Files.BuildFilesSheet
+    modPD_Config.BuildConfigSheet
+    modPD_Config.CheckAll True
+    OrderSheets
 
     Set ws = GetSheet(SH_RECON)
     If Not ws Is Nothing Then
@@ -140,12 +145,16 @@ Private Sub PrintSetup()
     If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
     Set ws = GetSheet(SH_LOG)
     If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 5
+    Set ws = GetSheet(SH_CONFIG)
+    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 21
+    Set ws = GetSheet(SH_FIELDS)
+    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 7
 End Sub
 
 Private Sub OrderSheets()
     Dim order As Variant, i As Long, ws As Worksheet
     On Error Resume Next
-    order = Array(SH_HOME, SH_SOURCES, SH_RECON, SH_LOG)
+    order = Array(SH_HOME, SH_SOURCES, SH_CONFIG, SH_FIELDS, SH_RECON, SH_LOG)
     For i = 0 To UBound(order)
         Set ws = GetSheet(CStr(order(i)))
         If Not ws Is Nothing Then ws.Move Before:=ThisWorkbook.Worksheets(i + 1)
@@ -185,6 +194,18 @@ Public Sub BuildPivotsFor(ByVal args As String)
     If PD_Busy Then Exit Sub
     parts = Split(args, ",")
     If UBound(parts) < 0 Then Exit Sub
+
+    ' Build what the Pivot config says, or nothing: a recipe that will not
+    ' build is reported before twenty minutes are spent finding out.
+    If modPD_Config.Engine() = "recipes" Then
+        If modPD_Config.CheckAll(True) > 0 Then
+            modPD_Desk.RefreshDesk
+            Notify "Some pivots on Pivot config will not build - the reason is beside each, under What to fix. " & _
+                   "Fix them or switch them off, then build again.", V_BREAK
+            modPD_Theme.GoTo_ SH_CONFIG
+            Exit Sub
+        End If
+    End If
 
     folder = AskFolder("Where should the framework workbooks be written?", SettingGet("last_out_folder"))
     If Len(folder) = 0 Then Exit Sub

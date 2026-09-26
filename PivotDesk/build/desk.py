@@ -160,6 +160,7 @@ def desk(st):
     # navigation
     nav_x, nav_y = 236, 13
     items = [("desk", "Desk", "spark", 66, "PD_GoHome"), ("files", "Files", "files", 64, "PD_GoFiles"),
+             ("config", "Pivot config", "layers", 100, "PD_GoConfig"),
              ("recon", "Reconciliation", "balance", 110, "PD_GoRecon"), ("log", "Activity", "pulse", 80, "PD_GoLog")]
     total = 3 + sum(i[3] for i in items) + 2 * (len(items) - 1) + 3
     S.append(Shape("pdx_nav", nav_x, nav_y, total, 26, "roundRect", 13, fill=Solid("0B1310"),
@@ -303,8 +304,10 @@ def desk(st):
                        fill=Solid("FFFFFF" if state != "na" else "34443D"),
                        shadow=Shadow(2, 1, 90, "000000", 0.35), descr="switch"))
         S.append(hit("pdx_fw%d_hit" % j, x + 20, ry, CARD_W - 40, 31, "PD_FwToggle", "Include " + fw["label"]))
-    S.append(text("pdx_c2_last", x + 20, y + 211, CARD_W - 40, 12, T(st["last_build"], 7, TX_3, F_BODY),
+    S.append(text("pdx_c2_last", x + 20, y + 211, 214, 12, T(st["last_build"], 7, TX_3, F_BODY),
                   wrap=False, clip=True, descr="last build"))
+    S.append(text("pdx_c2_config", x + 238, y + 208, 86, 18, T(st.get("config_link", "4 pivots  →"), 8, EM[300], F_SEMI, align="r"),
+                  anchor="ctr", wrap=False, macro="PD_GoConfig", descr="Open Pivot config - what each workbook is built from"))
     add(button("pdx_c2_build", x + 20, y + 228, 164, st["build_label"], st["build_kind"], "PD_BuildSelected",
                descr="Build the selected frameworks"))
     add(button("pdx_c2_open", x + 190, y + 228, 106, "Open folder", st.get("open_kind", "ghost"), "PD_OpenOutputFolder",
@@ -392,8 +395,8 @@ def desk(st):
                   T("PivotDesk %s  ·  Every workbook it writes is live PivotTables on one cache — drag a field, "
                     "add a slicer, double-click a total." % st["version"], 7, TX_3, F_BODY), wrap=False,
                   descr="about"))
-    S.append(text("pdx_keys", W - MARGIN - 380, 612, 380, 12,
-                  T("Ctrl+Shift+  D Desk  ·  F Files  ·  R Reconciliation  ·  A Activity", 7, TX_3, F_BODY, align="r"),
+    S.append(text("pdx_keys", W - MARGIN - 440, 612, 440, 12,
+                  T("Ctrl+Shift+  D Desk  ·  F Files  ·  P Pivot config  ·  R Reconciliation  ·  A Activity", 7, TX_3, F_BODY, align="r"),
                   wrap=False, descr="keyboard shortcuts"))
 
     # --- overlays: busy, toast, macros-off ---------------------------------------
@@ -451,6 +454,7 @@ def empty_state(today="SATURDAY  ·  26 SEPTEMBER 2026", greeting="Good evening.
             {"label": "Maturity ladder", "state": "na", "meta": "Add a maturity ladder output first"},
         ],
         "last_build": "Nothing built yet.",
+        "config_link": "4 pivots  →",
         "build_label": "Build pivots",
         "build_kind": "off",
         "open_kind": "off",
@@ -500,7 +504,7 @@ def showcase_state():
             {"label": "NSFR", "state": "on", "meta": "388,120 rows  ·  as of 30 Nov 2025"},
             {"label": "Maturity ladder", "state": "na", "meta": "Add a maturity ladder output first"},
         ],
-        "last_build": "Last built 26 Sep 14:05  ·  2 workbooks  ·  D:\\ALM\\Pivots\\30 Nov",
+        "last_build": "Last built 26 Sep 14:05  ·  2 workbooks",
         "build_label": "Build 2 workbooks",
         "build_kind": "soft",
         "open_kind": "ghost",

@@ -183,6 +183,276 @@ Public Function BuildCurrencySheet(ByVal wb As Workbook, ByVal ccy As String, _
     Set BuildCurrencySheet = ws
 End Function
 
+' ===================== a sheet from a Pivot config recipe ===================
+'
+' One recipe row, made into one sheet: the same mechanics the four built-in
+' kinds use - one cache, tabular rows, blanks as named items so they can be
+' hidden, captions that cannot collide - driven by what the row says rather
+' than by code.
+'
+' splitVals is Empty for a single pivot, or the values of the "one sheet per"
+' fields for this sheet, in the order the recipe lists them.
+Public Function BuildRecipeSheet(ByVal wb As Workbook, ByVal rc As Object, ByVal fw As String, _
+                                 ByVal splitVals As Variant, ByVal tabName As String) As Worksheet
+    Dim ws As Worksheet, pt As PivotTable, x As Variant, pos As Long, v As Object, flt As Object
+    Dim title As String, about As String, fl As Object, i As Long, sf As Collection, what As String
+
+    Set fl = modPD_Config.Fields()
+    Set sf = rc("Split")
+    If sf.count > 0 Then
+        title = CStr(splitVals(0))
+        what = title
+        For i = 2 To sf.count
+            about = about & CStr(sf(i)) & ": " & CStr(splitVals(i - 1)) & "   -   "
+            what = what & "  -  " & CStr(splitVals(i - 1))
+        Next i
+        about = about & CStr(rc("Desc"))
+    Else
+        title = Replace(CStr(rc("Name")), "{fw}", FwLabel(fw))
+        about = CStr(rc("Desc"))
+        what = IIf(Len(about) > 0, about, title)
+    End If
+
+    Set ws = NewPivotSheet(wb, tabName, title, about)
+    Set pt = NewPivot(ws, "pt_r")
+    If pt Is Nothing Then Exit Function
+    pt.ManualUpdate = True
+
+    pos = 0
+    For Each x In rc("Rows")
+        pos = pos + 1
+        RowField pt, CStr(x), pos
+    Next x
+    pos = 0
+    For Each x In rc("Cols")
+        pos = pos + 1
+        ColField pt, CStr(x), pos
+    Next x
+    For Each v In rc("Values")
+        AddValue pt, v, CStr(rc("Format"))
+    Next v
+    If rc("Values").count > 1 And rc("Cols").count > 0 Then DataFirst pt
+
+    ' One sheet per: its fields become filters fixed to this sheet's values.
+    For i = 1 To sf.count
+        PageField pt, CStr(sf(i))
+        PickOne pt, CStr(sf(i)), CStr(splitVals(i - 1))
+    Next i
+    ' Show only / hide: on whichever axis the field is on, or - if it is on
+    ' neither - as a report filter of its own.
+    For Each flt In rc("Filters")
+        If Not modPD_Config.InCollection(rc("Rows"), CStr(flt("Field"))) And _
+           Not modPD_Config.InCollection(rc("Cols"), CStr(flt("Field"))) Then
+            PageField pt, CStr(flt("Field"))
+        End If
+        ShowItems pt, CStr(flt("Field")), CBool(flt("Include")), flt("Items")
+    Next flt
+    RecipeSubtotals pt, rc
+
+    FinishRecipe pt, ws, rc, fl
+    NoteSheet ws, what
+    If sf.count = 0 And rc("Slicers").count > 0 Then Slicers ws, pt, ToArray(rc("Slicers"))
+    RecipeTab ws, CStr(rc("Tab"))
+    Set BuildRecipeSheet = ws
+End Function
+
+' A value, as the recipe spelled it: which field, how to aggregate, and what
+' to call it. Raises if Excel refuses it - a pivot without its value is
+' empty, and saying so beats building it.
+Private Sub AddValue(ByVal pt As PivotTable, ByVal v As Object, ByVal fmt As String)
+    Dim df As PivotField, fn As Long, calc As Long, nf As String
+    Select Case CStr(v("Agg"))
+        Case "count": fn = xlCount
+        Case "average", "avg", "mean": fn = xlAverage
+        Case "max": fn = xlMax
+        Case "min": fn = xlMin
+        Case Else: fn = xlSum
+    End Select
+    Select Case CStr(v("Agg"))
+        Case "%row": calc = xlPercentOfRow
+        Case "%col", "%column": calc = xlPercentOfColumn
+        Case "%total": calc = xlPercentOfTotal
+    End Select
+    On Error Resume Next
+    Set df = pt.AddDataField(pt.PivotFields(CStr(v("Field"))), CStr(v("Caption")), fn)
+    On Error GoTo 0
+    If df Is Nothing Then
+        Err.Raise vbObjectError + 514, "AddValue", _
+            "Could not add " & CStr(v("Field")) & " as a value called " & Chr$(34) & CStr(v("Caption")) & Chr$(34) & "."
+    End If
+    On Error Resume Next
+    If calc <> 0 Then
+        df.Calculation = calc
+        nf = "0.0%"
+    ElseIf fn = xlCount Then
+        nf = "#,##0"
+    Else
+        nf = fmt
+    End If
+    df.NumberFormat = nf
+    ' Set again: changing the calculation can make Excel regenerate it.
+    df.caption = CStr(v("Caption"))
+    Err.Clear
+End Sub
+
+' Which items of a field show. Excel refuses a filter that hides every item,
+' so a rule that would leave nothing is left unapplied rather than failing
+' the sheet.
+Private Sub ShowItems(ByVal pt As PivotTable, ByVal nm As String, ByVal include As Boolean, _
+                      ByVal items As Collection)
+    Dim pi As PivotItem, pf As PivotField, keep As Long, listed As Boolean
+    On Error Resume Next
+    Set pf = pt.PivotFields(nm)
+    If pf Is Nothing Then Exit Sub
+    If pf.Orientation = xlPageField Then pf.EnableMultiplePageItems = True
+    For Each pi In pf.PivotItems
+        listed = modPD_Config.InCollection(items, pi.Name)
+        If listed = include Then keep = keep + 1
+    Next pi
+    If keep = 0 Then Exit Sub
+    For Each pi In pf.PivotItems
+        listed = modPD_Config.InCollection(items, pi.Name)
+        If listed = include Then pi.visible = True
+    Next pi
+    For Each pi In pf.PivotItems
+        listed = modPD_Config.InCollection(items, pi.Name)
+        If listed <> include Then pi.visible = False
+    Next pi
+    Err.Clear
+End Sub
+
+Private Sub RecipeSubtotals(ByVal pt As PivotTable, ByVal rc As Object)
+    Dim x As Variant, subs As Object
+    Set subs = rc("SubFields")
+    On Error Resume Next
+    For Each x In rc("Rows")
+        If CBool(rc("SubAll")) Or subs.Exists(CStr(x)) Then
+            pt.PivotFields(CStr(x)).Subtotals(1) = True       ' automatic
+        End If
+    Next x
+    Err.Clear
+End Sub
+
+Private Sub FinishRecipe(ByVal pt As PivotTable, ByVal ws As Worksheet, ByVal rc As Object, ByVal fl As Object)
+    On Error Resume Next
+    With pt
+        .TableStyle2 = PivotStyleFor(ws.Parent)
+        .ShowTableStyleRowStripes = True
+        .ShowTableStyleColumnHeaders = True
+        .ShowTableStyleRowHeaders = True
+        .RowAxisLayout CLng(rc("Layout"))
+        If CBool(rc("Repeat")) Then .RepeatAllLabels xlRepeatLabels Else .RepeatAllLabels xlDoNotRepeatLabels
+        .ShowDrillIndicators = True
+        .EnableDrilldown = True
+        .EnableFieldList = True
+        .EnableWizard = True
+        .DisplayFieldCaptions = True
+        .ColumnGrand = CBool(rc("ColGrand"))
+        .RowGrand = CBool(rc("RowGrand"))
+        .HasAutoFormat = False
+        .PreserveFormatting = True
+        .NullString = "-"
+        .DisplayNullString = True
+        .ManualUpdate = False
+    End With
+    SortRecipe pt, rc
+    FitRecipe ws, pt, rc, fl
+    PrintPivot ws, pt
+    Err.Clear
+End Sub
+
+Private Sub SortRecipe(ByVal pt As PivotTable, ByVal rc As Object)
+    Dim x As Variant, ord As Long, sortBy As String, v As Object
+    sortBy = CStr(rc("SortBy"))
+    If Len(sortBy) = 0 Then Exit Sub
+    If CBool(rc("SortDesc")) Then ord = xlDescending Else ord = xlAscending
+    ' the caption as Excel holds it - it may carry the anti-collision space
+    If sortBy <> "label" Then
+        For Each v In rc("Values")
+            If StrComp(Trim$(CStr(v("Caption"))), sortBy, vbTextCompare) = 0 Then sortBy = CStr(v("Caption"))
+        Next v
+    End If
+    On Error Resume Next
+    For Each x In rc("Rows")
+        If sortBy = "label" Then
+            pt.PivotFields(CStr(x)).AutoSort ord, CStr(x)
+        Else
+            pt.PivotFields(CStr(x)).AutoSort ord, sortBy
+        End If
+    Next x
+    Err.Clear
+End Sub
+
+' Widths from the recipe, then the FIELDS list, then the built-in guesses; the
+' figures all one width. Then the same zoom and frozen header as the built-in
+' sheets.
+Private Sub FitRecipe(ByVal ws As Worksheet, ByVal pt As PivotTable, ByVal rc As Object, ByVal fl As Object)
+    Dim rng As Range, c As Long, nLab As Long, lastCol As Long, total As Double, w As Double, x As Variant
+    On Error Resume Next
+    Set rng = pt.TableRange1
+    If rng Is Nothing Then Exit Sub
+    lastCol = rng.Columns.count
+    If CLng(rc("Layout")) = 0 Then nLab = 1 Else nLab = rc("Rows").count
+    If nLab < 1 Then nLab = 1
+    For c = 1 To lastCol
+        If c <= nLab And rc("Rows").count > 0 Then
+            If CLng(rc("Layout")) = 0 Then
+                w = 0
+                For Each x In rc("Rows")
+                    If LabelWidth(CStr(x), rc, fl) > w Then w = LabelWidth(CStr(x), rc, fl)
+                Next x
+            Else
+                w = LabelWidth(CStr(rc("Rows")(c)), rc, fl)
+            End If
+        Else
+            w = CDbl(rc("ValueWidth"))
+        End If
+        If w < 4 Then w = 14
+        ws.Columns(c).ColumnWidth = w
+        total = total + w
+    Next c
+    ws.Rows(modPD_Theme.R_HDR).RowHeight = 6
+    ws.Activate
+    ActiveWindow.DisplayGridlines = False
+    ActiveWindow.Zoom = ZoomFor(total)
+    ActiveWindow.FreezePanes = False
+    ws.Cells(PIVOT_ROW + 2, nLab + 1).Select
+    ActiveWindow.FreezePanes = True
+    ws.Range("A1").Select
+    Err.Clear
+End Sub
+
+Private Function LabelWidth(ByVal nm As String, ByVal rc As Object, ByVal fl As Object) As Double
+    Dim wd As Object
+    Set wd = rc("Widths")
+    If wd.Exists(nm) Then LabelWidth = CDbl(wd(nm)): Exit Function
+    If fl.Exists(nm) Then
+        If CDbl(fl(nm)("Width")) > 0 Then LabelWidth = CDbl(fl(nm)("Width")): Exit Function
+    End If
+    LabelWidth = 16
+End Function
+
+Private Sub RecipeTab(ByVal ws As Worksheet, ByVal tabWord As String)
+    On Error Resume Next
+    Select Case LCase$(tabWord)
+        Case "emerald": ws.Tab.Color = modPD_Theme.C_BRAND
+        Case "deep": ws.Tab.Color = modPD_Theme.C_BRAND_DEEP
+        Case "slate": ws.Tab.Color = modPD_Theme.HX("3E5A50")
+        Case "black": ws.Tab.Color = modPD_Theme.C_INK
+    End Select
+    Err.Clear
+End Sub
+
+Private Function ToArray(ByVal c As Collection) As Variant
+    Dim a() As String, i As Long
+    If c.count = 0 Then ToArray = Array(): Exit Function
+    ReDim a(0 To c.count - 1)
+    For i = 1 To c.count
+        a(i - 1) = CStr(c(i))
+    Next i
+    ToArray = a
+End Function
+
 ' ===================== the mechanics ========================================
 
 Private Function NewPivotSheet(ByVal wb As Workbook, ByVal wanted As String, _

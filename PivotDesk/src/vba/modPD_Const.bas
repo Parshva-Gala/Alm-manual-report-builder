@@ -37,6 +37,8 @@ Public Const SH_SOURCES As String = "Files"
 Public Const SH_RECON As String = "Reconciliation"
 Public Const SH_LOG As String = "Activity"
 Public Const SH_SETTINGS As String = "_Settings"
+Public Const SH_CONFIG As String = "Pivot config"
+Public Const SH_FIELDS As String = "Pivot fields"
 
 ' --- sheets in a generated framework workbook -------------------------------
 Public Const SH_STAGE As String = "_data"
@@ -145,6 +147,10 @@ Public Const CHUNK_ROWS As Long = 40000
 ' being something Excel opens quickly, so the rest are left out and SAID to be
 ' left out rather than silently missing.
 Public Const MAX_RULE_SHEETS As Long = 120
+
+' However the Pivot config is set, a workbook stops here: past it Excel is
+' slow to open the book and nobody scrolls the tabs.
+Public Const MAX_BOOK_SHEETS As Long = 250
 
 ' An amount that has been through a database and a spreadsheet is not exactly
 ' equal to another; one unit is well below anything worth acting on.

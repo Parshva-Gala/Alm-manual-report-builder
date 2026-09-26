@@ -324,6 +324,11 @@ Private Function NextAction(ByRef label As String, ByRef lede As String) As Stri
         lede = "Only control reports are on the desk so far. Add an LCR, NSFR or maturity ladder output " & _
                "to build pivots and reconcile."
         NextAction = "PICK"
+    ElseIf Not built And modPD_Config.Engine() = "recipes" And Val(SettingGet("config_bad", "0")) > 0 Then
+        label = "Fix the pivot config"
+        lede = "Some pivots on the Pivot config sheet will not build - the reason is written beside each. " & _
+               "Fix them or switch them off, then build."
+        NextAction = "GO_CONFIG"
     ElseIf Not built Then
         If nSel > 0 Then
             label = "Build " & nSel & Plural(nSel, " workbook", " workbooks")
@@ -378,6 +383,7 @@ Public Sub PD_NextAction()
         Case act = "RECON": modPD_Recon.PD_Reconcile
         Case act = "GO_RECON": modPD_Theme.PD_GoRecon
         Case act = "OPEN_FOLDER": PD_OpenOutputFolder
+        Case act = "GO_CONFIG": modPD_Theme.PD_GoConfig
         Case Else: Toast "Switch on at least one framework under Build pivots.", "CHECK"
     End Select
 End Sub
@@ -576,6 +582,13 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
     Else
         SetText ws, "pdx_card2_count", nReady & " OF 3 READY"
     End If
+    If modPD_Config.Engine() = "classic" Then
+        SetText ws, "pdx_c2_config", "1.0 layout  " & ChrW(8594)
+    ElseIf Val(SettingGet("config_bad", "0")) > 0 Then
+        SetText ws, "pdx_c2_config", SettingGet("config_bad") & " to fix  " & ChrW(8594)
+    Else
+        SetText ws, "pdx_c2_config", SettingGet("config_on", "4") & " pivots  " & ChrW(8594)
+    End If
     If nSel > 0 Then
         SetText ws, "pdx_c2_build", "Build " & nSel & Plural(nSel, " workbook", " workbooks")
         PaintButton ws, "pdx_c2_build", "soft"
@@ -592,9 +605,9 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
     folder = SettingGet("last_out_folder")
     If Len(lastWhen) > 0 Then
         SetText ws, "pdx_c2_last", "Last built " & lastWhen & "  " & ChrW(183) & "  " & lastN & _
-            Plural(CLng(Val(lastN)), " workbook", " workbooks") & "  " & ChrW(183) & "  " & MidTrim(folder, 44)
+            Plural(CLng(Val(lastN)), " workbook", " workbooks")
     Else
-        SetText ws, "pdx_c2_last", "Nothing built yet. Each framework becomes its own workbook, in a folder you choose."
+        SetText ws, "pdx_c2_last", "Nothing built yet."
     End If
     If Len(folder) > 0 Then PaintButton ws, "pdx_c2_open", "ghost" Else PaintButton ws, "pdx_c2_open", "off"
 End Sub
@@ -1079,7 +1092,12 @@ Private Sub FreezeHeader(ByVal sh As Object)
     If wn.FreezePanes Then Exit Sub
     wn.ScrollRow = 1
     wn.ScrollColumn = 1
-    sh.Cells(modPD_Theme.R_FIRST, 1).Select
+    ' Pivot config is wide: its On and Pivot columns stay put as well.
+    If StrComp(sh.Name, SH_CONFIG, vbTextCompare) = 0 Then
+        sh.Cells(modPD_Theme.R_FIRST, 3).Select
+    Else
+        sh.Cells(modPD_Theme.R_FIRST, 1).Select
+    End If
     wn.FreezePanes = True
     sh.Cells(modPD_Theme.R_FIRST, 1).Select
     Err.Clear
@@ -1154,11 +1172,13 @@ Private Sub RegisterKeys(ByVal onOff As Boolean)
         Application.OnKey "^+f", "PD_GoFiles"
         Application.OnKey "^+r", "PD_GoRecon"
         Application.OnKey "^+a", "PD_GoLog"
+        Application.OnKey "^+p", "PD_GoConfig"
     Else
         Application.OnKey "^+d"
         Application.OnKey "^+f"
         Application.OnKey "^+r"
         Application.OnKey "^+a"
+        Application.OnKey "^+p"
     End If
     Err.Clear
 End Sub

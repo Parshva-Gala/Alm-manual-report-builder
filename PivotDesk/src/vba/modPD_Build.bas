@@ -17,16 +17,29 @@ Private Const GUIDE_COLS As Long = 5
 
 Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, ByRef errOut As String) As String
     Dim wb As Workbook, lo As ListObject, nSheets As Long, capped As Boolean
-    Dim Path As String, t0 As Single
+    Dim Path As String, t0 As Single, recipes As Collection, fromConfig As Boolean
 
     t0 = Timer
+    fromConfig = (modPD_Config.Engine() = "recipes")
+    If fromConfig Then
+        Set recipes = modPD_Config.RecipesFor(fw)
+        If recipes.count = 0 Then
+            errOut = "no pivot on the Pivot config sheet is switched on for " & FwLabel(fw)
+            Exit Function
+        End If
+    End If
+
     Step_ FwLabel(fw) & " - opening a new workbook"
     Set wb = Workbooks.Add(xlWBATWorksheet)
     Brand wb, fw
 
     modPD_Pivot.ResetPivots
     Step_ FwLabel(fw) & " - staging the output"
-    Set lo = modPD_Stage.StageFramework(fw, wb, errOut)
+    If fromConfig Then
+        Set lo = modPD_Stage.StageFramework(fw, wb, errOut, modPD_Config.ExtraFields(recipes), Signatures(recipes))
+    Else
+        Set lo = modPD_Stage.StageFramework(fw, wb, errOut)
+    End If
     If lo Is Nothing Then
         On Error Resume Next
         wb.Close SaveChanges:=False
@@ -36,18 +49,22 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
 
     modPD_Pivot.UseCache wb, lo
 
-    Step_ FwLabel(fw) & " - the Output pivot"
-    modPD_Pivot.BuildOutputSheet wb, fw
-    Step_ FwLabel(fw) & " - the Balance sheet pivot"
-    modPD_Pivot.BuildBalanceSheet wb, fw
-
-    If SplitsByCurrency(fw) Then
-        nSheets = CurrencySheets(wb, capped)
+    If fromConfig Then
+        nSheets = RecipeSheets(wb, fw, recipes, capped)
     Else
-        nSheets = RuleSheets(wb, capped)
+        Step_ FwLabel(fw) & " - the Output pivot"
+        modPD_Pivot.BuildOutputSheet wb, fw
+        Step_ FwLabel(fw) & " - the Balance sheet pivot"
+        modPD_Pivot.BuildBalanceSheet wb, fw
+        If SplitsByCurrency(fw) Then
+            nSheets = CurrencySheets(wb, capped)
+        Else
+            nSheets = RuleSheets(wb, capped)
+        End If
+        nSheets = nSheets + 2
     End If
 
-    Guide wb, fw, nSheets, capped
+    Guide wb, fw, nSheets, capped, fromConfig
     Tidy wb
 
     Path = PathJoin(outFolder, SafeFileName(FwLabel(fw)) & ".xlsx")
@@ -60,7 +77,8 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
     On Error GoTo 0
 
     LogIt V_OK, "Pivots", Fmt(modPD_Stage.StagedRows()) & " row(s) staged, " & _
-          (nSheets + 2) & " pivot sheet(s), " & Format$(Timer - t0, "0.0") & "s.", FwLabel(fw)
+          nSheets & " pivot sheet(s), " & Format$(Timer - t0, "0.0") & "s" & _
+          IIf(fromConfig, ", from Pivot config.", ", 1.0 layout."), FwLabel(fw)
     BuildFramework = Path
     Exit Function
 
@@ -70,6 +88,152 @@ SaveFailed:
     Application.DisplayAlerts = True
     wb.Close SaveChanges:=False
     Err.Clear
+End Function
+
+' ===================== from the Pivot config ===============================
+
+' Every "one sheet per" family the recipes ask for, as the staging pass needs
+' them: the field names joined, once each.
+Private Function Signatures(ByVal recipes As Collection) As Collection
+    Dim out As Collection, seen As Object, rc As Object, sig As String
+    Set out = New Collection
+    Set seen = NewMap()
+    For Each rc In recipes
+        If rc("Split").count > 0 Then
+            sig = SigOf(rc)
+            If Not seen.Exists(sig) Then seen(sig) = True: out.Add sig
+        End If
+    Next rc
+    Set Signatures = out
+End Function
+
+Private Function SigOf(ByVal rc As Object) As String
+    Dim x As Variant, s As String
+    For Each x In rc("Split")
+        If Len(s) > 0 Then s = s & Chr$(30)
+        s = s & CStr(x)
+    Next x
+    SigOf = s
+End Function
+
+' The recipes, in the order the sheet lists them. A single pivot is one
+' sheet; a "one sheet per" pivot is a family, biggest first, capped.
+Private Function RecipeSheets(ByVal wb As Workbook, ByVal fw As String, ByVal recipes As Collection, _
+                              ByRef capped As Boolean) As Long
+    Dim rc As Object, n As Long, combos As Variant, i As Long, vals As Variant, nm As String
+    Dim made As Long, limit As Long, fl As Object, nRc As Long, k As Long
+
+    Set fl = modPD_Config.Fields()
+    For Each rc In recipes
+        nRc = nRc + 1
+        If rc("Split").count = 0 Then
+            nm = Replace(CStr(rc("Name")), "{fw}", FwLabel(fw))
+            Progress_ FwLabel(fw) & " - " & nm, nRc / (recipes.count + 1)
+            If TryRecipe(wb, rc, fw, Empty, nm) Then n = n + 1
+        Else
+            combos = BySize(modPD_Stage.SplitWeightsFor(SigOf(rc)))
+            limit = CLng(rc("Max"))
+            made = 0
+            If IsArray(combos) Then
+                For i = 0 To UBound(combos)
+                    vals = Split(CStr(combos(i)), Chr$(30))
+                    If Not HasBlank(vals, rc("Split"), fl) Then
+                        If made >= limit Or n >= MAX_BOOK_SHEETS Then capped = True: Exit For
+                        nm = SplitTabName(vals)
+                        Progress_ FwLabel(fw) & " - sheet " & (n + 1) & ": " & nm, _
+                                  (nRc - 1 + (i + 1) / (UBound(combos) + 1)) / (recipes.count + 1)
+                        If TryRecipe(wb, rc, fw, vals, nm) Then
+                            n = n + 1
+                            made = made + 1
+                        End If
+                    End If
+                Next i
+            End If
+        End If
+    Next rc
+    RecipeSheets = n
+End Function
+
+' One recipe sheet, fenced: a recipe Excel refuses is logged and skipped,
+' and the rest of the workbook is still built.
+Private Function TryRecipe(ByVal wb As Workbook, ByVal rc As Object, ByVal fw As String, _
+                           ByVal vals As Variant, ByVal nm As String) As Boolean
+    On Error GoTo Failed
+    TryRecipe = Not (modPD_Pivot.BuildRecipeSheet(wb, rc, fw, vals, nm) Is Nothing)
+    Exit Function
+Failed:
+    LogIt V_BREAK, "Pivots", "Pivot " & Chr$(34) & nm & Chr$(34) & " (Pivot config row " & rc("Row") & _
+          ") was not built - " & Err.Description, FwLabel(fw)
+    Err.Clear
+End Function
+
+' Rows with no value for a "one sheet per" field get no sheet of their own -
+' as 1.0 never made a sheet for "(no rule)". They are in the overview pivots.
+Private Function HasBlank(ByVal vals As Variant, ByVal sf As Collection, ByVal fl As Object) As Boolean
+    Dim i As Long, blank As String
+    For i = 0 To UBound(vals)
+        If Len(CStr(vals(i))) = 0 Then HasBlank = True: Exit Function
+        blank = ""
+        If fl.Exists(CStr(sf(i + 1))) Then blank = CStr(fl(CStr(sf(i + 1)))("Blank"))
+        If Len(blank) > 0 And StrComp(CStr(vals(i)), blank, vbTextCompare) = 0 Then HasBlank = True: Exit Function
+    Next i
+End Function
+
+' Biggest first - by the first field's total, then within it by the
+' combination - so a rule's LCY and FCY sheets sit side by side, as in 1.0.
+Private Function BySize(ByVal d As Object) As Variant
+    Dim keys() As String, w() As Double, g() As Double, n As Long, i As Long, j As Long, k As Variant
+    Dim firstW As Object, head As String, td As Double, ts As String, tg As Double, swap As Boolean
+    n = d.count
+    If n = 0 Then BySize = Array(): Exit Function
+    Set firstW = NewMap()
+    For Each k In d.keys
+        head = Split(CStr(k) & Chr$(30), Chr$(30))(0)
+        firstW(head) = SafeNum(firstW(head)) + SafeNum(d(k))
+    Next k
+    ReDim keys(0 To n - 1)
+    ReDim w(0 To n - 1)
+    ReDim g(0 To n - 1)
+    i = 0
+    For Each k In d.keys
+        keys(i) = CStr(k)
+        w(i) = SafeNum(d(k))
+        g(i) = SafeNum(firstW(Split(CStr(k) & Chr$(30), Chr$(30))(0)))
+        i = i + 1
+    Next k
+    For i = 0 To n - 2
+        For j = 0 To n - 2 - i
+            swap = False
+            If g(j) < g(j + 1) Then
+                swap = True
+            ElseIf g(j) = g(j + 1) Then
+                If Split(keys(j) & Chr$(30), Chr$(30))(0) = Split(keys(j + 1) & Chr$(30), Chr$(30))(0) Then
+                    If w(j) < w(j + 1) Then swap = True
+                ElseIf Split(keys(j) & Chr$(30), Chr$(30))(0) > Split(keys(j + 1) & Chr$(30), Chr$(30))(0) Then
+                    swap = True
+                End If
+            End If
+            If swap Then
+                td = w(j): w(j) = w(j + 1): w(j + 1) = td
+                tg = g(j): g(j) = g(j + 1): g(j + 1) = tg
+                ts = keys(j): keys(j) = keys(j + 1): keys(j + 1) = ts
+            End If
+        Next j
+    Next i
+    BySize = keys
+End Function
+
+' The first value cut to fit and the rest appended after it, so the values
+' that tell two sheets apart (LCY, FCY) survive a long first one.
+Private Function SplitTabName(ByVal vals As Variant) As String
+    Dim tail As String, body As String, i As Long
+    If UBound(vals) = 0 Then SplitTabName = SafeSheetName(CStr(vals(0))): Exit Function
+    For i = 1 To UBound(vals)
+        tail = tail & " " & CStr(vals(i))
+    Next i
+    body = Trim$(CStr(vals(0)))
+    If Len(body) > 31 - Len(tail) Then body = Trim$(Left$(body, 31 - Len(tail)))
+    SplitTabName = SafeSheetName(body & tail)
 End Function
 
 ' ===================== one sheet per rule, per side =========================
@@ -162,7 +326,8 @@ End Function
 
 ' ===================== the guide ============================================
 
-Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Long, ByVal capped As Boolean)
+Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Long, ByVal capped As Boolean, _
+                  ByVal fromConfig As Boolean)
     Dim ws As Worksheet, made As Collection, i As Long, r As Long, e As Variant
 
     Set ws = wb.Worksheets.Add(Before:=wb.Worksheets(1))
@@ -245,10 +410,22 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     r = r + 1
     Note ws, r, "Blanks", "Rows with no bucket are excluded from the bucket filter by default. " & _
         "They are still in the data - clear the filter to see them."
+    r = r + 1
+    If fromConfig Then
+        Note ws, r, "Built from", "The Pivot config sheet in " & ThisWorkbook.Name & " - every pivot here is a " & _
+            "row there, and changing the row changes the next build."
+    Else
+        Note ws, r, "Built from", "PivotDesk 1.0's fixed layout (Pivot config's Engine is set to it)."
+    End If
+    If Len(modPD_Stage.MissingFields()) > 0 Then
+        r = r + 1
+        Note ws, r, "Not in this file", "These fields' columns are not in this output, so they are blank here: " & _
+            modPD_Stage.MissingFields() & "."
+    End If
     If capped Then
         r = r + 1
-        Note ws, r, "Sheet cap", "Stopped at " & MAX_RULE_SHEETS & " sheets. The rest are not here; " & _
-            "everything is still in the Output and Balance sheet pivots."
+        Note ws, r, "Sheet cap", "Stopped at the most sheets a pivot is allowed (Max sheets on Pivot config). " & _
+            "The rest are not here; everything is still in the overview pivots."
     End If
 
     ws.Columns(1).ColumnWidth = 38

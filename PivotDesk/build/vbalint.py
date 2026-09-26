@@ -109,6 +109,22 @@ REVIEWED_CONSTANTS = {
     "vbdirectory": 16,                    # VbFileAttribute
     "vbdate": 7,                          # VbVarType
     "xlunderlinestylenone": -4142,        # XlUnderlineStyle
+    "xlvalidatelist": 3,                  # XlDVType
+    "xlvalidateinputonly": 0,
+    "xlvalidalertstop": 1,                # XlDVAlertStyle
+    "xlbetween": 1,                       # XlFormatConditionOperator
+    "xlcount": -4112,                     # XlConsolidationFunction
+    "xlaverage": -4106,
+    "xlmax": -4136,
+    "xlmin": -4139,
+    "xlpercentofrow": 6,                  # XlPivotFieldCalculation
+    "xlpercentofcolumn": 7,
+    "xlpercentoftotal": 8,
+    "xlascending": 1,                     # XlSortOrder
+    "xldescending": 2,
+    "xlcompactrow": 0,                    # XlLayoutRowType
+    "xloutlinerow": 2,
+    "xlrepeatlabels": 2,                  # XlPivotFieldRepeatLabels
 }
 KNOWN_CONSTANTS |= set(REVIEWED_CONSTANTS)
 
@@ -141,6 +157,27 @@ def strip_strings_and_comments(line: str) -> str:
     if re.match(r"^\s*Rem(\s|$)", s, re.I):
         return ""
     return s
+
+
+CONTINUATION_LIMIT = 24     # VBA: "Too many line continuations" beyond this
+
+
+def continuation_problems(name, code):
+    out = []
+    run, start = 0, None
+    for n, raw in enumerate(code.split("\n"), 1):
+        s = strip_strings_and_comments(raw.rstrip("\r"))
+        if len(raw) > 1023:
+            out.append((name, n, "line longer than VBA's 1023 characters"))
+        if re.search(r"\s_\s*$", s):
+            if start is None:
+                start = n
+            run += 1
+        else:
+            if run > CONTINUATION_LIMIT:
+                out.append((name, start, "%d line continuations in one statement; VBA allows %d" % (run, CONTINUATION_LIMIT)))
+            run, start = 0, None
+    return out
 
 
 def logical_lines(code: str):
@@ -259,6 +296,8 @@ def analyse(modules: dict[str, str], known_constants=None, extra_names=None):
     extra = set(n.lower() for n in (extra_names or []))
     mods = {n: Module(n, c) for n, c in modules.items()}
     issues = []
+    for n, c in modules.items():
+        issues += continuation_problems(n, c)
 
     # ---- pass 1: declarations and block structure ----------------------------
     for m in mods.values():

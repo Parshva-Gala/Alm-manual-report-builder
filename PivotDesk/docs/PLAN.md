@@ -231,7 +231,40 @@ with the reason.
 - [x] R10 The tertiary grey on dark and the muted grey on white were both just under AA; retuned to pass everywhere they are used
 - [x] R11 "Use a file for this row" was described on the Files sheet but had no button; it now has one, beside Clear this row
 - [x] R12 Slicers were placed at a fixed 74 pt, which the taller 2.0 masthead would have overlapped; they now get a band of their own
+- [x] R13 1.0 made an FCY sheet for every rule even when the rule had no FCY rows; PickOne then failed silently and the sheet showed every side unfiltered. Recipe families only build combinations that exist
+- [x] R14 The field catalog was first laid out under the recipes and would have shared their 7-wide first column; caught in preview and moved to its own sheet
 
 ## Q. Configurable pivots (separate workstream)
 
-Tracked in [PIVOT_CONFIG.md](PIVOT_CONFIG.md).
+User guide: [PIVOT_CONFIG.md](PIVOT_CONFIG.md).
+
+- [~] Q01 Pivot config sheet: one row per pivot, or one sheet per value of a field
+- [~] Q02 Pivot fields sheet: a catalog of every output column under a plain name, 37 shipped, any can be added
+- [~] Q03 Rows, columns and values from any field in the catalog
+- [~] Q04 Values: sum, count, average, max, min, and %row / %col / %total, each with its own caption
+- [~] Q05 Captions that collide with a field name are made safe automatically (Excel refuses them silently)
+- [~] Q06 Show only / hide item rules, on whichever axis the field is on, or as a report filter
+- [~] Q07 One sheet per one or two fields: biggest first, capped, blank values skipped
+- [~] Q08 Layout: Tabular, Outline, Compact
+- [~] Q09 Subtotals: none, all, or per row field
+- [~] Q10 Grand totals: both, bottom row, right column, none
+- [~] Q11 Repeat item labels
+- [~] Q12 Sort by label or by any value, ascending or descending
+- [~] Q13 Column widths per field, and one width for the figures
+- [~] Q14 Number format per pivot, per field; percent values formatted as percent
+- [~] Q15 Tab colour per pivot, or automatic by kind
+- [~] Q16 Slicers per pivot (left off one-sheet-per families, with the reason)
+- [~] Q17 Frameworks per pivot; {fw} in names
+- [~] Q18 Staging carries only the extra fields a recipe uses, typed as text, number or date
+- [~] Q19 Check: OK / Break beside every row with the reason; the build runs it first and stops
+- [x] Q20 Cell-by-cell help: every column carries an input message explaining its syntax, lists carry dropdowns
+- [x] Q21 Grouped column bands (Which pivot / What it shows / How it looks / The sheet / Check), frozen first two columns
+- [x] Q22 Defaults reproduce 1.0 exactly; a switched-off worked example shows a recipe of your own
+- [~] Q23 Engine switch: build from the sheet, or with the proven 1.0 layout
+- [~] Q24 Restore defaults
+- [~] Q25 A recipe Excel refuses is logged and skipped; the rest of the workbook is still built
+- [~] Q26 Start here says what the workbook was built from, and which fields the file lacked
+- [x] Q27 Desk: Pivot config in the navigation, a count and link on Build pivots, Ctrl+Shift+P
+- [x] Q28 Desk: the next action points at Pivot config when a recipe that is on will not build
+- [x] Q29 VBA lint now also enforces VBA's 24-continuation and 1023-character limits
+- [x] Q30 Previews of both sheets, drawn from the defaults in the VBA source itself

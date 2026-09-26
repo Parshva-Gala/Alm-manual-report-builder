@@ -551,6 +551,7 @@ Public Sub Rail(ByVal ws As Worksheet)
     x = Divider(ws, x - 8)
     x = Button(ws, "Desk", "PD_GoHome", x, 50, 0)
     x = Button(ws, "Files", "PD_GoFiles", x, 50, IIf(ws.Name = SH_SOURCES, 2, 0))
+    x = Button(ws, "Pivot config", "PD_GoConfig", x, 86, IIf(ws.Name = SH_CONFIG Or ws.Name = SH_FIELDS, 2, 0))
     x = Button(ws, "Reconciliation", "PD_GoRecon", x, 96, IIf(ws.Name = SH_RECON, 2, 0))
     x = Button(ws, "Activity", "PD_GoLog", x, 64, IIf(ws.Name = SH_LOG, 2, 0))
     x = Divider(ws, x)
@@ -560,6 +561,18 @@ Public Sub Rail(ByVal ws As Worksheet)
             x = Button(ws, "Pick files", "PD_LoadFiles", x, 72, 1)
             x = Button(ws, "Use a file for this row", "PD_UseFileHere", x, 138, 1)
             x = Button(ws, "Clear this row", "PD_ClearRow", x, 94, 1)
+        Case SH_CONFIG
+            x = Button(ws, "Check", "PD_ConfigCheck", x, 60, 1)
+            x = Button(ws, "Fields", "PD_GoFields", x, 56, 1)
+            x = Button(ws, "Restore defaults", "PD_ConfigDefaults", x, 108, 1)
+            If modPD_Config.Engine() = "recipes" Then
+                x = Button(ws, "Use the 1.0 layout", "PD_ConfigEngine", x, 118, 1)
+            Else
+                x = Button(ws, "Build from this sheet", "PD_ConfigEngine", x, 132, 1)
+            End If
+        Case SH_FIELDS
+            x = Button(ws, "Back to recipes", "PD_GoConfig", x, 104, 1)
+            x = Button(ws, "Check", "PD_ConfigCheck", x, 60, 1)
         Case SH_RECON
             x = Button(ws, "Reconcile now", "PD_Reconcile", x, 98, 1)
         Case SH_LOG
@@ -604,4 +617,10 @@ Public Sub PD_GoRecon()
 End Sub
 Public Sub PD_GoLog()
     GoTo_ SH_LOG
+End Sub
+Public Sub PD_GoConfig()
+    GoTo_ SH_CONFIG
+End Sub
+Public Sub PD_GoFields()
+    GoTo_ SH_FIELDS
 End Sub

@@ -65,7 +65,8 @@ def page(title, body, width):
 
 
 def nav(current, actions):
-    items = [("Desk", "desk"), ("Files", "files"), ("Reconciliation", "recon"), ("Activity", "log")]
+    items = [("Desk", "desk"), ("Files", "files"), ("Pivot config", "config"), ("Reconciliation", "recon"),
+             ("Activity", "log")]
     h = ['<div class="nav"><span class="wm">Pivot<b>Desk</b></span><span class="div"></span>']
     for label, key in items:
         h.append('<span class="nb%s">%s</span>' % (" cur" if key == current else "", label))
@@ -352,5 +353,131 @@ def main():
         print(path)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and not os.environ.get("CONFIG_ONLY"):
     main()
+
+
+# ---------------------------------------------------------------------------
+#  Pivot config, with the defaults read out of the VBA itself
+# ---------------------------------------------------------------------------
+def _vba(name):
+    with open(os.path.join(ROOT, "src", "vba", name + ".bas"), encoding="cp1252") as f:
+        return f.read()
+
+
+def _consts():
+    import re
+    out = {}
+    for m in re.finditer(r'Public Const (\w+) As String = "([^"]*)"', _vba("modPD_Const") + _vba("modPD_Config")):
+        out[m.group(1)] = m.group(2)
+    out["MAX_SHEETS_DEFAULT"] = "120"
+    return out
+
+
+def _args(text, consts):
+    """Split a VBA argument list into Python strings, resolving constants."""
+    import re
+    vals, cur, in_str, i = [], "", False, 0
+    while i < len(text):
+        ch = text[i]
+        if ch == '"':
+            if in_str and i + 1 < len(text) and text[i + 1] == '"':
+                cur += '"'
+                i += 2
+                continue
+            in_str = not in_str
+            cur += ch
+        elif ch == "," and not in_str:
+            vals.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+        i += 1
+    vals.append(cur.strip())
+    out = []
+    for v in vals:
+        v = re.sub(r"CStr\((\w+)\)", r"\1", v)
+        parts = [p.strip() for p in re.split(r"&(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", v)]
+        s = ""
+        for p in parts:
+            if p.startswith('"'):
+                s += p[1:-1]
+            elif p in consts:
+                s += consts[p]
+            elif p.startswith("Chr$(34)"):
+                s += '"'
+        out.append(s)
+    return out
+
+
+def default_recipes():
+    import re
+    src = _vba("modPD_Config")
+    body = src[src.index("Private Sub WriteDefaultRecipes"):src.index("Private Sub Recipe(")]
+    body = re.sub(r" _\n\s*", " ", body)
+    consts = _consts()
+    rows = []
+    for m in re.finditer(r"^\s*Recipe ws, r(?: \+ \d)?, (.*)$", body, re.M):
+        rows.append(_args(m.group(1), consts))
+    return rows
+
+
+def default_fields():
+    import re
+    src = _vba("modPD_Config")
+    consts = _consts()
+    consts["NUM_FMT"] = "#,##0;[Red](#,##0);-"
+    out = []
+    for m in re.finditer(r"^\s*c\.Add Array\((.*)\)\s*$", src, re.M):
+        out.append(_args(m.group(1), consts))
+    return out
+
+
+def config_sheet():
+    heads = ["On", "Pivot", "Frameworks", "One sheet per", "Rows", "Columns", "Values", "Show only / hide",
+             "Slicers", "Layout", "Subtotals", "Grand totals", "Repeat labels", "Sort", "Widths",
+             "Number format", "Tab", "Max sheets", "Description", "Check", "What to fix"]
+    widths = [7, 20, 16, 20, 36, 14, 38, 30, 26, 10, 11, 14, 9, 16, 24, 16, 9, 9, 40, 10, 60]
+    groups = [(1, 4, "WHICH PIVOT"), (5, 9, "WHAT IT SHOWS"), (10, 16, "HOW IT LOOKS"), (17, 19, "THE SHEET"),
+              (20, 21, "CHECK")]
+    rows = []
+    for r in default_recipes():
+        on = r[0] == "Yes"
+        rows.append(r + (["OK", ""] if on else ["Off", ""]))
+    rows += [[""] * 21 for _ in range(4)]
+    cols = "".join('<col style="width:%dpx">' % colw(w) for w in widths)
+    g = "<tr style='height:27px'>"
+    for c1, c2, label in groups:
+        g += ("<td colspan=%d style='background:#%s;color:#%s;font-family:\"Selawik Semibold\";font-size:10px;"
+              "letter-spacing:.6px;border-left:3px solid #%s'>%s</td>") % (c2 - c1 + 1, C["E950"], C["M300"],
+                                                                        C["BRAND"], label)
+    g += "</tr>"
+    t = table(heads, widths, rows, verdict_col=19, muted_cols=(18, 20), semi_cols=(1,))
+    t = t.replace("<table>" + cols, "<table>" + cols + g, 1)
+    t = t.replace("&#9679;&nbsp;&nbsp;</td>", "</td>")
+    body = (nav("config", ["Check", "Fields", "Restore defaults", "Use the 1.0 layout"]) +
+            masthead("Pivot config", "What every framework workbook is built from. One row is one pivot, or one "
+                     "sheet per value of a field. Edit a row or add one below; Check says whether it will build. "
+                     "Select any cell for how to fill it.", "4 pivot(s) switched on, every one ready to build.",
+                     "OK", 0, 1400).rsplit('<div style="height:13px"></div>', 1)[0] +
+            "<div style='height:13px'></div>" + t)
+    return page("Pivot config", body, 2700)
+
+
+def fields_sheet():
+    fh = ["Field", "Source column", "Kind", "Blank shows as", "Width", "Number format", "Note"]
+    fw = [26, 42, 10, 20, 8, 22, 64]
+    frows = [r[:7] for r in default_fields()]
+    t = table(fh, fw, frows, mono_cols=(1,), muted_cols=(6,), semi_cols=(0,))
+    body = (nav("config", ["Back to recipes", "Check"]) +
+            masthead("Pivot fields", "Every column the recipes on Pivot config may name. The first thirteen are "
+                     "built in; add any column of an output under a name of your own, and use that name in a recipe.",
+                     "%d fields. Built-in fields cannot be renamed; any other row can be changed, and new ones added "
+                     "at the bottom." % len(frows), "Idle", 0, 1400) + t)
+    return page("Pivot fields", body, 1500)
+
+
+if __name__ == "__main__" and os.environ.get("CONFIG_ONLY"):
+    assets.render(config_sheet(), os.path.join(OUT, "sheet-pivot-config.png"), 2700, 520, scale=1, transparent=False)
+    assets.render(fields_sheet(), os.path.join(OUT, "sheet-pivot-fields.png"), 1500, 1340, scale=1, transparent=False)
+    print("config previews")

@@ -30,6 +30,7 @@ beside it says why.
 |---|---|
 | Ctrl+Shift+D | Desk |
 | Ctrl+Shift+F | Files |
+| Ctrl+Shift+P | Pivot config |
 | Ctrl+Shift+R | Reconciliation |
 | Ctrl+Shift+A | Activity |
 
@@ -49,7 +50,14 @@ workbook. **App view** hides it again.
 - Built workbooks use the brand theme, a custom *PivotDesk* pivot style,
   emerald slicers, a redesigned *Start here* sheet, a "‹ Start here" link on
   every sheet, and tab colours by sheet kind.
-- Twelve bugs found along the way were fixed. They are listed in
+- **Pivot config.** Every pivot a framework workbook contains is a row you
+  can edit: rows, columns, values (any aggregation, or % of row, column or
+  total), show-only and hide rules, one sheet per value of a field,
+  subtotals, grand totals, layout, repeated labels, sort, widths, number
+  format and tab colour. Any of the output's columns can be used, not just
+  the thirteen 1.0 staged. The defaults build exactly what 1.0 built. See
+  [docs/PIVOT_CONFIG.md](docs/PIVOT_CONFIG.md).
+- Fourteen bugs found along the way were fixed. They are listed in
   [docs/PLAN.md](docs/PLAN.md), section R.
 
 The full look-and-feel plan, with a status for every item, is in
