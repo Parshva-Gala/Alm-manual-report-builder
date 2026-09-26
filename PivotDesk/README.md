@@ -1,33 +1,36 @@
-# PivotDesk 2.1
+# Avati ALM Desk 3.0
 
 A desk for daily ALM analysis at MIDBANK Cairo. Point it at the LCR, NSFR and
-maturity-ladder outputs and control reports 3 and 6; it recognises each file by
-its columns, builds one workbook of live PivotTables per framework, and
-reconciles the outputs against the control reports.
+maturity-ladder outputs and control reports 3 and 6. It recognises each file
+by its columns, builds workbooks of live PivotTables and PivotCharts for each
+framework, and reconciles the outputs against the control reports.
 
-**It is one application, not two.** Since 2.0 the separate console window
-is gone. Everything it did, and the state the sheets used to hold, is on the
-**Desk**. While the workbook is in front it runs as an application: the ribbon,
-formula bar and sheet tabs step aside, and the Desk fills the window. When
-another workbook comes to the front, Excel's chrome is put back as it was.
+It runs as one application inside Excel. While the workbook is in front, the
+ribbon, formula bar and sheet tabs step aside and the **Desk** fills the
+window. When another workbook comes to the front, Excel's chrome comes back.
 
 ![The Desk](preview/desk-showcase.png)
 
 ## Using it
 
-1. Open `dist/PivotDesk.xlsm` and choose **Enable Content**.
-2. On the Desk, **Scan a folder** or **Pick files**. You can also click any
-   file row to choose the file for that slot.
-3. Switch frameworks on or off under **Build pivots**, then build. Each
-   framework becomes its own workbook, opening on a *Start here* index.
-4. **Reconcile** once a control report is on the desk. The verdict matrix
-   shows each control against each framework.
+1. Open `dist/Avati.xlsm` and choose **Enable Content**.
+2. On the Desk, **Scan a folder** or **Pick files**.
+3. Switch frameworks on or off, then **Build**. Each workbook opens on a
+   *Start here* sheet with its figures, its charts and an index of its sheets.
+4. **Reconcile** once a control report is on the desk.
 
-The big button in the hero is always the next sensible step, and the sentence
-beside it says why. The first time the workbook opens, a one-minute tour
-walks through the Desk; **F1** or the **?** on the app bar plays it again.
+What a build makes is set under **Reports**, a tabbed section of five sheets:
 
-![The tour](preview/desk-tour.png)
+| Tab | What it decides |
+|---|---|
+| **Pivots** | Every pivot sheet: one row per pivot, 31 columns of options ([reference](docs/PIVOT_CONFIG.md)) |
+| **Charts** | Every chart: on Start here or on a sheet of its own ([reference](docs/REPORTS.md#chart-config)) |
+| **Workbooks** | How many files a framework becomes. The Maturity ladder is one workbook per currency ([reference](docs/REPORTS.md#workbooks)) |
+| **Fields** | The output columns the pivots and charts may name, and how their labels read |
+| **Gallery** | 18 ready-made reports and charts, each one click from the next build ([reference](docs/REPORTS.md#gallery)) |
+
+The first time the workbook opens, a six-step tour walks through the Desk.
+**F1** or the **?** on the app bar plays it again.
 
 | Shortcut | Goes to |
 |---|---|
@@ -38,75 +41,120 @@ walks through the Desk; **F1** or the **?** on the app bar plays it again.
 | Ctrl+Shift+R | Reconciliation |
 | Ctrl+Shift+A | Activity |
 
-**Excel view** on the app bar brings the ribbon back while you work in the
-workbook, with a **PivotDesk** tab first on it. **App view** hides it again.
+**Excel view** on the app bar brings the ribbon back, with an **Avati** tab
+first on it. **App view** hides it again.
 
-## What changed in 2.1
+## What changed in 3.0
 
-- **Maturity gap on the Desk.** After a build, the bottom right of the Desk
-  draws the net pre-factor balance in each maturity bucket, shortest tenor
-  first: bars above the zero line in emerald, below it in grey. Net, gross and
-  the weighted factor sit beside it, and a chip switches between the
-  frameworks built. Staging measures it in the same pass, so it costs no
-  extra read.
-- **Buckets in tenor order, everywhere.** Labels such as *UPTO 1 MONTH*,
-  *1 - 3 MONTHS*, *OVER 5 YEARS* and *NON MATURITY* are read as tenors. Every
-  pivot with buckets on its rows or columns shows them in that order, not
-  alphabetically, which put *OVER 5 YEARS* before *UPTO 1 MONTH*. A label
-  with no readable tenor is placed by its rows' average maturity date.
-- **Start here is a dashboard.** Every workbook opens on the figures that
-  matter (rows, gross and net pre-factor, weighted factor, local currency,
-  as-of date) and a live PivotChart of its maturity gap, local against
-  foreign currency, over the index of its sheets.
-- **A guided tour**, six steps, on first open and on F1.
-- **Pivot config answers as you type.** The status bar says whether the row
-  you are editing will build and, if not, what to fix. It writes nothing
-  while you edit, so Undo still works. **Add a pivot** puts a working recipe,
-  switched off, on the next free row.
-- **Motion and progress.** Switches slide, messages fade in, and the status
-  bar says how long a build has left.
-- **A PivotDesk tab on the ribbon** for anyone who works in Excel view.
-- Recent activity shows four entries instead of three.
+**Avati.** The product is Avati ALM Desk. The Avati mark leads every app bar,
+on the Desk, on every tool sheet and on every sheet of every workbook a build
+writes.
 
-![Start here, Maturity ladder (illustrative figures)](preview/built-start-here-ladder.png)
+**One look, everywhere.** The Desk's dark emerald theme is now on every
+sheet:
 
-## What changed in 2.0
+- Files, Reconciliation, Activity and all the Reports sheets share the app bar,
+  a title block, a toolbar row and a status line. Tables sit on dark banded
+  rows with hairlines, and verdicts show as pills.
+- The workbook's Normal style is dark, so there are no white cells at the
+  edges.
 
-- The console (HTA window) was removed. The Desk sheet is the interface.
-- App view: Excel's chrome is hidden on the Desk and restored when you leave.
-- The Desk design includes a hero with the next action and four KPI tiles,
-  live file slots, framework switches, a reconciliation verdict matrix, recent
-  activity, and toasts in place of message boxes.
-- Files, Reconciliation and Activity share one black app bar with an emerald
-  rule. Status cells are shown as pills, rows are banded, the header row is
-  frozen, and each sheet is set up for printing.
-- Built workbooks use the brand theme, a custom *PivotDesk* pivot style,
-  emerald slicers, a redesigned *Start here* sheet, a "‹ Start here" link on
-  every sheet, and tab colours by sheet kind.
-- **Pivot config.** Every pivot a framework workbook contains is a row you
-  can edit: rows, columns, values (any aggregation, or % of row, column or
-  total), show-only and hide rules, one sheet per value of a field,
-  subtotals, grand totals, layout, repeated labels, sort, widths, number
-  format and tab colour. Any of the output's columns can be used, not just
-  the thirteen 1.0 staged. The defaults build exactly what 1.0 built. See
-  [docs/PIVOT_CONFIG.md](docs/PIVOT_CONFIG.md).
-- Seventeen bugs found along the way were fixed. They are listed in
-  [docs/PLAN.md](docs/PLAN.md), section R.
+**Built workbooks that read cleanly.**
 
-The full look-and-feel plan, with a status for every item, is in
-[docs/PLAN.md](docs/PLAN.md).
+- Every pivot sheet has the Avati bar, with Start here, Previous and Next.
+- Under the title, tiles show each value's live total. They are linked to the
+  pivot, so a slicer or a filter moves them.
+- Filters sit on rows of their own, clear of the table.
+- Pivots use a dark "Avati" style. The +/- buttons are off, and the total row
+  reads *Total*.
+- Ledger codes are dropped from labels, and names are title-cased where
+  Pivot fields says so. *1.07.00.MBGL.1360.LOANS TO CUSTOMERS* reads
+  *Loans to Customers*.
+
+![A built pivot: the top counterparties](preview/built-top-counterparties.png)
+
+**Pivot config: far more customisation.** A row now has 31 columns.
+
+- Values can be shown as:
+  - % of row, column, total or parent
+  - a running total, or % running total
+  - a rank
+  - a change or % change from the previous item
+  - an index
+
+  Each can run along a field you name, for example
+  `Gross pre-factor %running in Counterparty as Cumulative`.
+- **Top / value filter**: `Top 25 by Exposure`, `Top 10 Counterparty by Exposure`,
+  `Top 5% by Share`, `Exposure > 1m`, `Exposure between 1m and 5m`.
+- **Show only / hide** also takes label rules: *contains*, *begins with*,
+  *ends with* and their opposites.
+- **Group**: dates by year, quarter, month or day, and numbers by a step. The
+  grouping is done while staging, so it never breaks the shared cache.
+- Presentation options:
+  - **Subtotals at** top or bottom
+  - **Total label**
+  - **Blank line** after groups
+  - **Values in** rows or columns
+  - **Expand to**: open folded to a level
+  - **Units**: thousands, millions or billions
+  - **Highlight**: data bars, heatmap, negatives, top N
+  - **Tiles** on or off
+- New fields:
+  - *Gross pre-factor* and *Gross post-factor*: the amounts without their sign.
+  - *Calculated* fields worked out by the pivot, such as *Haircut* and
+    *Effective factor*.
+
+**Custom charts.** Chart config draws PivotCharts:
+
+- 13 types, from column and bar to doughnut and column + line.
+- Categories and an optional series field.
+- The same values, filters, groups and top-N as a pivot.
+- Placement on Start here in a grid of thirds, halves and full widths, or on
+  a sheet of its own.
+- Options for labels, legend, units (Auto picks bn, m or k) and three
+  palettes.
+
+Each chart is a live PivotChart over the workbook's one cache, so a refresh
+redraws it.
+
+![Start here, LCR, with the default charts](preview/built-start-here.png)
+
+**One workbook per currency for the Maturity ladder.**
+
+- Workbooks splits a framework into a file per value of a field. The ladder's
+  default is Currency.
+- The output is read once and held open. Each workbook stages only its own
+  rows, so every total, tile and chart in it belongs to that currency.
+- Inside each ladder workbook, the sheets are one per rule, as for LCR and NSFR.
+
+**The Gallery.** 18 designed cards:
+
+- top counterparties, counterparty heatmap, product concentration, maturity
+  by year, rule ranking, sector league
+- currency by bucket, haircut by rule, local/foreign mix, bank counterparties,
+  large exposures, balance summary
+- six charts
+
+*Add* writes the row switched on. A card already on a sheet offers *Switch on*
+or *Open*.
+
+![The Gallery](preview/sheet-gallery.png)
+
+**Removed.** The maturity-gap card, its chart and the gap figures are gone,
+as asked. The Desk's bottom right now lists **Recent builds**, each with an
+*Open* link.
 
 ## Design
 
-MIDBANK's mark is black, white and emerald (#009060). PivotDesk uses those
-three colours and their tones, plus separate colours reserved for statuses.
-The rule is dark chrome, light data: the Desk is dark, and every sheet that
-holds balances is white. The hero carries a star-and-cross lattice, the
-khatam pattern of Cairo's mashrabiya screens. Type is Segoe UI, which ships
-with Windows, so nothing depends on a cloud font.
-
-Every colour pair is measured for WCAG AA contrast by the build
-([docs/CONTRAST.md](docs/CONTRAST.md)).
+- **Colour.** The palette is MIDBANK's black, white and emerald (#009060),
+  with its tones, the Avati blue of the mark, and separate status colours.
+- **Chart colours.** Every chart palette colour clears 3:1 against the chart
+  surface. The build checks this.
+- **Data bars** use one emerald (#00794F). It stands out from the rows at
+  3.4:1, and white figures on it read at 5:1.
+- **Contrast.** Every text and background pair on the Desk and the sheets is
+  measured for WCAG AA ([docs/CONTRAST.md](docs/CONTRAST.md)).
+- **Type.** Segoe UI, which ships with Windows.
 
 ## Building
 
@@ -119,75 +167,81 @@ python3 build/build.py
 | Input | Path |
 |---|---|
 | Seed package | `src/seed/PivotDesk_v1.xlsm` |
-| VBA | `src/vba/*.bas`, `*.cls` |
+| VBA | `src/vba/*.bas`, `*.cls` (19 modules) |
 | Desk design | `build/desk.py` (one spec, rendered to DrawingML for Excel and to HTML for previews) |
-| Artwork | `build/assets.py` → `design/assets/` |
+| Brand | `build/brand.py` → `design/brand/` (the Avati mark, composed from the supplied artwork) |
 
 The build fails on any of these:
 
-- **VBA lint.** Blocks must close. Every identifier must be declared under
-  Option Explicit. Every Excel constant must be known. No Public name may be
-  declared twice.
-- **Shape-name contract.** Every name the VBA paints must exist in the
-  drawing, and every OnAction, OnKey and OnTime target must exist.
-- **Palette agreement.** The VBA colours must equal the design tokens.
-- **WCAG contrast.** Every text run on the Desk and every sheet colour pair
-  must pass AA.
-- **Package validity.** XML must be well formed, and content types and
-  relationships must be complete.
+- **VBA lint.** Blocks must close, and every identifier must be declared.
+  Every Excel constant must be known. No Public name may be declared twice.
+  Every call must match its procedure's argument count. The three constructs
+  LibreOffice cannot parse are kept out.
+- **Config agreement.** Every heading named by a default pivot, a default
+  chart or a gallery template must be a column of its sheet. The column
+  constants must point at the right headings.
+- **Shape-name contract, geometry, ribbon, palette.** The VBA and the design
+  must agree.
+- **WCAG contrast.** This covers the Desk, every sheet pair and every chart
+  colour.
+- **Package validity.**
 
-The build also fails if the geometry and the tour's words in the VBA differ
-from the design's, or if a ribbon button reaches no code.
-
-Previews are rendered with the Chromium already on the build machine:
+Previews are rendered with the Chromium on the build machine:
 
 ```
-python3 build/preview.py            # the Desk: preview/desk-*.png
-python3 build/preview_sheets.py     # sheets and a built workbook
+python3 build/preview.py                               # the Desk
+LCR_SAMPLE=<lcr sample.xlsx> python3 build/preview_sheets.py   # Files, Recon, Activity, a Balance sheet pivot
+CONFIG_ONLY=1 python3 build/preview_sheets.py          # Pivot config, Pivot fields
+LCR_SAMPLE=<lcr sample.xlsx> python3 build/preview_v3.py       # Chart config, Workbooks, Gallery, Start here, top counterparties
 ```
 
-`preview/built-start-here.png` uses the LCR sample's real figures. It has one
-bucket, as an LCR does. `preview/built-start-here-ladder.png` and the Desk
-showcase use illustrative figures.
-
-`build/vbaproj.py` reads and writes the VBA project (MS-OVBA compression and
-MS-CFB container). It writes the project source-only, with no compiled
-p-code, as the spec requires of a writer. Excel compiles the code on first
-open.
+The built-workbook previews use the LCR sample's real figures, staged the way
+the VBA stages them. The Reports previews read their rows from the VBA
+source.
 
 ## Verification, and what still needs Windows
 
 Checked here:
 
-- the VBA project round-trips byte for byte;
-- `olevba` and LibreOffice both read every module of the built workbook;
-- **the VBA runs.** `build/lo_run.py` opens the shipped workbook in
-  LibreOffice's VBA-compatible Basic. The whole project compiles there, and
-  the tenor parser and other pure functions are executed against known
-  answers. LibreOffice has no `Scripting.Dictionary` and no Excel object
-  model, so anything built on those still needs Excel;
-- LibreOffice renders the Desk drawing from the file;
-- the lint, contract, geometry, ribbon, palette, contrast and package checks
-  all pass.
+- The build passes every gate above.
+- `build/lo_run.py` opens the shipped workbook in LibreOffice's
+  VBA-compatible Basic.
+  - All 19 modules compile there.
+  - The tenor parser and label tidying agree with their Python mirrors: 37
+    and 35 labels.
+  - These run against known answers: number parsing (`1.5m`, `2bn`, `5%`),
+    unit formats, date periods and number steps.
+- The VBA project round-trips byte for byte.
 
 ```
-python3 build/lo_run.py dist/PivotDesk.xlsm
+python3 build/lo_run.py dist/Avati.xlsm
 ```
 
-Not checked here: the workbook running inside Excel. There is no Excel off
-Windows. Before anyone relies on it, open the workbook once on Windows and
-walk through these steps:
+**Not checked here: anything that needs Excel itself.** LibreOffice has no
+`Scripting.Dictionary`, which recipe parsing is built on, and no Excel
+object model. That leaves out:
 
-1. Choose Enable Content. The Desk should fill the window, the ribbon should
-   hide, and the tour should start. Step through it, then Skip.
-2. Scan a folder and build one framework. The Maturity gap card should fill
-   in, and the built workbook should open on Start here with its tiles and
-   chart. Buckets should run shortest first on every pivot.
-3. Reconcile.
-4. On Pivot config, change a cell. The status bar should answer, and Ctrl+Z
-   should still undo the change.
-5. Choose Excel view. The ribbon should come back with a PivotDesk tab
-   first on it.
-6. Switch to another workbook. The ribbon should come back.
+- pivots, slicers and PivotCharts;
+- value filters, calculated fields, conditional formats;
+- the logo, which is decoded with MSXML.
 
-Items that need this run are marked `[~]` in [docs/PLAN.md](docs/PLAN.md).
+Before anyone relies on 3.0, open it once on Windows:
+
+1. Enable Content. The tour should start, and the Desk should carry the Avati
+   mark.
+2. Load the LCR, NSFR and ladder outputs and build all three. You should get
+   LCR, NSFR and one Maturity Ladder workbook per currency.
+3. In LCR:
+   - Start here shows three charts.
+   - *LCR top counterparties* has data bars, Share and Cumulative.
+   - Buckets run shortest first.
+4. Gallery: add *Haircut by rule* and *Large exposures*, then build LCR again.
+   Check the calculated fields and the folded outline.
+5. Reports:
+   - On Pivot config, type a bad value. The status bar should say why, and
+     Ctrl+Z should still undo it.
+   - On Chart config, **Check** should mark every row OK.
+6. Choose Excel view. The Avati tab should lead the ribbon.
+
+Anything Excel refuses is logged on Activity with the Pivot config or Chart
+config row it came from. The rest of the workbook is still built.

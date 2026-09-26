@@ -200,6 +200,11 @@ Public Function FileBase(ByVal plan As Object, ByVal fw As String, ByVal part As
     Dim s As String
     s = Replace(CStr(plan("File")), "{fw}", FwLabel(fw), , , vbTextCompare)
     s = Replace(s, "{part}", part, , , vbTextCompare)
+    ' "{fw} - {part}" with no part: no dangling separator.
+    s = Trim$(s)
+    Do While Len(s) > 0 And InStr(" -_.", Right$(s, 1)) > 0
+        s = Left$(s, Len(s) - 1)
+    Loop
     If Len(Trim$(s)) = 0 Then s = FwLabel(fw)
     FileBase = modPD_Build.SafeFileName(Trim$(s))
 End Function

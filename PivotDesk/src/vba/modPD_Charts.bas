@@ -88,7 +88,7 @@ Public Function ChartHeads() As Variant
 End Function
 
 Private Function ChartWidths() As Variant
-    ChartWidths = Array(7, 28, 14, 16, 22, 14, 50, 26, 22, 24, 16, 12, 12, 10, 10, 11, 11, 46, 10, 60)
+    ChartWidths = Array(7, 30, 12, 16, 16, 12, 60, 34, 22, 24, 16, 12, 12, 10, 10, 10, 11, 46, 10, 60)
 End Function
 
 Public Sub BuildChartsSheet(Optional ByVal withDefaults As Boolean = False)
@@ -186,8 +186,9 @@ Private Sub ChartHints(ByVal ws As Worksheet)
         "Values on the bars or slices. Percent and Both are for a pie or a doughnut."
     modPD_Config.ListRule ws, r1, r2, X_LEGEND, "Auto,Top,Right,Bottom,None", "Legend", _
         "Auto: none for one series, at the top for several, on the right for a pie."
-    modPD_Config.ListRule ws, r1, r2, X_UNITS, "As is,Thousands,Millions,Billions", "Units", _
-        "The axis and the labels in thousands (k), millions (m) or billions (bn)."
+    modPD_Config.ListRule ws, r1, r2, X_UNITS, "Auto,As is,Thousands,Millions,Billions", "Units", _
+        "The axis and the labels in thousands (k), millions (m) or billions (bn). Auto: whichever reads best for " & _
+        "the biggest figure plotted."
     modPD_Config.ListRule ws, r1, r2, X_PALETTE, "Avati,Emerald,Two tone", "Colours", _
         "Avati: emerald, sky, amber, mint, coral, violet... Emerald: shades of the brand. Two tone: emerald and sky."
     modPD_Config.Hint ws, r1, r2, X_DESC, "Description", "On its own sheet, under the title; on Start here, " & _
@@ -203,27 +204,28 @@ Private Sub WriteDefaultCharts(ByVal ws As Worksheet)
     ws.Range(ws.Cells(r, 1), ws.Cells(LastChartRow(ws), X_LAST)).ClearContents
     ChartRec ws, r, "On=Yes", "Chart=Where the balance sits", "Frameworks=All", "Type=Doughnut", _
         "Categories=Type", "Values=Gross pre-factor sum as Gross", "Where=Start here", "Size=Third", _
-        "Labels=Percent", "Legend=Right", "Units=Millions", "Colours=Avati", _
+        "Labels=Percent", "Legend=Right", "Units=Auto", "Colours=Avati", _
         "Description=The gross book by balance-sheet type."
     ChartRec ws, r + 1, "On=Yes", "Chart=Largest counterparties", "Frameworks=All", "Type=Bar", _
         "Categories=Counterparty", "Values=Gross pre-factor sum as Exposure", _
-        "Top / value filter=Top 10 by Exposure", "Sort=Exposure desc", "Where=Start here", "Size=Two thirds", _
-        "Labels=Values", "Legend=None", "Units=Millions", "Colours=Avati", _
+        "Show only / hide=Counterparty <> (no counterparty)", "Top / value filter=Top 10 by Exposure", _
+        "Sort=Exposure desc", "Where=Start here", "Size=Two thirds", "Labels=Values", "Legend=None", _
+        "Units=Auto", "Colours=Avati", _
         "Description=The ten biggest counterparties, gross."
-    ChartRec ws, r + 2, "On=Yes", "Chart=Read and kept, by rule category", "Frameworks=All", "Type=Column", _
-        "Categories=Rule category", _
-        "Values=Pre factor amount sum as Pre-factor; Post factor amount sum as Post-factor", _
-        "Where=Start here", "Size=Full", "Legend=Top", "Units=Millions", "Colours=Two tone", _
-        "Description=What each category of rule read, against what it kept after its factors."
+    ChartRec ws, r + 2, "On=Yes", "Chart=What the factors kept, by rule", "Frameworks=All", "Type=Bar", _
+        "Categories=Rule name", "Values=Gross pre-factor sum as Read; Gross post-factor sum as Kept", _
+        "Show only / hide=Rule name <> (no rule)", "Top / value filter=Top 8 by Read", "Sort=Read desc", _
+        "Where=Start here", "Size=Full", "Legend=Top", "Labels=Values", "Units=Auto", "Colours=Two tone", _
+        "Description=The eight rules that read the most, and how much of it their factors kept."
     ' Ready to switch on.
     ChartRec ws, r + 3, "On=No", "Chart=Across the buckets", "Frameworks=All", "Type=Stacked column", _
         "Categories=Bucket", "Series=LCY / FCY", "Values=Pre factor amount sum as Pre-factor", _
         "Show only / hide=Bucket <> (no bucket)", "Where=Start here", "Size=Full", "Legend=Top", _
-        "Units=Millions", "Colours=Two tone", "Description=Balances in each maturity bucket, local and foreign."
+        "Units=Auto", "Colours=Two tone", "Description=Balances in each maturity bucket, local and foreign."
     ChartRec ws, r + 4, "On=No", "Chart=Maturing by year", "Frameworks=All", "Type=Column + line", _
         "Categories=Maturity date", "Group=Maturity date by year", _
         "Values=Gross pre-factor sum as Maturing; Gross pre-factor %running in Maturity date as Cumulative", _
-        "Where=Own sheet", "Legend=Top", "Units=Millions", "Colours=Two tone", _
+        "Where=Own sheet", "Legend=Top", "Units=Auto", "Colours=Two tone", _
         "Description=How much matures each year, and the running share of the book."
     ChartRec ws, r + 5, "On=No", "Chart=Currency mix", "Frameworks=All", "Type=Pie", "Categories=Currency", _
         "Values=Gross pre-factor sum as Gross", "Top / value filter=Top 8 by Gross", "Sort=Gross desc", _
@@ -285,7 +287,7 @@ Public Sub PD_ChartsAdd()
     Application.EnableEvents = False
     ChartRec ws, r, "On=No", "Chart=New chart " & (r - modPD_Theme.R_FIRST + 1), "Frameworks=All", "Type=Column", _
         "Categories=Type", "Values=Gross pre-factor sum as Gross", "Where=Start here", "Size=Half", _
-        "Units=Millions", "Colours=Avati", "Description=A new chart. Change any cell, then set On to Yes."
+        "Units=Auto", "Colours=Avati", "Description=A new chart. Change any cell, then set On to Yes."
     If r > lastR Then
         DressCharts ws
         ChartHints ws
@@ -370,13 +372,16 @@ Private Function ParseChart(ByVal ws As Worksheet, ByVal r As Long, ByVal fl As 
     rc("ValuesInRows") = False
     rc("Desc") = Cell(ws, r, X_DESC)
 
+    ' Auto, the default: the unit is chosen when the chart is drawn, from the
+    ' biggest figure it plots.
     s = LCase$(Cell(ws, r, X_UNITS))
     Select Case s
-        Case "", "as is": rc("Units") = ""
+        Case "", "auto": rc("Units") = "auto"
+        Case "as is": rc("Units") = ""
         Case "thousands", "millions", "billions": rc("Units") = s
         Case Else
-            rc("Units") = ""
-            If Len(prob) = 0 Then prob = "Units must be As is, Thousands, Millions or Billions."
+            rc("Units") = "auto"
+            If Len(prob) = 0 Then prob = "Units must be Auto, As is, Thousands, Millions or Billions."
     End Select
     rc("Format") = modPD_Recipe.UnitFormat(CStr(rc("Units")))
     rc("FormatSet") = False
@@ -605,10 +610,11 @@ End Function
 ' A sheet of its own: the book's bar and title, then the chart, full size.
 Private Function DrawOnSheet(ByVal wb As Workbook, ByVal fw As String, ByVal pt As PivotTable, _
                              ByVal rc As Object) As Boolean
-    Dim ws As Worksheet, title As String
+    Dim ws As Worksheet, title As String, u As String
     title = Replace(CStr(rc("Name")), "{fw}", FwLabel(fw))
+    u = UnitsFor(pt, rc)
     Set ws = modPD_Pivot.NewBookSheet(wb, SafeSheetName(title), title, CStr(rc("Desc")), _
-        UCase$(FwLabel(fw)) & "  " & ChrW(183) & "  CHART" & UnitsWord(rc))
+        UCase$(FwLabel(fw)) & "  " & ChrW(183) & "  CHART" & IIf(Len(u) > 0, "  " & ChrW(183) & "  IN " & UCase$(u), ""))
     If ws Is Nothing Then Exit Function
     If DrawChart(ws, pt, rc, title, 14, ws.Rows(4).Top + 8, SHEET_CHART_W, SHEET_CHART_H) Is Nothing Then Exit Function
     modPD_Pivot.NoteMade ws, IIf(Len(rc("Desc")) > 0, CStr(rc("Desc")), title)
@@ -633,8 +639,32 @@ Private Function DrawOnSheet(ByVal wb As Workbook, ByVal fw As String, ByVal pt 
     DrawOnSheet = True
 End Function
 
-Private Function UnitsWord(ByVal rc As Object) As String
-    If Len(rc("Units")) > 0 Then UnitsWord = "  " & ChrW(183) & "  IN " & UCase$(CStr(rc("Units")))
+' The unit a chart reads in: the one asked for, or - for Auto - the one its
+' biggest figure reads best in, so 93,322,000,000 is 93.3 bn and not 93,322.2 m.
+Private Function UnitsFor(ByVal pt As PivotTable, ByVal rc As Object) As String
+    Dim v As Variant, x As Variant, m As Double
+    UnitsFor = CStr(rc("Units"))
+    If UnitsFor <> "auto" Then Exit Function
+    UnitsFor = ""
+    On Error Resume Next
+    v = pt.DataBodyRange.Value2
+    If IsArray(v) Then
+        For Each x In v
+            If IsNumeric(x) And Not IsEmpty(x) Then
+                If Abs(CDbl(x)) > m Then m = Abs(CDbl(x))
+            End If
+        Next x
+    ElseIf IsNumeric(v) And Not IsEmpty(v) Then
+        m = Abs(CDbl(v))
+    End If
+    If m >= 1000000000# Then
+        UnitsFor = "billions"
+    ElseIf m >= 1000000# Then
+        UnitsFor = "millions"
+    ElseIf m >= 1000# Then
+        UnitsFor = "thousands"
+    End If
+    Err.Clear
 End Function
 
 ' How many charts Start here has waiting.
@@ -679,7 +709,8 @@ End Function
 Private Function DrawChart(ByVal host As Worksheet, ByVal pt As PivotTable, ByVal rc As Object, _
                            ByVal title As String, ByVal l As Double, ByVal t As Double, ByVal w As Double, _
                            ByVal h As Double) As Object
-    Dim co As Object, ch As Object, typ As String, n As Long
+    Dim co As Object, ch As Object, typ As String, n As Long, u As String
+    u = UnitsFor(pt, rc)
     On Error Resume Next
     Set co = host.ChartObjects.Add(l, t, w, h)
     If co Is Nothing Then Exit Function
@@ -696,10 +727,10 @@ Private Function DrawChart(ByVal host As Worksheet, ByVal pt As PivotTable, ByVa
         ch.SeriesCollection(2).ChartType = CT_LINE_MARKERS
         ch.SeriesCollection(2).AxisGroup = AX_SECONDARY
     End If
-    If Not IsRound(typ) Then StyleAxes ch, rc
+    If Not IsRound(typ) Then StyleAxes ch, rc, u
     StyleColours ch, rc
     StyleLegend ch, rc, n
-    StyleLabels ch, rc
+    StyleLabels ch, rc, u
     If n = 0 Then
         LogIt V_CHECK, "Charts", "Chart " & Chr$(34) & title & Chr$(34) & " has nothing to plot - its pivot is empty.", ""
     End If
@@ -736,7 +767,7 @@ Private Sub StyleSurface(ByVal ch As Object, ByVal title As String)
 End Sub
 
 ' A hairline grid, no axis line, figures in the units asked for.
-Private Sub StyleAxes(ByVal ch As Object, ByVal rc As Object)
+Private Sub StyleAxes(ByVal ch As Object, ByVal rc As Object, ByVal u As String)
     Dim typ As String, v As Object
     typ = CStr(rc("Type"))
     On Error Resume Next
@@ -750,7 +781,7 @@ Private Sub StyleAxes(ByVal ch As Object, ByVal rc As Object)
         If Left$(typ, 4) = "100%" Then
             .TickLabels.NumberFormat = "0%"
         Else
-            .TickLabels.NumberFormat = AxisFormat(CStr(rc("Units")), rc("Values")(1))
+            .TickLabels.NumberFormat = AxisFormat(u, rc("Values")(1))
         End If
     End With
     With ch.Axes(AX_CATEGORY)
@@ -768,7 +799,7 @@ Private Sub StyleAxes(ByVal ch As Object, ByVal rc As Object)
             .Format.Line.Visible = msoFalse
             .MajorTickMark = xlNone
             .TickLabels.Font.Color = modPD_Theme.C_TEXT_3
-            .TickLabels.NumberFormat = AxisFormat(CStr(rc("Units")), v)
+            .TickLabels.NumberFormat = AxisFormat(u, v)
         End With
     End If
     If InStr(typ, "column") > 0 Or InStr(typ, "bar") > 0 Then ch.ChartGroups(1).GapWidth = 60
@@ -843,7 +874,7 @@ Private Sub StyleLegend(ByVal ch As Object, ByVal rc As Object, ByVal nSeries As
     Err.Clear
 End Sub
 
-Private Sub StyleLabels(ByVal ch As Object, ByVal rc As Object)
+Private Sub StyleLabels(ByVal ch As Object, ByVal rc As Object, ByVal u As String)
     Dim i As Long, s As Object, typ As String, v As Object
     typ = CStr(rc("Type"))
     If rc("Labels") = "none" Then Exit Sub
@@ -866,12 +897,12 @@ Private Sub StyleLabels(ByVal ch As Object, ByVal rc As Object)
                 If rc("Labels") = "percent" Then
                     .NumberFormat = "0%"
                 Else
-                    .NumberFormat = LabelFormat(CStr(rc("Units")), v)
+                    .NumberFormat = LabelFormat(u, v)
                 End If
                 .Position = LBL_BEST_FIT
             Else
                 .ShowValue = True
-                .NumberFormat = LabelFormat(CStr(rc("Units")), v)
+                .NumberFormat = LabelFormat(u, v)
                 If InStr(typ, "stacked") > 0 Or Left$(typ, 4) = "100%" Then
                     .Position = LBL_CENTER
                 ElseIf Not IsLineType(typ) And InStr(typ, "area") = 0 Then

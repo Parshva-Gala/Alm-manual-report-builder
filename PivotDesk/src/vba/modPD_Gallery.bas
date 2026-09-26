@@ -23,29 +23,31 @@ Private Function Templates() As Collection
     Dim c As Collection
     Set c = New Collection
     c.Add Array("topcp", "pivot", "Top counterparties", _
-        "The 25 largest counterparties, local and foreign, with each one's share and the running share down the list.", _
+        "The 25 largest counterparties by gross exposure, each one's share, and the running share down the list.", _
         "Top 25 filter  " & ChrW(183) & "  % of total  " & ChrW(183) & "  % running  " & ChrW(183) & "  data bars", _
-        Array("On=Yes", "Pivot={fw} top counterparties", "Frameworks=All", "Rows=Counterparty", "Columns=LCY / FCY", _
+        Array("On=Yes", "Pivot={fw} top counterparties", "Frameworks=All", "Rows=Counterparty", _
               "Values=Gross pre-factor sum as Exposure; Gross pre-factor %total as Share; " & _
-              "Gross pre-factor %running in Counterparty as Cumulative", "Top / value filter=Top 25 by Exposure", _
-              "Layout=Tabular", "Grand totals=Both", "Sort=Exposure desc", "Units=Millions", "Highlight=Data bars", _
-              "Widths=Counterparty=40", "Tiles=Yes", "Tab=Emerald", _
-              "Description=The 25 largest counterparties by exposure, local and foreign - each one's share of the " & _
-              "25, and the running share down the list."))
+              "Gross pre-factor %running in Counterparty as Cumulative", _
+              "Show only / hide=Counterparty <> (no counterparty)", "Top / value filter=Top 25 by Exposure", _
+              "Slicers=LCY / FCY", "Layout=Tabular", "Grand totals=Bottom row", "Sort=Exposure desc", _
+              "Units=Millions", "Highlight=Data bars on Exposure", "Tiles=Yes", _
+              "Tab=Emerald", "Description=The 25 largest counterparties by gross exposure - each one's share of " & _
+              "the 25 and the running share down the list. Slice by LCY / FCY."))
     c.Add Array("heatmap", "pivot", "Counterparty heatmap", _
         "Where the 30 largest counterparties fall across the maturity buckets, coloured by size.", _
         "Top 30  " & ChrW(183) & "  buckets across  " & ChrW(183) & "  heatmap", _
         Array("On=Yes", "Pivot={fw} counterparty heatmap", "Frameworks=All", "Rows=Counterparty", "Columns=Bucket", _
-              "Values=Gross pre-factor sum as Exposure", "Show only / hide=Bucket <> (no bucket)", _
+              "Values=Gross pre-factor sum as Exposure", _
+              "Show only / hide=Bucket <> (no bucket); Counterparty <> (no counterparty)", _
               "Top / value filter=Top 30 by Exposure", "Layout=Tabular", "Grand totals=Both", "Sort=Exposure desc", _
-              "Units=Millions", "Highlight=Heatmap", "Widths=Counterparty=40", "Tab=Emerald", _
+              "Units=Millions", "Highlight=Heatmap", "Tab=Emerald", _
               "Description=Where the 30 largest counterparties fall across the maturity buckets."))
     c.Add Array("prodconc", "pivot", "Product concentration", _
         "Each product's ten largest counterparties, and the share of the product each one holds.", _
         "Top 10 within each product  " & ChrW(183) & "  % of parent", _
         Array("On=Yes", "Pivot={fw} product concentration", "Frameworks=All", "Rows=Product, Counterparty", _
               "Values=Gross pre-factor sum as Exposure; Gross pre-factor %parent as Share of product", _
-              "Top / value filter=Top 10 Counterparty by Exposure", "Layout=Tabular", "Subtotals=Product", _
+              "Show only / hide=Counterparty <> (no counterparty)", "Top / value filter=Top 10 Counterparty by Exposure", "Layout=Tabular", "Subtotals=Product", _
               "Subtotals at=Bottom", "Grand totals=Bottom row", "Blank line=Yes", "Sort=Exposure desc", _
               "Units=Millions", "Highlight=Data bars on Exposure", "Tab=Deep", _
               "Description=Each product's ten largest counterparties and their share of the product."))
@@ -102,13 +104,14 @@ Private Function Templates() As Collection
         Array("On=Yes", "Pivot={fw} bank counterparties", "Frameworks=All", "Rows=Counterparty", _
               "Columns=LCY / FCY", "Values=Gross pre-factor sum as Exposure", _
               "Show only / hide=Counterparty contains BANK", "Layout=Tabular", "Grand totals=Both", _
-              "Sort=Exposure desc", "Units=Millions", "Widths=Counterparty=40", "Tab=Slate", _
+              "Sort=Exposure desc", "Units=Millions", "Tab=Slate", _
               "Description=Every counterparty with BANK in its name."))
     c.Add Array("large", "pivot", "Large exposures", _
         "Counterparties above 100 million gross, each folded to open onto its products.", _
         "Value filter  " & ChrW(183) & "  expand to  " & ChrW(183) & "  outline", _
         Array("On=Yes", "Pivot={fw} large exposures", "Frameworks=All", "Rows=Counterparty, Product", _
-              "Values=Gross pre-factor sum as Exposure", "Top / value filter=Counterparty: Exposure > 100m", _
+              "Values=Gross pre-factor sum as Exposure", "Show only / hide=Counterparty <> (no counterparty)", _
+              "Top / value filter=Counterparty: Exposure > 100m", _
               "Layout=Outline", "Subtotals=Counterparty", "Grand totals=Bottom row", "Expand to=Counterparty", _
               "Sort=Exposure desc", "Units=Millions", "Tab=Slate", _
               "Description=Counterparties above 100 million gross - open one to see its products."))
@@ -132,14 +135,14 @@ Private Function Templates() As Collection
         Array("On=Yes", "Chart=Across the buckets", "Frameworks=All", "Type=Stacked column", "Categories=Bucket", _
               "Series=LCY / FCY", "Values=Pre factor amount sum as Pre-factor", _
               "Show only / hide=Bucket <> (no bucket)", "Where=Start here", "Size=Full", "Legend=Top", _
-              "Units=Millions", "Colours=Two tone", "Description=Balances in each maturity bucket, local and foreign."))
+              "Units=Auto", "Colours=Two tone", "Description=Balances in each maturity bucket, local and foreign."))
     c.Add Array("ch_matyear", "chart", "Maturing by year", _
         "How much matures each year as columns, and the running share of the book as a line.", _
         "Column + line  " & ChrW(183) & "  grouped by year  " & ChrW(183) & "  own sheet", _
         Array("On=Yes", "Chart=Maturing by year", "Frameworks=All", "Type=Column + line", _
               "Categories=Maturity date", "Group=Maturity date by year", _
               "Values=Gross pre-factor sum as Maturing; Gross pre-factor %running in Maturity date as Cumulative", _
-              "Where=Own sheet", "Legend=Top", "Units=Millions", "Colours=Two tone", _
+              "Where=Own sheet", "Legend=Top", "Units=Auto", "Colours=Two tone", _
               "Description=How much matures each year, and the running share of the book."))
     c.Add Array("ch_products", "chart", "Products across the buckets", _
         "Each bucket's mix of products, every column to 100%.", _
@@ -159,7 +162,7 @@ Private Function Templates() As Collection
         "Bar  " & ChrW(183) & "  calculated field  " & ChrW(183) & "  value labels", _
         Array("On=Yes", "Chart=Haircut by rule category", "Frameworks=All", "Type=Bar", _
               "Categories=Rule category", "Values=Haircut sum as Taken off", "Sort=Taken off desc", _
-              "Where=Start here", "Size=Half", "Labels=Values", "Legend=None", "Units=Millions", "Colours=Avati", _
+              "Where=Start here", "Size=Half", "Labels=Values", "Legend=None", "Units=Auto", "Colours=Avati", _
               "Description=What the factors take off in each category of rule."))
     Set Templates = c
 End Function
@@ -228,7 +231,7 @@ Private Sub Card(ByVal ws As Worksheet, ByVal t As Variant, ByVal x As Double, B
     sh.Name = "pdg_card_" & key
     sh.Adjustments.Item(1) = 0.06
     sh.Fill.ForeColor.RGB = modPD_Theme.C_SURFACE
-    sh.Line.ForeColor.RGB = IIf(st = "on", modPD_Theme.C_BRAND_DEEP, modPD_Theme.C_LINE_2)
+    sh.Line.ForeColor.RGB = IIf(st = "on", modPD_Theme.C_BRAND, modPD_Theme.C_LINE_2)
     sh.Line.Weight = 0.75
     sh.Shadow.visible = msoFalse
     sh.Placement = xlFreeFloating

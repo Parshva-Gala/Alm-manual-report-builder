@@ -56,6 +56,7 @@ Private Const DB_BORDER_NONE As Long = 0         ' xlDataBarBorderNone
 Private Const FC_LESS As Long = 6                ' xlLess
 Private Const FC_TOP As Long = 1                 ' xlTop10Top
 Private Const FC_FIELDS_SCOPE As Long = 1        ' xlFieldsScope: this value, totals left out
+Private Const BAR_GREEN As String = "00794F"
 
 ' Excel 2010's calculations and filters, by value: a name the type library of
 ' an older Excel - or LibreOffice - does not know stops the whole module compiling.
@@ -302,6 +303,12 @@ End Function
 ' Rows, columns, values and filters, as a recipe - or a chart - spells them.
 Private Sub LayOut(ByVal pt As PivotTable, ByVal rc As Object, ByVal fl As Object)
     Dim x As Variant, pos As Long, v As Object, flt As Object, nm As String
+    ' A field can carry a hide rule and a top-N at once only with this on -
+    ' without it, the second filter quietly replaces the first.
+    On Error Resume Next
+    pt.AllowMultipleFilters = True
+    Err.Clear
+    On Error GoTo 0
     For Each x In rc("Rows")
         pos = pos + 1
         RowField pt, modPD_Recipe.PivotFieldName(rc, CStr(x)), pos
@@ -585,16 +592,20 @@ Private Sub Highlight(ByVal pt As PivotTable, ByVal rc As Object)
                     Case "bars"
                         Set fc = anchor.FormatConditions.AddDatabar
                         fc.BarFillType = DB_FILL_SOLID
-                        fc.BarColor.Color = modPD_Theme.C_BRAND_DEEP
+                        ' 3.4:1 against the row, and white figures on it 5:1 - the
+                        ' one emerald that is both a visible bar and a readable ground.
+                        fc.BarColor.Color = modPD_Theme.HX(BAR_GREEN)
                         fc.BarBorder.Type = DB_BORDER_NONE
                         fc.ShowValue = True
                     Case "heat"
                         Set fc = anchor.FormatConditions.AddColorScale(ColorScaleType:=2)
                         fc.ColorScaleCriteria(1).FormatColor.Color = modPD_Theme.C_SURFACE
-                        fc.ColorScaleCriteria(2).FormatColor.Color = modPD_Theme.C_BRAND_DEEP
+                        fc.ColorScaleCriteria(2).FormatColor.Color = modPD_Theme.HX(BAR_GREEN)
                     Case "neg"
                         Set fc = anchor.FormatConditions.Add(Type:=xlCellValue, Operator:=FC_LESS, Formula1:="=0")
                         fc.Interior.Color = modPD_Theme.C_BAD_BG_DK
+                        ' The format's own red is 4.2:1 on this ground; coral is 6:1.
+                        fc.Font.Color = modPD_Theme.HX("FF6B5E")
                     Case "top"
                         Set fc = anchor.FormatConditions.AddTop10
                         fc.TopBottom = FC_TOP

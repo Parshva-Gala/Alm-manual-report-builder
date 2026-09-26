@@ -1,4 +1,6 @@
-# PivotDesk 2.1 — look & feel plan
+# Avati ALM Desk — look & feel plan
+
+(PivotDesk until 3.0.)
 
 One product, not two. The console window is gone; its best ideas (the three
 action cards, readiness pills, framework chips, one obvious next action, the
@@ -239,11 +241,11 @@ with the reason.
 
 ## S. 2.1 — a few notches higher
 
-- [x] S01 Desk canvas grows to 1120 × 660; the bottom row becomes Recent activity (four rows) beside a Maturity gap card
-- [~] S02 Maturity gap card: net pre-factor in each bucket of the last build, bars around a zero line, emerald above and grey below, "(no bucket)" dim at the end, more than twelve buckets folded into the last bar
-- [~] S03 Net, gross and weighted factor beside the bars; a chip switches between the frameworks built
-- [x] S04 Before any build: the ghost of a gap under an opaque pill that says what will be drawn (the zero line no longer runs through the words)
-- [~] S05 Staging measures the gap in its one pass: net, gross and maturity dates per bucket; nothing is read twice
+- [x] S01 Desk canvas grows to 1120 × 660; the bottom row becomes Recent activity (four rows) beside a Maturity gap card (in 3.0: Recent builds)
+- [-] S02 Maturity gap card: net pre-factor in each bucket of the last build, bars around a zero line, emerald above and grey below, "(no bucket)" dim at the end, more than twelve buckets folded into the last bar — dropped in 3.0: the maturity gap was removed at the bank's request
+- [-] S03 Net, gross and weighted factor beside the bars; a chip switches between the frameworks built — dropped in 3.0: the maturity gap was removed at the bank's request
+- [-] S04 Before any build: the ghost of a gap under an opaque pill that says what will be drawn (the zero line no longer runs through the words) — dropped in 3.0: the maturity gap was removed at the bank's request
+- [-] S05 Staging measures the gap in its one pass: net, gross and maturity dates per bucket; nothing is read twice — dropped in 3.0: the maturity gap was removed at the bank's request
 - [x] S06 Bucket labels read as tenors (TenorDays): up to / over / ranges / days, weeks, months, years / overnight / demand / non-maturity; a label it cannot read is placed by its rows' average maturity date. Run as VBA in LibreOffice on 37 labels, and agrees with build/tenor.py on every one
 - [~] S07 Every pivot with Bucket on rows or columns orders the buckets by tenor, in the 1.0 layout and in recipes; a recipe's own sort still wins
 - [~] S08 Guided tour: six steps, the desk veiled around one part at a time with a ring and a card, Back / Next / Skip and progress pips; starts by itself the first time the workbook opens; F1 or ? replays it
@@ -254,14 +256,77 @@ with the reason.
 - [~] S13 Add a pivot: a working recipe, switched off, on the next free row
 - [~] S14 A PivotDesk tab on the ribbon for Excel view: go to any sheet, scan, pick, build, reconcile, app view, tour
 - [~] S15 Start here opens on At a glance: rows staged, gross and net pre-factor, weighted factor, local currency, as-of date; a long figure steps down in size rather than spilling out
-- [~] S16 Start here draws the maturity gap as a live PivotChart on the workbook's one cache: tenor order, LCY and FCY stacked, no field buttons, axis in bn or m, columns kept column-shaped when there are only one or two buckets
+- [-] S16 Start here draws the maturity gap as a live PivotChart on the workbook's one cache: tenor order, LCY and FCY stacked, no field buttons, axis in bn or m, columns kept column-shaped when there are only one or two buckets — dropped in 3.0: the maturity gap was removed at the bank's request
 - [x] S17 Chart and tile colours measured: text 4.5:1, graphics 3:1 (FCY moved from a pale mint that measured 1.5:1 to deep emerald at 10.4:1)
 - [x] S18 The shipped workbook's VBA runs in LibreOffice (build/lo_run.py): the whole project compiles there, and its pure functions are executed against known answers
 - [x] S19 The lint keeps out the three constructs LibreOffice cannot parse, each rewritten to a plain equivalent Excel reads the same
 - [x] S20 Build gate: every ribbon button reaches PD_RibbonClick and every ribbon image has its relationship
 - [x] S21 Fixed: framework rows and file slots read "412,806 rowsTxt"
 - [x] S22 Fixed: the Start here preview listed FCY sheets the recipe engine does not build, under names longer than Excel allows
-- [x] S23 Previews: desk-showcase, desk-empty, desk-tour, built-start-here (the LCR sample's real figures), built-start-here-ladder (illustrative figures)
+- [x] S23 Previews: desk-showcase, desk-empty, desk-tour, built-start-here (the LCR sample's real figures), built-start-here-ladder (illustrative figures; removed in 3.0 with the gap)
+
+## T. 3.0 — Avati, one look everywhere, reports without limits
+
+Asked for: the generated sheets in the Desk's theme, pivots that no longer
+look messy, far more pivot customisation and advanced report forms, custom
+charts, the Avati name and mark, the maturity gap removed, and the maturity
+ladder as one workbook per currency with sheets per rule.
+
+Brand and shell
+
+- [x] T01 PivotDesk becomes Avati ALM Desk: the name, version 3.0, the ribbon tab, document properties, footers
+- [x] T02 The Avati mark composed from the supplied artwork (build/brand.py), carried in the workbook, drawn on every app bar; the word AVATI in Avati blue if the image cannot be placed
+- [~] T03 The mark decoded at run time from the workbook itself (MSXML), so the built books need no file beside them
+- [x] T04 Maturity gap removed: the Desk card, the staging measures, the Start here chart, the tour step; Recent builds takes its place
+
+One look
+
+- [~] T05 Every tool sheet on the Desk's dark theme: app bar with the mark and navigation, title block, toolbar of tabs and actions, status line, dark banded tables with hairlines
+- [~] T06 The Normal style is dark in the Desk and in every workbook it writes, so there is no white at the edges
+- [~] T07 Reports is a tabbed section: Pivots, Charts, Workbooks, Fields, Gallery
+
+Built workbooks
+
+- [~] T08 Every sheet: the Avati bar, Start here / Previous / Next, the title block, live tiles of each value's total (GETPIVOTDATA, so a slicer moves them)
+- [~] T09 Filters on rows of their own, clear of the table; drill buttons off; "Total"; a dark Avati pivot style and slicer style
+- [x] T10 Labels tidied while staging: codes dropped, title case, acronyms kept; run as VBA in LibreOffice and agrees with build/labels.py on 35 labels in 3 modes
+- [~] T11 Start here: six tiles, the charts grid, the index and the notes
+
+Pivot config (31 columns)
+
+- [~] T12 Values as % of parent / parent row / parent column, running total, % running total, rank (asc / desc), change, % change, index - along a field named with "in"
+- [~] T13 Top / value filter: top / bottom N and N%, comparisons and between, on the first row field or a named one; numbers as 1.5m, 2bn, 750k, 5%
+- [~] T14 Label rules in Show only / hide: contains, begins with, ends with and their opposites
+- [~] T15 Group: dates by year / quarter / month / day, numbers by a step, staged into a column of their own (Excel's grouping would group the shared cache)
+- [~] T16 Subtotals at, Total label, Blank line, Values in, Expand to, Units, Highlight (data bars / heatmap / negatives / top N, on one value or all), Tiles
+- [~] T17 Gross pre-factor and gross post-factor fields; Calculated fields (Haircut, Effective factor) worked out by the pivot
+- [x] T18 Every new column parsed and checked with a message that points at the cell; run through the same live check and Check as before
+- [x] T19 Recipe reading moved to modPD_Recipe, so no module grows unwieldy
+- [x] T20 Build gate: every heading a default recipe, default chart or gallery card names is a column of its sheet; column constants point at the right headings
+
+Charts
+
+- [~] T21 Chart config: 13 types, categories and series, values / filters / groups / top-N as on Pivot config, sort, placement, size, labels, legend, units (Auto), palettes
+- [~] T22 Each chart a PivotChart of its own hidden pivot over the shared cache; drawn on the dark surface, hairline grid, no field buttons
+- [~] T23 Start here grid of thirds, halves, two thirds and full widths; or a sheet of its own in the index
+- [x] T24 Palettes measured: every colour 3:1 against the chart surface, checked by the build
+
+Workbooks
+
+- [~] T25 Workbooks sheet: one workbook per value of a field, per framework; file-name template, only these, max workbooks
+- [~] T26 The Maturity ladder by default one workbook per currency, each with one sheet per rule
+- [~] T27 The output read once and held open; each part stages only its own rows
+
+Gallery
+
+- [~] T28 18 designed cards (12 pivots, 6 charts): Add / Switch on / Open, repainted on the way in
+- [x] T29 The top counterparties, heatmap, product concentration and large exposures cards hide the blank counterparty; the sample showed "(no counterparty)" holding 54% of the top 25
+
+Accessibility and verification
+
+- [x] T30 Contrast pairs brought up to the dark theme: 46 pairs, including data bars (one emerald, 00794F, that is 3.4:1 against the rows and carries white figures at 5:1), highlights, slicers, charts and the gallery
+- [x] T31 LibreOffice runs the shipped VBA: all 19 modules compile; number parsing, unit formats, date periods and number steps run against known answers
+- [x] T32 Previews of Chart config, Workbooks, the Gallery, Start here with its charts and the top counterparties pivot, from the LCR sample staged as the VBA stages it
 
 ## Q. Configurable pivots (separate workstream)
 

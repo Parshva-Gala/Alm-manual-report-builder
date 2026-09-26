@@ -141,7 +141,10 @@ def table(headers, widths, rows, verdict_col=None, mono_cols=(), muted_cols=(), 
           bars_col=None, band=True, pre_rows=""):
     """modPD_Theme.Head and DressTable, dark."""
     cols = "".join('<col style="width:%dpx">' % colw(w) for w in widths)
-    h = ['<table>%s%s<tr style="height:%.1fpx;background:#000">' % (cols, pre_rows, px(28))]
+    # A set width, or Chrome lays a fixed table out as auto and widens columns
+    # to their longest text - which Excel never does.
+    h = ['<table style="width:%dpx">%s%s<tr style="height:%.1fpx;background:#000">' % (
+        sum(colw(w) for w in widths), cols, pre_rows, px(28))]
     for t in headers:
         h.append('<td style="font-family:\'Selawik Semibold\';font-size:%.1fpx;color:#%s;border-bottom:3px solid #%s;'
                  'border-right:1px solid #%s">%s</td>' % (px(8.5), C["SOFT"], C["BRAND"], C["LINE"], html.escape(t)))
@@ -426,89 +429,14 @@ def pivot_sheet():
     return page("Balance sheet", body, 1500), local
 
 
-def sample_facts():
-    """What the Start here tiles and chart show for a build of the LCR sample:
-    the staging pass's totals, and net pre-factor per bucket, LCY and FCY."""
-    import openpyxl
-    import tenor
-    wb = openpyxl.load_workbook(SAMPLE, read_only=True)
-    rows = wb.worksheets[0].iter_rows(values_only=True)
-    hdr = next(rows)
-    ix = {}
-    for i, h in enumerate(hdr):
-        ix.setdefault(h, i)
-    data = list(rows)
-    local = collections.Counter(r[ix["CURRENCY_NAME"]] for r in data if r[ix["CURRENCY_NAME"]]).most_common(1)[0][0]
-    gross = sum(abs(float(r[ix["CASHFLOW_AMOUNT_LCY_PRE_FACTOR"]] or 0)) for r in data)
-    post = sum(abs(float(r[ix["CASHFLOW_AMOUNT_LCY_POST_FACTOR"]] or 0)) for r in data)
-    net = sum(float(r[ix["CASHFLOW_AMOUNT_LCY_PRE_FACTOR"]] or 0) for r in data)
-    by = collections.defaultdict(lambda: [0.0, 0.0])
-    for r in data:
-        b = r[ix["BUCKET_DISPLAY_NAME"]]
-        if not b:
-            continue                                    # "(no bucket)" is filtered out, as in the pivot
-        by[b][0 if r[ix["CURRENCY_NAME"]] == local else 1] += float(r[ix["CASHFLOW_AMOUNT_LCY_PRE_FACTOR"]] or 0)
-    buckets = [(b, by[b][0], by[b][1]) for b in tenor.bucket_order(list(by))]
-    asof = next((r[ix["AS_OF_DATE"]] for r in data if r[ix["AS_OF_DATE"]]), None)
-    return {"rows": len(data), "gross": gross, "post": post, "net": net, "factor": post / gross if gross else 0,
-            "local": local, "asof": asof.strftime("%-d %b %Y") if asof else "", "buckets": buckets}
-
-
-def guide_sheet(facts, made, title, built):
-    wide_px = colw(38) + colw(110) - 18
-    crumb = "%s  \u00b7  MIDBANK CAIRO" % title.upper()
-
-    def section(text):
-        return ("<div style='height:%.1fpx;width:%dpx;box-sizing:border-box;border-bottom:1px solid #%s;display:flex;"
-                "align-items:flex-end;padding:0 0 5px 9px;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
-                "letter-spacing:.6px;color:#%s'>%s</div>") % (px(30), colw(38) + colw(110), C["DEEP"], px(8),
-                                                             C["M300"], text)
-    items = [("ROWS STAGED", format(facts["rows"], ",")), ("PRE-FACTOR", compact(facts["gross"])),
-             ("POST-FACTOR", compact(facts["post"])), ("SHEETS", str(len(made))),
-             ("LOCAL CURRENCY", facts["local"]), ("DATA AS OF", facts["asof"])]
-    tw = (wide_px / PT - 5 * 10) / 6
-    status = ("<div style='width:1060px;height:%.1fpx;background:#%s;border-left:4px solid #%s;display:flex;"
-              "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Selawik Semibold\";"
-              "font-size:%.1fpx;color:#%s'>&#9679;&nbsp;&nbsp;%s rows staged into one pivot cache.&nbsp; Every sheet "
-              "below is a live PivotTable over it - drag a field, drop a slicer, drill a total.</div>") % (
-        px(26), C["OK_BG"], C["OK"], px(9), C["OK"], format(facts["rows"], ","))
-    tbl = table(["Sheet", "What is on it"], [38, 110], [[a_, b_] for a_, b_ in made], muted_cols=(1,))
-    import re
-    tbl = re.sub(r'(<tr style="height:[0-9.]+px;background:#[0-9A-F]+"><td style=")',
-                 r"\1color:#%s;font-family:'Selawik Semibold';" % C["M300"], tbl)
-    notes = [("Amounts", "Pre-factor and post-factor from CASHFLOW_AMOUNT_LCY_PRE_FACTOR  /  CASHFLOW_AMOUNT_LCY_POST_FACTOR."),
-             ("Local currency", "\"%s\" - the currency on the most rows. Nothing in the extract says which is local, "
-              "so check this before relying on the LCY / FCY split." % facts["local"]),
-             ("Factor", "Post-factor divided by pre-factor, so it always agrees with the two figures beside it."),
-             ("Labels", "Ledger names are shown without their codes and in title case where Pivot fields says so - "
-              "1.07.00.MBGL.1360.LOANS TO CUSTOMERS reads Loans to Customers."),
-             ("Blanks", "Rows with no bucket are excluded from the bucket filter by default. They are still in the "
-              "data - clear the filter to see them.")]
-    nrows = "".join("<div style='display:flex;padding:7px 0;font-size:12.7px'><div style='width:%dpx;padding-left:9px;"
-                    "font-family:\"Selawik Semibold\";color:#%s'>%s</div><div style='width:%dpx;padding-left:9px;color:#%s;"
-                    "white-space:normal'>%s</div></div>" % (colw(38) - 9, C["TX1"], a_, colw(110) - 9, C["TX2"],
-                                                            html.escape(b_)) for a_, b_ in notes)
-    body = (book_bar(crumb, back=False, prev_next=False) +
-            title_block("START HERE &nbsp;&#183;&nbsp; MIDBANK CAIRO", title, built) +
-            tiles(items, fixed_w=tw, h_row=68) + status + "<div style='height:%.1fpx'></div>" % px(12) +
-            section("IN THIS BOOK &nbsp;&#183;&nbsp; %d SHEETS" % len(made)) + tbl +
-            "<div style='height:%.1fpx'></div>" % px(8) + section("HOW TO READ THIS") + nrows)
-    return page("Start here", body, 1500)
-
-
 def main():
     os.makedirs(OUT, exist_ok=True)
     jobs = [("sheet-files", files_sheet(), 1500, 560), ("sheet-recon", recon_sheet(), 1500, 470),
             ("sheet-activity", log_sheet(), 1500, 520)]
-    local = "Egyptian Pound"
-    built = "Built by Avati ALM Desk 3.0 on 26 Sep 2026, 14:05   ·   data as of 30 Nov 2025"
     if SAMPLE and os.path.exists(SAMPLE):
-        pv, local = pivot_sheet()
+        pv, _ = pivot_sheet()
         jobs.append(("built-balance-sheet", pv, 1500, 1030))
-        made = [("LCR Output", "Rule-level output"), ("Balance sheet", "Balance sheet"),
-                ("Deposits from all instituti LCY", "Deposits from all institutions for operational purposes ... - LCY"),
-                ("TOther cash outflows due wi LCY", "TOther cash outflows due within 30 days - LCY")]
-        jobs.append(("built-start-here", guide_sheet(sample_facts(), made, "LCR", built), 1500, 760))
+        # Start here, with its charts, is drawn by preview_v3.py.
     for name, html_, w, h in jobs:
         path = os.path.join(OUT, name + ".png")
         assets.render(html_, path, w, h, scale=1.5, transparent=False)

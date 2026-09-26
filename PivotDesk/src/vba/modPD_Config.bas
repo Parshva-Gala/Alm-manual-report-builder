@@ -221,7 +221,7 @@ Public Function RecipeHeads() As Variant
 End Function
 
 Private Function RecipeWidths() As Variant
-    RecipeWidths = Array(7, 22, 16, 20, 34, 14, 46, 30, 26, 24, 24, 10, 12, 11, 13, 11, 9, 9, 10, 12, 16, _
+    RecipeWidths = Array(7, 22, 16, 20, 34, 14, 46, 40, 26, 24, 24, 10, 12, 11, 13, 11, 9, 9, 10, 12, 16, _
                          10, 16, 12, 24, 7, 9, 9, 40, 10, 60)
 End Function
 
@@ -442,21 +442,22 @@ Private Sub WriteDefaultRecipes(ByVal ws As Worksheet)
         "Tiles=Yes", "Tab=Auto", "Max sheets=" & MAX_SHEETS_DEFAULT, _
         "Description=One rule - its balances across the maturity buckets."
     Rec ws, r + 4, "On=Yes", "Pivot={fw} top counterparties", "Frameworks=All", "Rows=Counterparty", _
-        "Columns=LCY / FCY", _
         "Values=Gross pre-factor sum as Exposure; Gross pre-factor %total as Share; " & _
                "Gross pre-factor %running in Counterparty as Cumulative", _
-        "Top / value filter=Top 25 by Exposure", "Layout=Tabular", "Grand totals=Both", "Values in=Columns", _
-        "Sort=Exposure desc", "Units=Millions", "Highlight=Data bars", "Widths=Counterparty=40", "Tiles=Yes", _
-        "Tab=Emerald", "Description=The 25 largest counterparties by exposure, local and foreign - each one's " & _
-        "share of the 25, and the running share down the list."
+        "Show only / hide=Counterparty <> (no counterparty)", "Top / value filter=Top 25 by Exposure", _
+        "Slicers=LCY / FCY", "Layout=Tabular", "Grand totals=Bottom row", "Sort=Exposure desc", "Units=Millions", _
+        "Highlight=Data bars on Exposure", "Tiles=Yes", "Tab=Emerald", "Description=The 25 largest counterparties by gross exposure - each one's " & _
+        "share of the 25 and the running share down the list. Slice by LCY / FCY."
     ' Ready to switch on.
     Rec ws, r + 5, "On=No", "Pivot={fw} counterparty heatmap", "Frameworks=All", "Rows=Counterparty", _
-        "Columns=Bucket", "Values=Gross pre-factor sum as Exposure", "Show only / hide=Bucket <> (no bucket)", _
+        "Columns=Bucket", "Values=Gross pre-factor sum as Exposure", _
+        "Show only / hide=Bucket <> (no bucket); Counterparty <> (no counterparty)", _
         "Top / value filter=Top 30 by Exposure", "Layout=Tabular", "Grand totals=Both", "Sort=Exposure desc", _
-        "Units=Millions", "Highlight=Heatmap", "Widths=Counterparty=40", "Tab=Emerald", _
+        "Units=Millions", "Highlight=Heatmap", "Tab=Emerald", _
         "Description=Where the 30 largest counterparties fall across the maturity buckets."
     Rec ws, r + 6, "On=No", "Pivot={fw} product concentration", "Frameworks=All", "Rows=Product, Counterparty", _
         "Values=Gross pre-factor sum as Exposure; Gross pre-factor %parent as Share of product", _
+        "Show only / hide=Counterparty <> (no counterparty)", _
         "Top / value filter=Top 10 Counterparty by Exposure", "Layout=Tabular", "Subtotals=Product", _
         "Subtotals at=Bottom", "Grand totals=Bottom row", "Blank line=Yes", "Sort=Exposure desc", _
         "Units=Millions", "Highlight=Data bars", "Tab=Deep", _
