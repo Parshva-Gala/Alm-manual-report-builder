@@ -569,6 +569,12 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
         Note ws, r, "Not in this file", "These fields' columns are not in this output, so they are blank here: " & _
             modPD_Stage.MissingFields() & "."
     End If
+    If modPD_Pivot.StartedOnLocal() Then
+        r = r + 1
+        Note ws, r, "Currency filter", "Starts on " & Chr$(34) & modPD_Stage.LocalCurrency() & Chr$(34) & ". The " & _
+            "amounts are each row's own currency, and adding one currency to another means nothing - choose " & _
+            "another from the filter over each sheet."
+    End If
     If capped Then
         r = r + 1
         Note ws, r, "Sheet cap", "Stopped at the most sheets a pivot is allowed (Max sheets on Pivot config). " & _

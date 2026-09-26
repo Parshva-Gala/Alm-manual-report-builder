@@ -104,8 +104,9 @@ Private Sub BookHints(ByVal ws As Worksheet)
     r2 = r1 + UBound(Frameworks())
     modPD_Config.Hint ws, r1, r2, B_FW, "Framework", "One row per framework - the rows are fixed."
     modPD_Config.ListRule ws, r1, r2, B_PER, H_CURRENCY & "," & H_CCYCLASS & "," & H_RULE_CAT & "," & H_TYPE, _
-        "One workbook per", "Blank: one workbook. Or a text field from Pivot fields - each of its values gets a " & _
-        "workbook of its own. e.g. Currency.", False
+        "One workbook per", "Blank: one workbook. Or a text field - each value gets a workbook of its own. For " & _
+        "one workbook with the value picked from a filter on each sheet, leave this blank and put the field " & _
+        "under Report filters on Pivot config.", False
     modPD_Config.Hint ws, r1, r2, B_FILE, "File name", "{fw} is the framework and {part} the value - e.g. " & _
         "{fw} - {part} makes Maturity Ladder - USD.xlsx. With One workbook per, {part} must be in it."
     modPD_Config.Hint ws, r1, r2, B_ONLY, "Only these", "Optional. The values to build, separated by | - " & _

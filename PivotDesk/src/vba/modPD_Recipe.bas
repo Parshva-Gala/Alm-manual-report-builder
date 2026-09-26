@@ -85,6 +85,7 @@ Private Function ParseRow(ByVal ws As Worksheet, ByVal r As Long, ByVal fl As Ob
     Set rc("Split") = SplitList(Cell(ws, r, K_SPLIT), ",")
     Set rc("Rows") = SplitList(Cell(ws, r, K_ROWS), ",")
     Set rc("Cols") = SplitList(Cell(ws, r, K_COLS), ",")
+    Set rc("Pages") = ParsePages(Cell(ws, r, K_PAGES))
     Set rc("Slicers") = SplitList(Cell(ws, r, K_SLICERS), ",")
     ' Every column is read even after one fails, so every key exists and the
     ' first problem is the one reported.
@@ -181,6 +182,38 @@ Private Function ParseRow(ByVal ws As Worksheet, ByVal r As Long, ByVal fl As Ob
 
     If Len(prob) = 0 Then prob = Validate(rc, fl)
     rc("Problem") = prob
+End Function
+
+' "Currency, LCY / FCY = LCY" - fields over the pivot, each with every value
+' in, or starting on one. "= All" keeps every value in even where the desk
+' would otherwise start on one (a Currency filter over native amounts).
+Private Function ParsePages(ByVal s As String) As Collection
+    Dim out As Collection, it As Variant, p As Long, pg As Object
+    Set out = New Collection
+    Set ParsePages = out
+    For Each it In SplitList(s, ",")
+        Set pg = NewMap()
+        p = InStr(CStr(it), "=")
+        If p > 0 Then
+            pg("Field") = Trim$(Left$(CStr(it), p - 1))
+            pg("Start") = Trim$(Mid$(CStr(it), p + 1))
+        Else
+            pg("Field") = Trim$(CStr(it))
+            pg("Start") = ""
+        End If
+        pg("All") = (StrComp(CStr(pg("Start")), "All", vbTextCompare) = 0)
+        If CBool(pg("All")) Then pg("Start") = ""
+        out.Add pg
+    Next it
+End Function
+
+' A recipe's report filters - none for a chart, which has no such column.
+Public Function PagesOf(ByVal rc As Object) As Collection
+    If rc.Exists("Pages") Then
+        Set PagesOf = rc("Pages")
+    Else
+        Set PagesOf = New Collection
+    End If
 End Function
 
 ' The first problem found is the one reported: fix it, and Check says the next.
@@ -810,6 +843,11 @@ Public Function Validate(ByVal rc As Object, ByVal fl As Object) As String
     For Each x In rc("Cols")
         If Not Claim(place, CStr(x), "Columns") Then Validate = Twice(place, CStr(x), "Columns"): Exit Function
     Next x
+    For Each f In PagesOf(rc)
+        If Not Claim(place, CStr(f("Field")), "Report filters") Then
+            Validate = Twice(place, CStr(f("Field")), "Report filters"): Exit Function
+        End If
+    Next f
     For Each f In rc("Filters")
         If place.Exists(f("Field")) Then
             If place(f("Field")) = "One sheet per" Then
@@ -951,6 +989,7 @@ Private Function PlacedNames(ByVal rc As Object) As Collection
     For Each x In rc("Rows"): c.Add x: Next x
     For Each x In rc("Cols"): c.Add x: Next x
     For Each x In rc("Slicers"): c.Add x: Next x
+    For Each f In PagesOf(rc): c.Add f("Field"): Next f
     For Each f In rc("Filters"): c.Add f("Field"): Next f
     For Each f In rc("Groups"): c.Add f("Field"): Next f
     For Each f In rc("VFilters")

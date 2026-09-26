@@ -94,10 +94,17 @@ Private mCache As PivotCache
 Private mSeq As Long
 Private mBook As String            ' "LCR  ·  MIDBANK CAIRO", on every sheet's bar
 Private mMade As Collection       ' Array(sheetName, what, rows, pre)
+Private mLocalStart As Boolean    ' a Currency filter was started on the local currency
 
 Public Function MadeSheets() As Collection
     If mMade Is Nothing Then Set mMade = New Collection
     Set MadeSheets = mMade
+End Function
+
+' Whether a Currency report filter in this book was started on the local
+' currency - Start here says why.
+Public Function StartedOnLocal() As Boolean
+    StartedOnLocal = mLocalStart
 End Function
 
 Public Sub SetBook(ByVal crumb As String)
@@ -107,6 +114,7 @@ End Sub
 Public Sub ResetPivots()
     Set mCache = Nothing
     Set mMade = New Collection
+    mLocalStart = False
     mSeq = 0
 End Sub
 
@@ -329,6 +337,10 @@ Private Sub LayOut(ByVal pt As PivotTable, ByVal rc As Object, ByVal fl As Objec
             DataFirst pt
         End If
     End If
+    ' Report filters: over the pivot, with every value in - or starting on one.
+    For Each flt In modPD_Recipe.PagesOf(rc)
+        ReportFilter pt, rc, flt
+    Next flt
     ' Show only / hide: on whichever axis the field is on, or - if it is on
     ' neither - as a report filter of its own. Label rules are on an axis.
     For Each flt In rc("Filters")
@@ -343,6 +355,34 @@ Private Sub LayOut(ByVal pt As PivotTable, ByVal rc As Object, ByVal fl As Objec
             ShowItems pt, nm, CBool(flt("Include")), flt("Items")
         End If
     Next flt
+End Sub
+
+' One report filter. Where the staged amounts are each row's own currency, a
+' Currency filter over every value would add dollars to pounds, so unless the
+' row says "= All" it starts on the local currency, one value at a time;
+' the dropdown offers the rest.
+Private Sub ReportFilter(ByVal pt As PivotTable, ByVal rc As Object, ByVal pg As Object)
+    Dim nm As String, start As String, pi As PivotItem
+    nm = modPD_Recipe.PivotFieldName(rc, CStr(pg("Field")))
+    PageField pt, nm
+    start = CStr(pg("Start"))
+    If Len(start) = 0 And Not CBool(pg("All")) Then
+        If StrComp(CStr(pg("Field")), H_CURRENCY, vbTextCompare) = 0 And modPD_Stage.UsedNativeAmounts() Then
+            start = modPD_Stage.LocalCurrency()
+            mLocalStart = True
+        End If
+    End If
+    If Len(start) = 0 Then Exit Sub
+    On Error Resume Next
+    Set pi = pt.PivotFields(nm).PivotItems(start)
+    Err.Clear
+    On Error GoTo 0
+    If pi Is Nothing Then
+        LogIt V_CHECK, "Pivots", "The report filter " & nm & " could not start on " & Chr$(34) & start & Chr$(34) & _
+              " on " & pt.Parent.Name & " - there is no such value; it shows every value.", ""
+        Exit Sub
+    End If
+    PickOne pt, nm, start
 End Sub
 
 ' A chart's own pivot, in a block of the book's hidden chart sheet: the
@@ -965,6 +1005,9 @@ Private Function PageFilterCount(ByVal rc As Object) As Long
     For Each flt In rc("Filters")
         If Not modPD_Recipe.InCollection(rc("Rows"), CStr(flt("Field"))) And _
            Not modPD_Recipe.InCollection(rc("Cols"), CStr(flt("Field"))) Then seen(CStr(flt("Field"))) = True
+    Next flt
+    For Each flt In modPD_Recipe.PagesOf(rc)
+        seen(CStr(flt("Field"))) = True
     Next flt
     PageFilterCount = seen.count
 End Function

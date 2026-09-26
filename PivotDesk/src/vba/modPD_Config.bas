@@ -32,32 +32,33 @@ Public Const K_FW As Long = 3
 Public Const K_SPLIT As Long = 4
 Public Const K_ROWS As Long = 5
 Public Const K_COLS As Long = 6
-Public Const K_VALUES As Long = 7
-Public Const K_FILTERS As Long = 8
-Public Const K_VFILTER As Long = 9
-Public Const K_GROUP As Long = 10
-Public Const K_SLICERS As Long = 11
-Public Const K_LAYOUT As Long = 12
-Public Const K_SUBTOT As Long = 13
-Public Const K_SUBAT As Long = 14
-Public Const K_GRAND As Long = 15
-Public Const K_TOTAL As Long = 16
-Public Const K_REPEAT As Long = 17
-Public Const K_BLANKLN As Long = 18
-Public Const K_VALIN As Long = 19
-Public Const K_EXPAND As Long = 20
-Public Const K_SORT As Long = 21
-Public Const K_UNITS As Long = 22
-Public Const K_FORMAT As Long = 23
-Public Const K_HILITE As Long = 24
-Public Const K_WIDTHS As Long = 25
-Public Const K_TILES As Long = 26
-Public Const K_TAB As Long = 27
-Public Const K_MAX As Long = 28
-Public Const K_DESC As Long = 29
-Public Const K_CHECK As Long = 30
-Public Const K_WHY As Long = 31
-Public Const K_LAST As Long = 31
+Public Const K_PAGES As Long = 7
+Public Const K_VALUES As Long = 8
+Public Const K_FILTERS As Long = 9
+Public Const K_VFILTER As Long = 10
+Public Const K_GROUP As Long = 11
+Public Const K_SLICERS As Long = 12
+Public Const K_LAYOUT As Long = 13
+Public Const K_SUBTOT As Long = 14
+Public Const K_SUBAT As Long = 15
+Public Const K_GRAND As Long = 16
+Public Const K_TOTAL As Long = 17
+Public Const K_REPEAT As Long = 18
+Public Const K_BLANKLN As Long = 19
+Public Const K_VALIN As Long = 20
+Public Const K_EXPAND As Long = 21
+Public Const K_SORT As Long = 22
+Public Const K_UNITS As Long = 23
+Public Const K_FORMAT As Long = 24
+Public Const K_HILITE As Long = 25
+Public Const K_WIDTHS As Long = 26
+Public Const K_TILES As Long = 27
+Public Const K_TAB As Long = 28
+Public Const K_MAX As Long = 29
+Public Const K_DESC As Long = 30
+Public Const K_CHECK As Long = 31
+Public Const K_WHY As Long = 32
+Public Const K_LAST As Long = 32
 
 ' Rows dressed for recipes. More can be added below; they are read to the
 ' last row in use.
@@ -213,7 +214,7 @@ Private Sub Groups(ByVal ws As Worksheet)
 End Sub
 
 Public Function RecipeHeads() As Variant
-    RecipeHeads = Array("On", "Pivot", "Frameworks", "One sheet per", "Rows", "Columns", "Values", _
+    RecipeHeads = Array("On", "Pivot", "Frameworks", "One sheet per", "Rows", "Columns", "Report filters", "Values", _
                         "Show only / hide", "Top / value filter", "Group", "Slicers", "Layout", "Subtotals", _
                         "Subtotals at", "Grand totals", "Total label", "Repeat labels", "Blank line", "Values in", _
                         "Expand to", "Sort", "Units", "Number format", "Highlight", "Widths", "Tiles", "Tab", _
@@ -221,7 +222,7 @@ Public Function RecipeHeads() As Variant
 End Function
 
 Private Function RecipeWidths() As Variant
-    RecipeWidths = Array(7, 22, 16, 20, 34, 14, 46, 40, 26, 24, 24, 10, 12, 11, 13, 11, 9, 9, 10, 12, 16, _
+    RecipeWidths = Array(7, 22, 16, 20, 34, 14, 22, 46, 40, 26, 24, 24, 10, 12, 11, 13, 11, 9, 9, 10, 12, 16, _
                          10, 16, 12, 24, 7, 9, 9, 40, 10, 60)
 End Function
 
@@ -304,6 +305,9 @@ Private Sub Hints(ByVal ws As Worksheet)
     Hint ws, r1, r2, K_ROWS, "Rows", "Fields down the side, in order, separated by commas - e.g. Type, Line, " & _
          "Subline, COA name. Names come from the Pivot fields sheet."
     Hint ws, r1, r2, K_COLS, "Columns", "Fields across the top, separated by commas - e.g. LCY / FCY, or Bucket."
+    Hint ws, r1, r2, K_PAGES, "Report filters", "Fields to filter the whole pivot from a dropdown over it, " & _
+         "separated by commas - e.g. Currency. Add = and a value to start on it: Currency = USD, or = All. A " & _
+         "Currency filter starts on the local currency when amounts are each row's own currency."
     Hint ws, r1, r2, K_VALUES, "Values", "Separated by ; - field, how, as caption. How: sum count average max " & _
          "min, then %row %col %total %parent running %running rank diff %diff index. " & _
          "e.g. Gross pre-factor %running in Counterparty as Cumulative"

@@ -103,6 +103,11 @@ A value that is the field's blank label, such as *(no currency)*, gets no
 workbook. The local currency is still decided from the whole output, so
 *LCY / FCY* means the same in every workbook.
 
+**One workbook, with the currency picked on each sheet instead**: leave *One
+workbook per* blank on the ladder's row, and put `Currency` under **Report
+filters** on the ladder's Pivot config row. See
+[PIVOT_CONFIG.md](PIVOT_CONFIG.md#report-filters).
+
 The 1.0 layout always builds one workbook per framework. Workbooks says so
 beside a split row while the 1.0 layout is switched on.
 
