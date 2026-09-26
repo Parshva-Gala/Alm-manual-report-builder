@@ -22,6 +22,7 @@ from pathlib import Path
 
 import uno
 
+import labels
 import lo_check
 import tenor
 
@@ -49,6 +50,9 @@ KNOWN = [
 HARNESS = '''Option VBASupport 1
 Function Sentinel()
     Sentinel = 42
+End Function
+Function Tidy(ByVal lbl As String, ByVal mode As Long) As String
+    Tidy = modPD_Util.TidyLabel(lbl, mode, "QNB, CIB")
 End Function
 Function Tenor(ByVal lbl As String) As String
     Dim s As String, d As Double
@@ -109,6 +113,18 @@ def main():
             if not same:
                 print("FAIL  TenorDays(%r): VBA %s %r, tenor.py %g %r" % (lbl, days, short, want[0], want[1]))
         print("%s  TenorDays agrees with tenor.py on %d labels" % ("ok  " if not bad else "FAIL", len(LABELS)))
+
+        nbad = 0
+        for lbl in labels.SAMPLES + ["QNB ALAHLI DEPOSITS", "CIB/QNB SWAP LINES"]:
+            for mode in (1, 2, 3):
+                got = call("Tidy", lbl, mode)
+                want = labels.tidy(lbl, mode, "QNB, CIB")
+                if got != want:
+                    nbad += 1
+                    print("FAIL  TidyLabel(%r, %d): VBA %r, labels.py %r" % (lbl, mode, got, want))
+        bad += nbad
+        print("%s  TidyLabel agrees with labels.py on %d labels in 3 modes" % ("ok  " if not nbad else "FAIL",
+                                                                              len(labels.SAMPLES) + 2))
 
         for i, (expr, want) in enumerate(KNOWN):
             got = call("K%d" % i)

@@ -828,6 +828,76 @@ Private Function Action(ByVal ws As Worksheet, ByVal caption As String, ByVal pr
     Action = x + w + 6
 End Function
 
+' The bar of a workbook a build writes: the Avati mark, ALM DESK over the
+' book's name, and - on every sheet but Start here - a pill back to it. The
+' book carries no macros, so the pill is a hyperlink.
+Public Sub BookBar(ByVal ws As Worksheet, ByVal crumb As String, ByVal withBack As Boolean)
+    Dim x As Double, sh As Shape
+    On Error Resume Next
+    ClearButtons ws, "pdb_"
+    ws.Rows(R_BAR).RowHeight = 40
+    PlaceLogo ws, "pdb_logo", 16, (40 - 15) / 2, 15
+    x = 16 + 15 * LOGO_RATIO
+    x = Divider(ws, x + 4)
+    BarText ws, "pdb_what", "ALM DESK", x, 9, 7.5, C_TEXT, UI_SEMI, 1.6
+    BarText ws, "pdb_crumb", UCase$(crumb), x, 22, 6, C_TEXT_3, UI_SEMI, 1.4
+    If withBack Then
+        Set sh = Pill(ws, "pdb_back", ChrW(8249) & "  Start here", "", x + 190, 8, 96, 24, 1)
+        If Not sh Is Nothing Then
+            ws.Hyperlinks.Add Anchor:=sh, Address:="", SubAddress:="'" & SH_GUIDE & "'!A1", _
+                              ScreenTip:="The index of this workbook"
+        End If
+    End If
+    Err.Clear
+End Sub
+
+' A figure on a tile, as the Desk's KPI tiles: a dark card with an emerald
+' edge, a small label in capitals, the figure large and light. The figure is
+' either fixed text or linked to a cell, so it stays live.
+Public Sub Tile(ByVal ws As Worksheet, ByVal nm As String, ByVal l As Double, ByVal t As Double, _
+                ByVal w As Double, ByVal h As Double, ByVal label As String, ByVal value As String, _
+                Optional ByVal linked As Range)
+    Dim sh As Shape, sz As Single
+    On Error Resume Next
+    Set sh = ws.Shapes.AddShape(msoShapeRoundedRectangle, l, t, w, h)
+    If sh Is Nothing Then Exit Sub
+    sh.Name = nm
+    sh.Adjustments.Item(1) = 0.12
+    sh.Fill.ForeColor.RGB = C_ROW
+    sh.Line.ForeColor.RGB = C_LINE_2
+    sh.Line.Weight = 0.75
+    sh.Shadow.visible = msoFalse
+    sh.Placement = xlFreeFloating
+    sh.AlternativeText = label
+    Set sh = ws.Shapes.AddShape(msoShapeRectangle, l, t + 12, 2.5, h - 24)
+    If Not sh Is Nothing Then
+        sh.Name = nm & "_edge"
+        sh.Fill.ForeColor.RGB = C_BRAND
+        sh.Line.visible = msoFalse
+        sh.Placement = xlFreeFloating
+    End If
+    BarText ws, nm & "_label", label, l + 14, t + 8, 6.5, C_TEXT_3, UI_SEMI, 1
+    Set sh = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, l + 13, t + 19, w - 20, h - 22)
+    If sh Is Nothing Then Exit Sub
+    sh.Name = nm & "_value"
+    Plain sh
+    ' The figure at 17 pt, smaller only when a fixed text would not fit.
+    sz = 17
+    If linked Is Nothing And Len(value) > 0 Then
+        If (w - 22) / (Len(value) * 0.52) < sz Then sz = Int((w - 22) / (Len(value) * 0.52))
+        If sz < 10 Then sz = 10
+    End If
+    With sh.TextFrame2
+        .VerticalAnchor = msoAnchorTop
+        .TextRange.Text = IIf(Len(value) > 0, value, " ")
+        .TextRange.Font.Name = UI_LIGHT
+        .TextRange.Font.Size = sz
+        .TextRange.Font.Fill.ForeColor.RGB = C_TEXT
+    End With
+    If Not linked Is Nothing Then sh.DrawingObject.Formula = "=" & linked.Address
+    Err.Clear
+End Sub
+
 Public Sub RailEverywhere()
     Dim ws As Worksheet
     For Each ws In ThisWorkbook.Worksheets

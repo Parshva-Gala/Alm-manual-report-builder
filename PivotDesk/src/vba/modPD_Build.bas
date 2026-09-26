@@ -1,5 +1,8 @@
 Option Explicit
 
+' When one framework is split into several workbooks, the value this one is for.
+Private mPart As String
+
 ' ============================================================================
 '  Building one framework's workbook.
 '
@@ -48,6 +51,7 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
     End If
 
     modPD_Pivot.UseCache wb, lo
+    modPD_Pivot.SetBook BookCrumb(fw)
 
     If fromConfig Then
         nSheets = RecipeSheets(wb, fw, recipes, capped)
@@ -65,6 +69,7 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
     End If
 
     Guide wb, fw, nSheets, capped, fromConfig
+    modPD_Pivot.LinkSiblings wb
     Tidy wb
 
     Path = PathJoin(outFolder, SafeFileName(FwLabel(fw)) & ".xlsx")
@@ -337,35 +342,26 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     Err.Clear
     On Error GoTo 0
 
-    modPD_Theme.Dress ws, FwLabel(fw) & "  -  " & BANK_NAME, _
-        "Built by " & TOOL_NAME & " " & TOOL_VERSION & " on " & Format$(Now, "dd mmm yyyy hh:nn") & _
-        IIf(Len(modPD_Stage.StagedAsOf()) > 0, "   -   data as of " & modPD_Stage.StagedAsOf(), "")
-
-    modPD_Theme.SetStatus ws, Fmt(modPD_Stage.StagedRows()) & " rows staged into one pivot cache.  " & _
-        "Every sheet below is a live PivotTable over it - drag a field, drop a slicer, drill a total.", "OK"
-
+    modPD_Theme.Dress ws, BookTitle(fw), _
+        "Built by " & TOOL_NAME & " ALM Desk " & TOOL_VERSION & " on " & Format$(Now, "d mmm yyyy, hh:nn") & _
+        IIf(Len(modPD_Stage.StagedAsOf()) > 0, "   " & ChrW(183) & "   data as of " & modPD_Stage.StagedAsOf(), ""), _
+        "START HERE  " & ChrW(183) & "  " & UCase$(BANK_NAME)
+    modPD_Theme.BookBar ws, BookCrumb(fw), False
     ws.Columns(1).ColumnWidth = 38
     ws.Columns(2).ColumnWidth = 110
-    wide = ws.Cells(1, 3).Left - ws.Cells(1, 1).Left - 12
-    With ws.Cells(modPD_Theme.R_BAR, 1)
-        .Value2 = UCase$(TOOL_NAME) & "  " & ChrW(183) & "  START HERE"
-        .Font.Name = modPD_Theme.UI_SEMI
-        .Font.Size = 8
-        .Font.Color = modPD_Theme.HX("4FC79C")
-        .IndentLevel = 1
-        .VerticalAlignment = xlCenter
-    End With
+    wide = ws.Cells(1, 3).Left - ws.Cells(1, 1).Left - 14
     ws.Tab.Color = modPD_Theme.C_INK
 
     ' --- at a glance: the figures wanted before any pivot ----------------------
-    r = modPD_Theme.R_HDR
-    Section ws, r, "AT A GLANCE"
-    ws.Rows(r + 1).RowHeight = 66
-    Glance ws, ws.Cells(r + 1, 1).Top + 6, wide
+    ws.Rows(4).RowHeight = 68
+    Glance ws, ws.Rows(4).Top + 8, wide
+    modPD_Theme.SetStatus ws, Fmt(modPD_Stage.StagedRows()) & " rows staged into one pivot cache.  " & _
+        "Every sheet below is a live PivotTable over it - drag a field, drop a slicer, drill a total.", "OK"
+    ws.Rows(6).RowHeight = 12
 
     ' --- the index -----------------------------------------------------------------
-    r = r + 3
-    Section ws, r, "IN THIS BOOK"
+    r = 7
+    Section ws, r, "IN THIS BOOK  " & ChrW(183) & "  " & modPD_Pivot.MadeSheets().count & " SHEETS"
     modPD_Theme.Head ws, Array("Sheet", "What is on it"), Array(38, 110), r + 1
     first = r + 2
     r = first
@@ -384,15 +380,15 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
         r = r + 1
     Next i
     modPD_Theme.DressTable ws, 2, r - 1, 0, first
-    ' Links in the brand's emerald, not the default blue underline - they are
+    ' Links in the Desk's emerald, not the default blue underline - they are
     ' the index of the book and should read as part of it.
     If r - 1 >= first Then
         With ws.Range(ws.Cells(first, 1), ws.Cells(r - 1, 1)).Font
             .Name = modPD_Theme.UI_SEMI
             .Underline = xlUnderlineStyleNone
-            .Color = modPD_Theme.C_BRAND_DEEP
+            .Color = modPD_Theme.C_LINK
         End With
-        ws.Range(ws.Cells(first, 2), ws.Cells(r - 1, 2)).Font.Color = modPD_Theme.C_MUTED
+        ws.Range(ws.Cells(first, 2), ws.Cells(r - 1, 2)).Font.Color = modPD_Theme.C_TEXT_2
     End If
 
     ' What the tool had to decide for itself goes here, where it is read, not
@@ -412,12 +408,15 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     Note ws, r, "Factor", "Post-factor divided by pre-factor, so it always agrees with the two " & _
         "figures beside it. The source's own factor column has no stated units."
     r = r + 1
+    Note ws, r, "Labels", "Ledger names are shown without their codes and in title case where Pivot fields " & _
+        "says so - 1.07.00.MBGL.1360.LOANS TO CUSTOMERS reads Loans to Customers."
+    r = r + 1
     Note ws, r, "Blanks", "Rows with no bucket are excluded from the bucket filter by default. " & _
         "They are still in the data - clear the filter to see them."
     r = r + 1
     If fromConfig Then
-        Note ws, r, "Built from", "The Pivot config sheet in " & ThisWorkbook.Name & " - every pivot here is a " & _
-            "row there, and changing the row changes the next build."
+        Note ws, r, "Built from", "Reports in " & ThisWorkbook.Name & " - every pivot here is a row on Pivot " & _
+            "config, and changing the row changes the next build."
     Else
         Note ws, r, "Built from", "the 1.0 layout (Pivot config's Engine is set to it)."
     End If
@@ -435,7 +434,38 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     On Error Resume Next
     ws.Activate
     ActiveWindow.DisplayGridlines = False
+    ActiveWindow.DisplayHeadings = False
     ActiveWindow.Zoom = 100
+    ActiveWindow.FreezePanes = False
+    ws.Range("A2").Select
+    ActiveWindow.FreezePanes = True
+    ws.Cells(first, 1).Select
+    PrintSetupGuide ws
+    Err.Clear
+End Sub
+
+' The book as its bar and title name it: the framework, and the value it was
+' split by when it is one of several workbooks.
+Private Function BookTitle(ByVal fw As String) As String
+    BookTitle = FwLabel(fw)
+    If Len(mPart) > 0 Then BookTitle = BookTitle & "  " & ChrW(183) & "  " & mPart
+End Function
+
+Private Function BookCrumb(ByVal fw As String) As String
+    BookCrumb = BookTitle(fw) & "  " & ChrW(183) & "  " & BANK_NAME
+End Function
+
+Private Sub PrintSetupGuide(ByVal ws As Worksheet)
+    On Error Resume Next
+    Application.PrintCommunication = False
+    With ws.PageSetup
+        .Orientation = xlPortrait
+        .Zoom = False
+        .FitToPagesWide = 1
+        .FitToPagesTall = False
+        .BlackAndWhite = True
+    End With
+    Application.PrintCommunication = True
     Err.Clear
 End Sub
 
@@ -445,28 +475,27 @@ Private Sub Section(ByVal ws As Worksheet, ByVal r As Long, ByVal title As Strin
     With ws.Cells(r, 1)
         .Value2 = title
         .Font.Name = modPD_Theme.UI_SEMI
-        .Font.Size = 8.5
-        .Font.Color = modPD_Theme.C_BRAND_DEEP
+        .Font.Size = 8
+        .Font.Color = modPD_Theme.C_LINK
         .IndentLevel = 1
         .VerticalAlignment = xlBottom
     End With
     With ws.Range(ws.Cells(r, 1), ws.Cells(r, 2)).Borders(xlEdgeBottom)
         .LineStyle = xlContinuous
-        .Color = modPD_Theme.C_BRAND
+        .Color = modPD_Theme.C_BRAND_DEEP
         .Weight = xlThin
     End With
-    ws.Rows(r).RowHeight = 26
+    ws.Rows(r).RowHeight = 30
     Err.Clear
 End Sub
 
-' Six tiles across the top: how much was read, how much money in which
-' direction, how hard the factors bite, and which currency and date it is.
-' Drawn at build time - the numbers are this build's, as the heading says.
+' Six tiles across the top: how much was read, how much money before and
+' after the factors, how many sheets, which currency and which date. Drawn at
+' build time - the numbers are this build's, as the title says.
 Private Sub Glance(ByVal ws As Worksheet, ByVal top As Double, ByVal wide As Double)
-    Dim items As Variant, i As Long, n As Long, w As Double, gp As Double, gross As Double
-    gross = modPD_Stage.GrossPre()
+    Dim items As Variant, i As Long, n As Long, w As Double, gp As Double
     items = Array(Array("ROWS STAGED", Fmt(modPD_Stage.StagedRows())), _
-                  Array("PRE-FACTOR", Compact(gross)), _
+                  Array("PRE-FACTOR", Compact(modPD_Stage.GrossPre())), _
                   Array("POST-FACTOR", Compact(modPD_Stage.GrossPost())), _
                   Array("SHEETS", CStr(modPD_Pivot.MadeSheets().count)), _
                   Array("LOCAL CURRENCY", modPD_Stage.LocalCurrency()), _
@@ -475,74 +504,22 @@ Private Sub Glance(ByVal ws As Worksheet, ByVal top As Double, ByVal wide As Dou
     gp = 10
     w = (wide - (n - 1) * gp) / n
     For i = 0 To n - 1
-        Tile ws, "pd_tile" & (i + 1), ws.Cells(1, 1).Left + 6 + i * (w + gp), top, w, 54, _
-             CStr(items(i)(0)), CStr(items(i)(1))
+        modPD_Theme.Tile ws, "pdb_glance" & (i + 1), 14 + i * (w + gp), top, w, 52, _
+                         CStr(items(i)(0)), IIf(Len(CStr(items(i)(1))) > 0, CStr(items(i)(1)), ChrW(8212))
     Next i
-End Sub
-
-Private Sub Tile(ByVal ws As Worksheet, ByVal nm As String, ByVal l As Double, ByVal t As Double, _
-                 ByVal w As Double, ByVal h As Double, ByVal label As String, ByVal value As String)
-    Dim sh As Shape, bar As Shape, sz As Single
-    On Error Resume Next
-    If Len(value) = 0 Then value = ChrW(8212)
-    ' The figure at 17 pt, smaller only when it would not fit the tile
-    ' ("Egyptian Pound" is longer than any number).
-    sz = 17
-    If (w - 22) / (Len(value) * 0.52) < sz Then sz = Int((w - 22) / (Len(value) * 0.52))
-    If sz < 10 Then sz = 10
-    Set sh = ws.Shapes.AddShape(msoShapeRoundedRectangle, l, t, w, h)
-    If sh Is Nothing Then Exit Sub
-    sh.Name = nm
-    sh.Adjustments.Item(1) = 0.1
-    sh.Fill.ForeColor.RGB = modPD_Theme.C_MIST
-    sh.Line.ForeColor.RGB = modPD_Theme.C_HAIR
-    sh.Line.Weight = 0.75
-    sh.Shadow.visible = msoFalse
-    sh.Placement = xlFreeFloating
-    sh.AlternativeText = label & ": " & value
-    With sh.TextFrame2
-        .MarginLeft = 14
-        .MarginRight = 6
-        .MarginTop = 8
-        .MarginBottom = 4
-        .VerticalAnchor = msoAnchorTop
-        .WordWrap = msoFalse
-        .TextRange.Text = label & vbCr & value
-        .TextRange.ParagraphFormat.Alignment = msoAlignLeft
-        With .TextRange.Paragraphs(1).Font
-            .Name = modPD_Theme.UI_SEMI
-            .Size = 7
-            .Spacing = 0.8
-            .Fill.ForeColor.RGB = modPD_Theme.C_MUTED
-        End With
-        With .TextRange.Paragraphs(2).Font
-            .Name = modPD_Theme.UI_LIGHT
-            .Size = sz
-            .Fill.ForeColor.RGB = modPD_Theme.C_BODY
-        End With
-    End With
-    ' An emerald edge on the left, as on the status line.
-    Set bar = ws.Shapes.AddShape(msoShapeRectangle, l, t + 12, 2.5, h - 24)
-    If Not bar Is Nothing Then
-        bar.Name = nm & "_edge"
-        bar.Fill.ForeColor.RGB = modPD_Theme.C_BRAND
-        bar.Line.visible = msoFalse
-        bar.Placement = xlFreeFloating
-    End If
-    Err.Clear
 End Sub
 
 Private Sub Note(ByVal ws As Worksheet, ByVal r As Long, ByVal label As String, ByVal body As String)
     With ws.Cells(r, 1)
         .Value2 = label
         .Font.Name = modPD_Theme.UI_SEMI
-        .Font.Color = modPD_Theme.C_BODY
+        .Font.Color = modPD_Theme.C_TEXT
         .IndentLevel = 1
         .VerticalAlignment = xlTop
     End With
     With ws.Cells(r, 2)
         .Value2 = body
-        .Font.Color = modPD_Theme.C_MUTED
+        .Font.Color = modPD_Theme.C_TEXT_2
         .WrapText = True
         .VerticalAlignment = xlTop
         .IndentLevel = 1
@@ -560,6 +537,7 @@ End Sub
 ' folder a month later.
 Private Sub Brand(ByVal wb As Workbook, ByVal fw As String)
     On Error Resume Next
+    modPD_Theme.DarkNormal wb
     With wb.Theme.ThemeColorScheme
         .Colors(1).RGB = modPD_Theme.HX("000000")      ' dark 1
         .Colors(2).RGB = modPD_Theme.HX("FFFFFF")      ' light 1

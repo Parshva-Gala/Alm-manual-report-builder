@@ -57,6 +57,13 @@ Private mSplitWeights As Object       ' signature -> Dictionary
 ' too odd to read a tenor from: every pivot orders its buckets by it.
 Private mBktNet As Object             ' bucket -> rows
 Private mBktMat As Object             ' bucket -> sum of maturity serials
+
+' How each staged column's labels are tidied (Pivot fields, Labels): the mode
+' per column and, per column, every value already tidied - a half-million rows
+' carry a few thousand distinct lines, so each is worked out once.
+Private mTidy() As Long
+Private mTidyCache() As Object
+Private mTidyKeep As String
 Private mBktMatN As Object            ' bucket -> rows that had a maturity date
 Private mPreAbs As Double
 Private mPostAbs As Double
@@ -163,6 +170,7 @@ Public Function StageFramework(ByVal fw As String, ByVal dstWb As Workbook, ByRe
     If CLng(ix("Pre")) = 0 Then errOut = "no pre-factor amount column in that sheet": GoTo CloseFail
     PlanExtras extras, fieldMap, ix
     PlanSplits splits
+    PlanTidy
 
     BuildWanted ix, cols, nCols
     BuildRuns cols, nCols, runStart, runEnd, nRuns
@@ -271,6 +279,39 @@ Private Sub PlanExtras(ByVal extras As Collection, ByVal h As Object, ByVal ix A
         End Select
     Next i
 End Sub
+
+Private Sub PlanTidy()
+    Dim fl As Object, h As Variant, i As Long, n As Long
+    On Error Resume Next
+    n = C_COLS + mXCount
+    ReDim mTidy(1 To n)
+    ReDim mTidyCache(1 To n)
+    Set fl = modPD_Config.Fields()
+    h = StageHeadings()
+    For i = 0 To UBound(h)
+        If fl.Exists(CStr(h(i))) Then mTidy(i + 1) = CLng(fl(CStr(h(i)))("Labels"))
+    Next i
+    For i = 1 To mXCount
+        If fl.Exists(mXName(i)) Then
+            If mXKind(i) = 0 Then mTidy(C_COLS + i) = CLng(fl(mXName(i))("Labels"))
+        End If
+    Next i
+    For i = 1 To n
+        Set mTidyCache(i) = NewMap()
+    Next i
+    mTidyKeep = modPD_Config.KeepCapsList()
+    Err.Clear
+End Sub
+
+' A label as its field says it should read.
+Private Function Tidied(ByVal col As Long, ByVal s As String) As String
+    Dim d As Object
+    If mTidy(col) = 0 Then Tidied = s: Exit Function
+    Set d = mTidyCache(col)
+    If d.Exists(s) Then Tidied = CStr(d(s)): Exit Function
+    Tidied = TidyLabel(s, mTidy(col), mTidyKeep)
+    d(s) = Tidied
+End Function
 
 Private Sub PlanSplits(ByVal splits As Collection)
     Dim sig As Variant, parts As Variant, cols() As Long, i As Long, ok As Boolean
@@ -449,10 +490,11 @@ Private Function EmitBlock(ByRef buf As Variant, ByVal n As Long, ByVal ix As Ob
         post = Amt(buf, i, iPost)
         ccy = Txt(buf, i, iCcy)
         rule = Txt(buf, i, iRule)
+        If Len(rule) > 0 Then rule = Tidied(C_RULE_NAME, rule)
 
         k = k + 1
         out(k, C_RULE_ORDER) = Amt(buf, i, iOrder)
-        out(k, C_RULE_CAT) = Blank(Txt(buf, i, iCat), "(no category)")
+        out(k, C_RULE_CAT) = Tidied(C_RULE_CAT, Blank(Txt(buf, i, iCat), "(no category)"))
         out(k, C_RULE_NAME) = Blank(rule, "(no rule)")
         ' post/pre, not the source's factor column: it agrees with the two
         ' amounts beside it by construction, whatever units that field is in.
@@ -467,11 +509,11 @@ Private Function EmitBlock(ByRef buf As Variant, ByVal n As Long, ByVal ix As Ob
         Else
             out(k, C_FACTOR) = Empty
         End If
-        out(k, C_TYPE) = Blank(Txt(buf, i, iType), "(no type)")
-        out(k, C_LINE) = Blank(Txt(buf, i, iLine), "(no line)")
-        out(k, C_SUBLINE) = Blank(Txt(buf, i, iSub), "(no subline)")
-        out(k, C_COA_NAME) = Blank(Txt(buf, i, iCoa), "(no COA)")
-        out(k, C_CURRENCY) = Blank(ccy, "(no currency)")
+        out(k, C_TYPE) = Tidied(C_TYPE, Blank(Txt(buf, i, iType), "(no type)"))
+        out(k, C_LINE) = Tidied(C_LINE, Blank(Txt(buf, i, iLine), "(no line)"))
+        out(k, C_SUBLINE) = Tidied(C_SUBLINE, Blank(Txt(buf, i, iSub), "(no subline)"))
+        out(k, C_COA_NAME) = Tidied(C_COA_NAME, Blank(Txt(buf, i, iCoa), "(no COA)"))
+        out(k, C_CURRENCY) = Tidied(C_CURRENCY, Blank(ccy, "(no currency)"))
         out(k, C_CCYCLASS) = IIf(StrComp(ccy, local_, vbTextCompare) = 0, "LCY", "FCY")
         bkt = Blank(Txt(buf, i, iBkt), "(no bucket)")
         out(k, C_BUCKET) = bkt
@@ -528,7 +570,7 @@ Private Sub EmitExtras(ByRef buf As Variant, ByVal i As Long, ByRef out() As Var
                 If Len(t) = 0 Then
                     If Len(mXBlank(x)) > 0 Then out(k, C_COLS + x) = mXBlank(x) Else out(k, C_COLS + x) = Empty
                 Else
-                    out(k, C_COLS + x) = t
+                    out(k, C_COLS + x) = Tidied(C_COLS + x, t)
                 End If
         End Select
     Next x

@@ -84,6 +84,7 @@ msothemecolortext1
 # library by name and value before it went in.
 REVIEWED_CONSTANTS = {
     "msoautosizenone": 0,                 # MsoAutoSize
+    "xlnoadditionalcalculation": -4143,   # XlPivotFieldCalculation
     "xlcolumnstacked": 52,                # XlChartType
     "xllegendpositiontop": -4160,         # XlLegendPosition
     "xlvalue": 2,                         # XlAxisType

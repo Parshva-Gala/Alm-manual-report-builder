@@ -254,7 +254,10 @@ def log_sheet():
 #  A built workbook, from the LCR sample
 # ---------------------------------------------------------------------------
 def balance_pivot():
+    """The Balance sheet pivot of an LCR build of the sample: labels tidied as
+    Pivot fields says (Line, Subline and COA name: drop codes + title case)."""
     import openpyxl
+    import labels
     wb = openpyxl.load_workbook(SAMPLE, read_only=True)
     ws = wb.worksheets[0]
     it = ws.iter_rows(values_only=True)
@@ -262,31 +265,129 @@ def balance_pivot():
     ix = {}
     for i, h in enumerate(hdr):
         ix.setdefault(h, i)
-    counts = collections.Counter()
-    for r in it:
-        counts[r[ix["CURRENCY_NAME"]]] += 1
-    local = counts.most_common(1)[0][0]
-    wb = openpyxl.load_workbook(SAMPLE, read_only=True)
-    ws = wb.worksheets[0]
-    it = ws.iter_rows(values_only=True)
-    next(it)
+    rows = list(it)
+    local = collections.Counter(r[ix["CURRENCY_NAME"]] for r in rows).most_common(1)[0][0]
     agg = collections.defaultdict(lambda: [0.0, 0.0])
-    for r in it:
+    for r in rows:
         if not r[ix["BUCKET_DISPLAY_NAME"]]:
             continue                                    # the pivot's default: blanks out
         key = (r[ix["COA_BALANCESHEET_CATEGORY"]] or "(no type)",
-               r[ix["BALANCESHEET_LINE_NAME"]] or "(no line)",
-               r[ix["BALANCESHEET_SUB_LINE_NAME"]] or "(no subline)",
-               r[ix["COA_NAME"]] or "(no COA)")
+               labels.tidy(r[ix["BALANCESHEET_LINE_NAME"]] or "(no line)", 2),
+               labels.tidy(r[ix["BALANCESHEET_SUB_LINE_NAME"]] or "(no subline)", 2),
+               labels.tidy(r[ix["COA_NAME"]] or "(no COA)", 2))
         side = 0 if r[ix["CURRENCY_NAME"]] == local else 1
         agg[key][side] += float(r[ix["CASHFLOW_AMOUNT_LCY_PRE_FACTOR"]] or 0)
-    return local, sorted(agg.items(), key=lambda kv: -abs(kv[1][0] + kv[1][1]))
+    return local, sorted(agg.items(), key=lambda kv: (kv[0][0], kv[0][1], kv[0][2], kv[0][3]))
+
+
+def fmt_num(v):
+    if round(v) == 0:
+        return "-"
+    return "(%s)" % format(abs(v), ",.0f") if v < 0 else format(v, ",.0f")
+
+
+def compact(v):
+    """modPD_Pivot.CompactFormat / modPD_Util.Compact."""
+    a = abs(v)
+    if a >= 1e9:
+        return "%.2f bn" % (v / 1e9)
+    if a >= 1e6:
+        return "%.1f m" % (v / 1e6)
+    return format(v, ",.0f")
+
+
+def book_bar(crumb, back=True, prev_next=True):
+    """modPD_Theme.BookBar and modPD_Pivot.LinkSiblings."""
+    lw = 15 * LOGO_RATIO
+    x = 16 + lw + 22
+    pills = ""
+    if back:
+        pills += ("<span class='pill' style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;"
+                  "background:#%s;box-shadow:inset 0 0 0 1px #%s;color:#%s'>&#8249;&nbsp;&nbsp;Start here</span>") % (
+            px(x + 190), px(8), px(96), px(24), C["E950"], C["DEEP"], C["SOFT"])
+    if prev_next:
+        for label, dx, w in (("&#8249;&nbsp;&nbsp;Previous", 104, 88), ("Next&nbsp;&nbsp;&#8250;", 198, 72)):
+            pills += ("<span class='pill' style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;"
+                      "box-shadow:inset 0 0 0 1px #%s;color:#%s'>%s</span>") % (
+                px(x + 190 + dx), px(8), px(w), px(24), C["LINE2"], C["TX2"], label)
+    return ("<div style='height:%.1fpx;background:#000;border-bottom:1px solid #%s;position:relative'>"
+            "<img src='file://%s' style='position:absolute;left:%.1fpx;top:%.1fpx;height:%.1fpx'>"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:1px;height:%.1fpx;background:#%s'></div>"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+            "letter-spacing:1.6px;color:#%s'>ALM DESK</div>"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+            "letter-spacing:1.4px;color:#%s'>%s</div>%s</div>") % (
+        px(40), C["DEEP"], LOGO, px(16), px(12.5), px(15), px(16 + lw + 10), px(12), px(16), C["LINE2"],
+        px(x), px(8), px(7.5), C["TX1"], px(x), px(21), px(6), C["TX3"],
+        html.escape(crumb.upper()).replace("  ", "&nbsp;&nbsp;"), pills)
+
+
+def title_block(overline, title, about):
+    return ("<div style='height:%.1fpx;display:flex;flex-direction:column;justify-content:flex-end;"
+            "padding:0 0 %.1fpx %.1fpx;box-sizing:border-box'>"
+            "<div style='font-family:\"Selawik Semibold\";font-size:%.1fpx;letter-spacing:1.4px;color:#%s'>%s</div>"
+            "<div style='font-family:\"Selawik Light\";font-size:%.1fpx;color:#%s;line-height:1.1'>%s</div></div>"
+            "<div style='height:%.1fpx;padding-left:%.1fpx;font-size:%.1fpx;color:#%s'>%s</div>") % (
+        px(44), px(1), px(14), px(7.5), C["M300"], overline, px(19), C["TX1"], html.escape(title),
+        px(20), px(14), px(9), C["TX2"], html.escape(about))
+
+
+def tiles(items, w_pt=196, gap_pt=10, h_row=66, fixed_w=None):
+    """modPD_Theme.Tile, in a row."""
+    out = []
+    for i, (label, value) in enumerate(items):
+        w = fixed_w or w_pt
+        size = 17
+        if fixed_w and (w - 22) / (len(value) * 0.52) < size:
+            size = max(10, int((w - 22) / (len(value) * 0.52)))
+        out.append(("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:#%s;"
+                    "box-shadow:inset 0 0 0 1px #%s;border-radius:7px;box-sizing:border-box'>"
+                    "<div style='position:absolute;left:0;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:#%s'></div>"
+                    "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";"
+                    "font-size:%.1fpx;letter-spacing:1px;color:#%s'>%s</div>"
+                    "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Light\";"
+                    "font-size:%.1fpx;color:#%s;white-space:nowrap'>%s</div></div>") % (
+            px(14 + i * (w + gap_pt)), px(8), px(w), px(50), C["ROW"], C["LINE2"], px(12), px(2.5), px(26),
+            C["BRAND"], px(14), px(8), px(6.5), C["TX3"], label, px(13), px(19), px(size), C["TX1"],
+            html.escape(value)))
+    return "<div style='position:relative;height:%.1fpx'>%s</div>" % (px(h_row), "".join(out))
+
+
+def slicers():
+    """Dark, in the Avati Slicer style: chosen items emerald."""
+    def one(title, items, sel):
+        chips = "".join(
+            "<div style='height:%.1fpx;border-radius:3px;margin:3px 0;padding-left:8px;font-size:11px;line-height:%.1fpx;"
+            "background:#%s;color:#%s;white-space:nowrap;overflow:hidden'>%s</div>" % (
+                px(15), px(15), C["DEEP"] if s_ else C["ROW_ALT"], C["TX1"] if s_ else C["TX2"], html.escape(t))
+            for t, s_ in zip(items, sel))
+        return ("<div style='width:%.1fpx;height:%.1fpx;background:#%s;box-shadow:inset 0 0 0 1px #%s;border-radius:4px;"
+                "padding:6px 8px;box-sizing:border-box;margin-right:%.1fpx;display:inline-block;vertical-align:top;"
+                "overflow:hidden'><div style='color:#%s;font-family:\"Selawik Semibold\";font-size:11.5px;"
+                "margin-bottom:2px'>%s</div><div style='column-count:2;column-gap:6px'>%s</div></div>") % (
+            px(156), px(62), C["ROW"], C["LINE2"], px(6), C["TX1"], title, chips)
+    return ("<div style='padding:%.1fpx 0 0 %.1fpx;height:%.1fpx;box-sizing:border-box'>%s%s%s</div>" % (
+        px(6), px(14), px(74),
+        one("Type", ["Asset", "Liability", "Off Balance Sheet", "Shareholders Equity"], [1, 1, 1, 1]),
+        one("LCY / FCY", ["LCY", "FCY"], [1, 1]),
+        one("Rule category", ["OUTFLOW", "(no category)"], [1, 1])))
 
 
 def pivot_sheet():
     local, items = balance_pivot()
-    items = items[:16]
-    widths = [14, 34, 34, 38, 14, 14, 14]
+    items = items[:18]
+    widths = [22, 44, 48, 50, 16, 14, 16]
+    tot = [sum(v[0] for _, v in items), sum(v[1] for _, v in items)]
+    tot.append(tot[0] + tot[1])
+    cols = "".join('<col style="width:%dpx">' % colw(w) for w in widths)
+    hd = "font-family:\"Selawik Semibold\";color:#%s;background:#000" % C["SOFT"]
+    head = ("<tr style='height:%.1fpx'><td colspan=4 style='background:#000;color:#%s;font-family:\"Selawik Semibold\"'>"
+            "Pre-factor</td><td colspan=3 style='%s'>LCY / FCY&nbsp;&#9662;</td></tr>"
+            "<tr style='height:%.1fpx'>%s</tr>") % (
+        px(20), C["SOFT"], hd, px(22),
+        "".join("<td style='%s;border-bottom:3px solid #%s;%s'>%s</td>" % (
+            hd, C["BRAND"], "color:#%s" % C["TX1"] if h == "Total" else "", h + ("&nbsp;&#9662;" if i < 4 else ""))
+            for i, h in enumerate(["Type", "Line", "Subline", "COA name", "LCY", "FCY", "Total"])))
     rows_html = []
     prev = [None, None, None]
     for i, (key, (lcy, fcy)) in enumerate(items):
@@ -295,56 +396,34 @@ def pivot_sheet():
             show = key[j] if (j == 3 or key[j] != prev[j] or any(key[k] != prev[k] for k in range(j))) else ""
             cells.append(show)
         prev = list(key[:3])
-        vals = [lcy, fcy, lcy + fcy]
-        bg = C["MIST"] if i % 2 else C["PAPER"]
+        bg = C["ROW_ALT"] if i % 2 else C["ROW"]
         tds = "".join('<td style="border-bottom:1px solid #%s;%s">%s</td>' % (
-            C["HAIR"], "font-family:'Selawik Semibold'" if (j == 0 and c) else "", html.escape(str(c)))
+            C["LINE"], "font-family:'Selawik Semibold'" if (j == 0 and c) else "", html.escape(str(c)))
             for j, c in enumerate(cells))
-        tds += "".join('<td style="border-bottom:1px solid #%s;text-align:right;padding-right:9px;%s">%s</td>' % (
-            C["HAIR"], "color:#C00000" if v < 0 else "",
-            "-" if round(v) == 0 else ("(%s)" % format(abs(v), ",.0f") if v < 0 else format(v, ",.0f")))
-            for v in vals)
-        rows_html.append('<tr style="height:24px;background:#%s">%s</tr>' % (bg, tds))
-    tot = [sum(v[0] for _, v in items), sum(v[1] for _, v in items)]
-    tot.append(tot[0] + tot[1])
-    cols = "".join('<col style="width:%dpx">' % colw(w) for w in widths)
-    head = ("<tr style='height:22px'><td colspan=4></td>"
-            "<td colspan=3 style='background:#000;color:#%s;font-family:\"Selawik Semibold\"'>LCY / FCY</td></tr>"
-            "<tr style='height:28px;background:#000'>%s</tr>") % (
-        C["SOFT"], "".join("<td style='color:#%s;font-family:\"Selawik Semibold\";border-bottom:1px solid #000'>%s</td>" % (
-            C["SOFT"], h) for h in ["Type", "Line", "Subline", "COA name", "LCY", "FCY", "Grand Total"]))
-    total_row = ("<tr style='height:26px;background:#%s'><td colspan=4 style='font-family:\"Selawik Semibold\";"
-                 "border-top:2px solid #%s'>Grand Total</td>%s</tr>") % (
-        C["TINT"], C["BRAND"], "".join("<td style='text-align:right;padding-right:9px;font-family:\"Selawik Semibold\";"
-                                        "border-top:2px solid #%s;%s'>%s</td>" % (
-                                            C["BRAND"], "color:#C00000" if v < 0 else "",
-                                            "(%s)" % format(abs(v), ",.0f") if v < 0 else format(v, ",.0f"))
-                                        for v in tot))
-    filt = ("<div style='padding:10px 0 12px 12px;font-size:12.6px'><span style='font-family:\"Selawik Semibold\";"
-            "color:#%s'>Bucket</span>&nbsp;&nbsp;&nbsp;(Multiple Items)</div>") % C["MUTED"]
-    bar = ("<div style='background:#000;height:45px;display:flex;align-items:center;padding-left:16px;"
-           "font-family:\"Selawik Semibold\";font-size:11.3px;color:#%s'>&#8249;&nbsp;&nbsp;Start here</div>") % C["M300"]
-    body = (bar + masthead("Balance sheet", "The same balances as the balance sheet reads them, down to the COA.",
-                           "", "Idle", 0, 0).split('<div style="height:13px"></div>')[0] +
-            "<div style='height:13px'></div>" + slicers() + filt +
-            "<table>%s%s%s%s</table>" % (cols, head, "".join(rows_html), total_row))
+        for k, v in enumerate((lcy, fcy, lcy + fcy)):
+            tds += '<td style="border-bottom:1px solid #%s;text-align:right;padding-right:9px;%s%s">%s</td>' % (
+                C["LINE"], "color:#FF0000;" if v < -0.5 else "",
+                "background:#16271F;font-family:'Selawik Semibold';" if k == 2 else "", fmt_num(v))
+        rows_html.append('<tr style="height:%.1fpx;background:#%s">%s</tr>' % (px(20), bg, tds))
+    total_row = ("<tr style='height:%.1fpx;background:#%s'><td colspan=4 style='font-family:\"Selawik Semibold\";"
+                 "border-top:3px solid #%s'>Total</td>%s</tr>") % (
+        px(20), C["E950"], C["BRAND"], "".join(
+            "<td style='text-align:right;padding-right:9px;font-family:\"Selawik Semibold\";border-top:3px solid #%s;"
+            "%s'>%s</td>" % (C["BRAND"], "color:#FF0000" if v < -0.5 else "", fmt_num(v)) for v in tot))
+    filt = ("<table style='margin:0'>%s<tr style='height:%.1fpx'><td style='background:#%s;color:#%s;"
+            "font-family:\"Selawik Semibold\"'>Bucket</td><td style='background:#%s'>(Multiple Items)&nbsp;&#9662;</td>"
+            "</tr></table><div style='height:%.1fpx'></div>") % (
+        "".join('<col style="width:%dpx">' % colw(w) for w in widths[:2]), px(20), C["ROW_ALT"], C["M300"], C["ROW"],
+        px(10))
+    crumb = "LCR  \u00b7  MIDBANK CAIRO"
+    body = (book_bar(crumb) +
+            title_block("LCR &nbsp;&#183;&nbsp; BALANCE SHEET", "Balance sheet",
+                        "The same balances as the balance sheet reads them, down to the COA. Pre-factor only - what "
+                        "the engine took in, before any weighting.") +
+            tiles([("PRE-FACTOR &nbsp;&#183;&nbsp; TOTAL", compact(tot[2]))]) +
+            "<div style='height:%.1fpx'></div>" % px(6) + slicers() + "<div style='height:%.1fpx'></div>" % px(8) +
+            filt + "<table>%s%s%s%s</table>" % (cols, head, "".join(rows_html), total_row))
     return page("Balance sheet", body, 1500), local
-
-
-def slicers():
-    def one(title, items, sel):
-        chips = "".join(
-            "<div style='height:19px;border-radius:3px;margin:3px 0;padding-left:8px;font-size:11px;line-height:19px;"
-            "background:%s;color:%s'>%s</div>" % ("#009060" if s else "#1D2B25", "#fff" if s else "#A9BDB3",
-                                                 html.escape(t)) for t, s in zip(items, sel))
-        return ("<div style='width:204px;height:77px;background:#0C1512;border-radius:4px;padding:6px 8px;"
-                "box-sizing:border-box;margin-right:8px;display:inline-block;vertical-align:top;overflow:hidden'>"
-                "<div style='color:#F2F7F4;font-family:\"Selawik Semibold\";font-size:11.5px;margin-bottom:2px'>%s</div>"
-                "<div style='column-count:2;column-gap:6px'>%s</div></div>") % (title, chips)
-    return ("<div style='padding-left:11px;height:90px'>%s%s%s</div>" % (
-        one("Type", ["Asset", "Liability", "Off Balance", "Equity"], [1, 1, 1, 1]),
-        one("LCY / FCY", ["LCY", "FCY"], [1, 1]),
-        one("Rule category", ["OUTFLOW", "(no category)"], [1, 1])))
 
 
 def sample_facts():
@@ -371,142 +450,50 @@ def sample_facts():
         by[b][0 if r[ix["CURRENCY_NAME"]] == local else 1] += float(r[ix["CASHFLOW_AMOUNT_LCY_PRE_FACTOR"]] or 0)
     buckets = [(b, by[b][0], by[b][1]) for b in tenor.bucket_order(list(by))]
     asof = next((r[ix["AS_OF_DATE"]] for r in data if r[ix["AS_OF_DATE"]]), None)
-    return {"rows": len(data), "gross": gross, "net": net, "factor": post / gross if gross else 0,
+    return {"rows": len(data), "gross": gross, "post": post, "net": net, "factor": post / gross if gross else 0,
             "local": local, "asof": asof.strftime("%-d %b %Y") if asof else "", "buckets": buckets}
 
 
-def compact(v):
-    a = abs(v)
-    if a >= 1e9:
-        t = "%.1f bn" % (v / 1e9)
-    elif a >= 1e6:
-        t = "%.1f m" % (v / 1e6)
-    elif a >= 1e4:
-        t = "%.1f k" % (v / 1e3)
-    else:
-        t = format(v, ",.0f")
-    return t.replace("-", "−")
-
-
-def gap_chart_svg(buckets, w, h, gross):
-    """The Start here PivotChart as Excel draws it with the settings GapChart
-    applies: stacked columns, LCY emerald and FCY deep emerald with a white
-    hairline between, legend on top, light gridlines, labels along the bottom."""
-    div, unit = (1e9, " bn") if gross >= 1e9 else ((1e6, " m") if gross >= 1e6 else (1, ""))
-    left, top, right, bottom = 70, 34, 16, 34
-    pw, ph = w - left - right, h - top - bottom
-    pos = max([0.0] + [max(l, 0) + max(f, 0) for _, l, f in buckets])
-    neg = max([0.0] + [-(min(l, 0) + min(f, 0)) for _, l, f in buckets])
-    span = pos + neg or 1
-    import math
-    raw = span / div / 5
-    mag = 10 ** math.floor(math.log10(raw)) if raw > 0 else 1
-    stepv = next(m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= raw) * div
-    lo = -math.ceil(neg / stepv) * stepv
-    hi = math.ceil(pos / stepv) * stepv
-    if hi == lo:
-        hi = lo + stepv
-    y = lambda v: top + ph * (hi - v) / (hi - lo)
-    out = ['<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" style="font-family:Selawik">' % (w, h)]
-    v = lo
-    while v <= hi + 1e-6:
-        out.append('<line x1="%d" x2="%d" y1="%.1f" y2="%.1f" stroke="#%s" stroke-width="1"/>' % (left, left + pw, y(v), y(v), C["HAIR"]))
-        lab = ("%s%s" % (format(v / div, ",.1f" if div > 1 else ",.0f"), unit)) if abs(v) > 1e-9 else "0"
-        out.append('<text x="%d" y="%.1f" text-anchor="end" font-size="11.3" fill="#%s">%s</text>' % (left - 8, y(v) + 4, C["MUTED"], lab.replace("-", "-")))
-        v += stepv
-    n = len(buckets)
-    slot = pw / max(n, 1)
-    gapw = 4.0 if n <= 2 else (1.8 if n <= 4 else 0.55)         # GapChart's GapWidth / 100
-    bw = slot / (1 + gapw)
-    for i, (b, l, f) in enumerate(buckets):
-        x = left + i * slot + (slot - bw) / 2
-        up = dn = 0.0
-        for val, col in ((l, C["BRAND"]), (f, "004A32")):
-            if val >= 0:
-                y0, y1 = y(up + val), y(up)
-                up += val
-            else:
-                y0, y1 = y(dn), y(dn + val)
-                dn += val
-            out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="#%s" stroke="#fff" stroke-width="1"/>' % (x, y0, bw, max(0.5, y1 - y0), col))
-        out.append('<text x="%.1f" y="%d" text-anchor="middle" font-size="11.3" fill="#%s">%s</text>' % (x + bw / 2, top + ph + 20, C["MUTED"], html.escape(b)))
-    out.append('<line x1="%d" x2="%d" y1="%.1f" y2="%.1f" stroke="#%s" stroke-width="1"/>' % (left, left + pw, y(0), y(0), C["MUTED"]))
-    cx = left + pw / 2
-    out.append('<rect x="%.1f" y="10" width="10" height="10" fill="#%s"/><text x="%.1f" y="19" font-size="11.3" fill="#%s">LCY</text>' % (cx - 60, C["BRAND"], cx - 45, C["MUTED"]))
-    out.append('<rect x="%.1f" y="10" width="10" height="10" fill="#004A32"/><text x="%.1f" y="19" font-size="11.3" fill="#%s">FCY</text>' % (cx + 10, cx + 25, C["MUTED"]))
-    out.append("</svg>")
-    return "".join(out)
-
-
-def tile_size(w_pt, value):
-    """modPD_Build.Tile: 17 pt, smaller only when the figure would not fit."""
-    sz = 17
-    if (w_pt - 22) / (len(value) * 0.52) < sz:
-        sz = int((w_pt - 22) / (len(value) * 0.52))
-    return max(sz, 10)
-
-
 def guide_sheet(facts, made, title, built):
-    import re
-    wide_px = colw(38) + colw(110) - 16
-    bar = ("<div style='background:#000;height:45px;display:flex;align-items:center;padding-left:16px;"
-           "font-family:\"Selawik Semibold\";font-size:10.7px;color:#%s;letter-spacing:.5px'>PIVOTDESK&nbsp;&nbsp;&#183;"
-           "&nbsp;&nbsp;START HERE</div>") % C["M300"]
+    wide_px = colw(38) + colw(110) - 18
+    crumb = "%s  \u00b7  MIDBANK CAIRO" % title.upper()
 
     def section(text):
-        return ("<div style='height:35px;width:%dpx;box-sizing:border-box;border-bottom:1px solid #%s;display:flex;"
-                "align-items:flex-end;padding:0 0 5px 9px;font-family:\"Selawik Semibold\";font-size:11.3px;"
-                "color:#%s'>%s</div>") % (colw(38) + colw(110), C["BRAND"], C["DEEP"], text)
-    tiles = [("ROWS STAGED", format(facts["rows"], ",")), ("GROSS PRE-FACTOR", compact(facts["gross"])),
-             ("NET PRE-FACTOR", compact(facts["net"])), ("WEIGHTED FACTOR", "%.1f%%" % (facts["factor"] * 100)),
+        return ("<div style='height:%.1fpx;width:%dpx;box-sizing:border-box;border-bottom:1px solid #%s;display:flex;"
+                "align-items:flex-end;padding:0 0 5px 9px;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+                "letter-spacing:.6px;color:#%s'>%s</div>") % (px(30), colw(38) + colw(110), C["DEEP"], px(8),
+                                                             C["M300"], text)
+    items = [("ROWS STAGED", format(facts["rows"], ",")), ("PRE-FACTOR", compact(facts["gross"])),
+             ("POST-FACTOR", compact(facts["post"])), ("SHEETS", str(len(made))),
              ("LOCAL CURRENCY", facts["local"]), ("DATA AS OF", facts["asof"])]
-    gp = 13
-    tw = (wide_px - 5 * gp) / 6
-    th = "".join(("<div style='position:absolute;left:%.1fpx;top:8px;width:%.1fpx;height:72px;box-sizing:border-box;"
-                  "background:#%s;border:1px solid #%s;border-radius:7px;padding:10px 8px 0 19px;overflow:hidden'>"
-                  "<div style='position:absolute;left:0;top:16px;width:3px;height:40px;background:#%s'></div>"
-                  "<div style='font-family:\"Selawik Semibold\";font-size:9.3px;letter-spacing:1px;color:#%s'>%s</div>"
-                  "<div style='font-family:\"Selawik Light\";font-size:%.1fpx;color:#%s;margin-top:2px;white-space:nowrap'>%s</div>"
-                  "</div>") % (8 + i * (tw + gp), tw, C["MIST"], C["HAIR"], C["BRAND"], C["MUTED"], a,
-                               tile_size(tw / PT, b) * PT, C["BODY"], html.escape(b)) for i, (a, b) in enumerate(tiles))
-    tiles_html = "<div style='position:relative;height:88px'>%s</div>" % th
-    chart = ("<div style='height:317px;padding:11px 0 0 8px'>%s</div>" %
-             gap_chart_svg(facts["buckets"], wide_px, 296, facts["gross"]))
-    tbl = table(["Sheet", "What is on it"], [38, 110], [[a, b] for a, b in made], muted_cols=(1,))
-    tbl = re.sub(r'(<tr style="height:28px;background:#[0-9A-F]+"><td style=")',
-                 r"\1color:#%s;font-family:'Selawik Semibold';" % C["DEEP"], tbl)
+    tw = (wide_px / PT - 5 * 10) / 6
+    status = ("<div style='width:1060px;height:%.1fpx;background:#%s;border-left:4px solid #%s;display:flex;"
+              "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Selawik Semibold\";"
+              "font-size:%.1fpx;color:#%s'>&#9679;&nbsp;&nbsp;%s rows staged into one pivot cache.&nbsp; Every sheet "
+              "below is a live PivotTable over it - drag a field, drop a slicer, drill a total.</div>") % (
+        px(26), C["OK_BG"], C["OK"], px(9), C["OK"], format(facts["rows"], ","))
+    tbl = table(["Sheet", "What is on it"], [38, 110], [[a_, b_] for a_, b_ in made], muted_cols=(1,))
+    import re
+    tbl = re.sub(r'(<tr style="height:[0-9.]+px;background:#[0-9A-F]+"><td style=")',
+                 r"\1color:#%s;font-family:'Selawik Semibold';" % C["M300"], tbl)
     notes = [("Amounts", "Pre-factor and post-factor from CASHFLOW_AMOUNT_LCY_PRE_FACTOR  /  CASHFLOW_AMOUNT_LCY_POST_FACTOR."),
              ("Local currency", "\"%s\" - the currency on the most rows. Nothing in the extract says which is local, "
               "so check this before relying on the LCY / FCY split." % facts["local"]),
              ("Factor", "Post-factor divided by pre-factor, so it always agrees with the two figures beside it."),
+             ("Labels", "Ledger names are shown without their codes and in title case where Pivot fields says so - "
+              "1.07.00.MBGL.1360.LOANS TO CUSTOMERS reads Loans to Customers."),
              ("Blanks", "Rows with no bucket are excluded from the bucket filter by default. They are still in the "
               "data - clear the filter to see them.")]
-    nrows = "".join("<div style='display:flex;padding:7px 0'><div style='width:%dpx;padding-left:9px;"
-                    "font-family:\"Selawik Semibold\"'>%s</div><div style='width:%dpx;padding-left:9px;color:#%s;"
-                    "white-space:normal'>%s</div></div>" % (colw(38) - 9, a, colw(110) - 9, C["MUTED"], html.escape(b))
-                    for a, b in notes)
-    body = (bar + masthead(title, built, format(facts["rows"], ",") + " rows staged into one pivot cache.  Every "
-                           "sheet below is a live PivotTable over it - drag a field, drop a slicer, drill a total.",
-                           "OK", 0, 1060).rsplit('<div style="height:13px"></div>', 1)[0] +
-            section("AT A GLANCE") + tiles_html +
-            section("MATURITY GAP&nbsp;&nbsp;&#183;&nbsp;&nbsp;NET PRE-FACTOR IN EACH BUCKET, LOCAL AND FOREIGN CURRENCY") +
-            chart + section("IN THIS BOOK") + tbl + "<div style='height:8px'></div>" + section("HOW TO READ THIS") + nrows)
+    nrows = "".join("<div style='display:flex;padding:7px 0;font-size:12.7px'><div style='width:%dpx;padding-left:9px;"
+                    "font-family:\"Selawik Semibold\";color:#%s'>%s</div><div style='width:%dpx;padding-left:9px;color:#%s;"
+                    "white-space:normal'>%s</div></div>" % (colw(38) - 9, C["TX1"], a_, colw(110) - 9, C["TX2"],
+                                                            html.escape(b_)) for a_, b_ in notes)
+    body = (book_bar(crumb, back=False, prev_next=False) +
+            title_block("START HERE &nbsp;&#183;&nbsp; MIDBANK CAIRO", title, built) +
+            tiles(items, fixed_w=tw, h_row=68) + status + "<div style='height:%.1fpx'></div>" % px(12) +
+            section("IN THIS BOOK &nbsp;&#183;&nbsp; %d SHEETS" % len(made)) + tbl +
+            "<div style='height:%.1fpx'></div>" % px(8) + section("HOW TO READ THIS") + nrows)
     return page("Start here", body, 1500)
-
-
-def ladder_facts():
-    """Illustrative: the Desk showcase's maturity-ladder profile, split LCY /
-    FCY, for a picture of the chart with a full set of buckets."""
-    import desk
-    prof = desk.showcase_state()["gap"]["buckets"]
-    split = [0.78, 0.64, 0.7, 0.6, 0.72, 0.8, 0.75, 0.7, 0.85]
-    buckets = [(lbl, v * 1e9 * k, v * 1e9 * (1 - k)) for (lbl, v, kind), k in zip(prof, split) if kind != "none"]
-    names = {"≤1M": "UPTO 1 MONTH", "1–3M": "1 - 3 MONTHS", "3–6M": "3 - 6 MONTHS", "6–12M": "6 - 12 MONTHS",
-             "1–2Y": "1 - 2 YEARS", "2–3Y": "2 - 3 YEARS", "3–5Y": "3 - 5 YEARS", ">5Y": "OVER 5 YEARS",
-             "NM": "NON MATURITY"}
-    buckets = [(names[b], l, f) for b, l, f in buckets]
-    return {"rows": 506332, "gross": 212.6e9, "net": -0.8e9, "factor": 0.714, "local": "Egyptian Pound",
-            "asof": "30 Nov 2025", "buckets": buckets}
 
 
 def main():
@@ -514,23 +501,14 @@ def main():
     jobs = [("sheet-files", files_sheet(), 1500, 560), ("sheet-recon", recon_sheet(), 1500, 470),
             ("sheet-activity", log_sheet(), 1500, 520)]
     local = "Egyptian Pound"
-    if SAMPLE and os.path.exists(SAMPLE) and os.environ.get("BUILT"):
+    built = "Built by Avati ALM Desk 3.0 on 26 Sep 2026, 14:05   ·   data as of 30 Nov 2025"
+    if SAMPLE and os.path.exists(SAMPLE):
         pv, local = pivot_sheet()
-        jobs.append(("built-balance-sheet", pv, 1500, 880))
-    built = "Built by Avati 3.0 on 26 Sep 2026 14:05   -   data as of 30 Nov 2025"
-    if SAMPLE and os.path.exists(SAMPLE) and os.environ.get("BUILT"):
+        jobs.append(("built-balance-sheet", pv, 1500, 1030))
         made = [("LCR Output", "Rule-level output"), ("Balance sheet", "Balance sheet"),
                 ("Deposits from all instituti LCY", "Deposits from all institutions for operational purposes ... - LCY"),
                 ("TOther cash outflows due wi LCY", "TOther cash outflows due within 30 days - LCY")]
-        jobs.append(("built-start-here", guide_sheet(sample_facts(), made, "LCR  -  MIDBANK  Cairo", built),
-                     1500, 1080))
-    made = [("Maturity Ladder Output", "Rule-level output"), ("Balance sheet", "Balance sheet"),
-            ("Egyptian Pound", "Every rule and line across the buckets - Egyptian Pound"),
-            ("US Dollar", "Every rule and line across the buckets - US Dollar"),
-            ("Euro", "Every rule and line across the buckets - Euro")]
-    if os.environ.get("BUILT"):
-      jobs.append(("built-start-here-ladder", guide_sheet(ladder_facts(), made, "Maturity Ladder  -  MIDBANK  Cairo",
-                                                        built.replace("14:05", "14:06")), 1500, 1100))
+        jobs.append(("built-start-here", guide_sheet(sample_facts(), made, "LCR", built), 1500, 760))
     for name, html_, w, h in jobs:
         path = os.path.join(OUT, name + ".png")
         assets.render(html_, path, w, h, scale=1.5, transparent=False)

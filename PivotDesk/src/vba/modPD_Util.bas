@@ -340,3 +340,180 @@ Public Sub RestoreState(ByVal s As Object)
     Application.StatusBar = False
     Err.Clear
 End Sub
+
+' ===================== tidy labels ==========================================
+'
+' The outputs name lines the way the ledger codes them:
+'
+'     1.07.00.MBGL.1360.LOANS TO CUSTOMERS
+'     COA_MBGL.7220.PERFORMANCE
+'     4.01.00.MBGL.6510.CONTINGENT LIABILITIES& COMMITMENTS
+'
+' A field's Labels setting on Pivot fields says what to do with them:
+'
+'   0  As is
+'   1  Drop codes                 LOANS TO CUSTOMERS
+'   2  Drop codes, title case     Loans to Customers
+'   3  Title case                 (the code, if any, stays)
+'
+' Title case keeps what should stay in capitals - acronyms (ECL, FVTOCI, LCY
+' and any listed on Pivot fields), single letters (T.Bills), anything with a
+' digit - and leaves alone any word that already has lower case in it.
+Public Function TidyLabel(ByVal s As String, ByVal mode As Long, Optional ByVal keep As String = "") As String
+    Dim t As String
+    TidyLabel = s
+    If mode <= 0 Or Len(s) = 0 Then Exit Function
+    t = Trim$(s)
+    If mode = 1 Or mode = 2 Then t = DropCode(t)
+    t = FixAmpersand(t)
+    If mode >= 2 Then t = TitleWords(t, keep)
+    TidyLabel = t
+End Function
+
+' The code in front: dotted pieces with no spaces, the last of which to carry
+' a digit ends the code. At least two such pieces, and never the last piece -
+' so "2.5% RESERVE" and "T.Bills" are left whole.
+Private Function DropCode(ByVal t As String) As String
+    Dim parts As Variant, i As Long, k As Long, j As Long, out As String, u As Long
+    DropCode = t
+    ' 3686_LTL UNSECURED LEASING: digits and an underscore in front.
+    u = InStr(t, "_")
+    If u > 2 And u < Len(t) Then
+        If IsAllDigits(Left$(t, u - 1)) Then DropCode = Trim$(Mid$(t, u + 1)): Exit Function
+    End If
+    If InStr(t, ".") = 0 Then Exit Function
+    parts = Split(t, ".")
+    k = -1
+    For i = 0 To UBound(parts) - 1
+        If Not IsCodePiece(CStr(parts(i))) Then Exit For
+        If HasDigit(CStr(parts(i))) Then k = i
+    Next i
+    If k < 1 Then Exit Function
+    For j = k + 1 To UBound(parts)
+        If j > k + 1 Then out = out & "."
+        out = out & CStr(parts(j))
+    Next j
+    out = Trim$(out)
+    If Len(out) > 0 Then DropCode = out
+End Function
+
+Private Function IsCodePiece(ByVal p As String) As Boolean
+    Dim i As Long, ch As String
+    If Len(p) = 0 Or Len(p) > 12 Then Exit Function
+    For i = 1 To Len(p)
+        ch = Mid$(p, i, 1)
+        If Not ((ch >= "0" And ch <= "9") Or (ch >= "A" And ch <= "Z") Or ch = "_" Or ch = "-") Then Exit Function
+    Next i
+    IsCodePiece = True
+End Function
+
+Private Function IsAllDigits(ByVal p As String) As Boolean
+    Dim i As Long, ch As String
+    If Len(p) = 0 Then Exit Function
+    For i = 1 To Len(p)
+        ch = Mid$(p, i, 1)
+        If ch < "0" Or ch > "9" Then Exit Function
+    Next i
+    IsAllDigits = True
+End Function
+
+' LTL, STL, CRM: a word with no vowel is an abbreviation, kept in capitals.
+Private Function NoVowel(ByVal u As String) As Boolean
+    Dim i As Long
+    For i = 1 To Len(u)
+        If InStr("AEIOUY", Mid$(u, i, 1)) > 0 Then Exit Function
+    Next i
+    NoVowel = (Len(u) > 1)
+End Function
+
+Private Function HasDigit(ByVal p As String) As Boolean
+    Dim i As Long, ch As String
+    For i = 1 To Len(p)
+        ch = Mid$(p, i, 1)
+        If ch >= "0" And ch <= "9" Then HasDigit = True: Exit Function
+    Next i
+End Function
+
+' "LIABILITIES& COMMITMENTS" -> "LIABILITIES & COMMITMENTS"; "P&L" is left as
+' it is. Runs of spaces become one.
+Private Function FixAmpersand(ByVal t As String) As String
+    Dim i As Long, ch As String, out As String, lft As String, rgt As String
+    For i = 1 To Len(t)
+        ch = Mid$(t, i, 1)
+        If ch = "&" Then
+            If i > 1 Then lft = Mid$(t, i - 1, 1) Else lft = " "
+            If i < Len(t) Then rgt = Mid$(t, i + 1, 1) Else rgt = " "
+            If (lft = " ") <> (rgt = " ") Then ch = " & "
+        End If
+        out = out & ch
+    Next i
+    Do While InStr(out, "  ") > 0
+        out = Replace(out, "  ", " ")
+    Loop
+    FixAmpersand = Trim$(out)
+End Function
+
+Private Function TitleWords(ByVal t As String, ByVal keep As String) As String
+    Dim words As Variant, i As Long, out As String, w As String
+    words = Split(t, " ")
+    For i = 0 To UBound(words)
+        w = CStr(words(i))
+        If Len(w) > 0 Then w = TitleWord(w, i = 0, UBound(words) = 0, keep)
+        If i > 0 Then out = out & " "
+        out = out & w
+    Next i
+    TitleWords = out
+End Function
+
+' One word: pieces between - / . ' ( ) & each cased on their own.
+Private Function TitleWord(ByVal w As String, ByVal first As Boolean, ByVal only As Boolean, _
+                           ByVal keep As String) As String
+    Dim i As Long, ch As String, piece As String, out As String, afterApos As Boolean, nPieces As Long
+    If w <> UCase$(w) Then TitleWord = w: Exit Function          ' already has lower case
+    If HasDigit(w) Then TitleWord = w: Exit Function
+    For i = 1 To Len(w) + 1
+        If i <= Len(w) Then ch = Mid$(w, i, 1) Else ch = ""
+        If ch = "-" Or ch = "/" Or ch = "." Or ch = "'" Or ch = "(" Or ch = ")" Or ch = "&" Or ch = "" Then
+            If Len(piece) > 0 Then
+                nPieces = nPieces + 1
+                out = out & CasePiece(piece, first And nPieces = 1, afterApos, _
+                                      Len(w) = Len(piece) And Not only, keep)
+            End If
+            afterApos = (ch = "'")
+            out = out & ch
+            piece = ""
+        Else
+            piece = piece & ch
+        End If
+    Next i
+    TitleWord = out
+End Function
+
+Private Function CasePiece(ByVal p As String, ByVal first As Boolean, ByVal afterApos As Boolean, _
+                           ByVal wholeWord As Boolean, ByVal keep As String) As String
+    Dim u As String
+    u = UCase$(p)
+    If afterApos Then CasePiece = LCase$(p): Exit Function          ' LC'S -> LC's
+    If KeptCaps(u, keep) Or NoVowel(u) Then CasePiece = u: Exit Function
+    If Len(u) = 1 And Not (wholeWord And u = "A") Then CasePiece = u: Exit Function
+    If wholeWord And Not first And IsSmallWord(u) Then CasePiece = LCase$(p): Exit Function
+    CasePiece = UCase$(Left$(p, 1)) & LCase$(Mid$(p, 2))
+End Function
+
+Private Function IsSmallWord(ByVal u As String) As Boolean
+    IsSmallWord = (InStr(1, " A AN AND AS AT BY FOR FROM IN INTO OF ON OR PER THE TO VIA VS WITH ", _
+                         " " & u & " ", vbBinaryCompare) > 0)
+End Function
+
+' Acronyms kept in capitals: the ones every ALM output uses, and any listed
+' under "Words kept in capitals" on Pivot fields.
+Public Function KeptCaps(ByVal u As String, Optional ByVal extra As String = "") As Boolean
+    Const BUILT_IN As String = " ALM ASF AC AED ATM BHD BV CASA CBE CD CDS CHF CNY COA CR DR EAD ECL EGP EMI EU EUR " & _
+        "FCY FVOCI FVTOCI FVTPL FX GBP GL HQLA ID IFRS INT IRS JOD JPY KSA KWD KYC LC LCR LCS LCY LG LGD LGS MBGL MM " & _
+        "NBE NII NIM NPA NPL NSFR OCI OD ODS OMR OVD PD POS QAR ROA ROE RSF SAR SME SMES SPV TB TD TDS UAE UK US USD VAT "
+    If InStr(1, BUILT_IN, " " & u & " ", vbBinaryCompare) > 0 Then KeptCaps = True: Exit Function
+    If Len(extra) > 0 Then
+        KeptCaps = (InStr(1, " " & UCase$(Replace(Replace(extra, ",", " "), ";", " ")) & " ", " " & u & " ", _
+                          vbBinaryCompare) > 0)
+    End If
+End Function

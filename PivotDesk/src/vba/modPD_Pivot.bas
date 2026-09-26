@@ -31,19 +31,38 @@ Private Const PT_STYLE As String = "PivotStyleMedium2"
 Private Const PT_CUSTOM As String = "Avati"
 Private Const SLICER_STYLE As String = "SlicerStyleDark1"
 
-' Where the pivot starts on a sheet: under the masthead and the slicer band.
-Private Const PIVOT_ROW As Long = 9
+' A built sheet, row by row:
+'
+'   1  the bar: the Avati mark, the book, Start here, previous and next
+'   2  title          3  what it is
+'   4  tiles: each value's grand total, live off the pivot
+'   5  spacer         6  slicers, when the sheet has them
+'   7  spacer         8  the pivot's filters, then the pivot itself
+'
+' The pivot is placed as many rows below row 8 as it has filters, so its
+' filters land on rows of their own and never on the chrome's.
+Private Const TILE_ROW As Long = 4
 Private Const SLICER_BAND_ROW As Long = 6
-Private Const SLICER_H As Double = 58
+Private Const FILTER_TOP As Long = 8
+Private Const SLICER_H As Double = 62
+' Where each tile's live figure is worked out: a cell far off to the right,
+' in the sheet's own colour, that the tile's text is linked to.
+Private Const TILE_HELPER_COL As Long = 240
+Private Const SLICER_CUSTOM As String = "Avati Slicer"
 
 Private mCache As PivotCache
 Private mSeq As Long
+Private mBook As String            ' "LCR  ·  MIDBANK CAIRO", on every sheet's bar
 Private mMade As Collection       ' Array(sheetName, what, rows, pre)
 
 Public Function MadeSheets() As Collection
     If mMade Is Nothing Then Set mMade = New Collection
     Set MadeSheets = mMade
 End Function
+
+Public Sub SetBook(ByVal crumb As String)
+    mBook = crumb
+End Sub
 
 Public Sub ResetPivots()
     Set mCache = Nothing
@@ -63,8 +82,9 @@ Public Function BuildOutputSheet(ByVal wb As Workbook, ByVal fw As String) As Wo
     Dim ws As Worksheet, pt As PivotTable
     Set ws = NewPivotSheet(wb, FwLabel(fw) & " Output", _
         "Every rule, in the order the engine evaluates them, against what it read and what it kept.", _
-        "The factor is post divided by pre, so it always agrees with the two figures beside it.")
-    Set pt = NewPivot(ws, "pt_output")
+        "The factor is post divided by pre, so it always agrees with the two figures beside it.", _
+        UCase$(FwLabel(fw)) & "  " & ChrW(183) & "  OUTPUT")
+    Set pt = NewPivot(ws, "pt_output", 1)
     If pt Is Nothing Then Exit Function
 
     pt.ManualUpdate = True
@@ -94,8 +114,9 @@ Public Function BuildBalanceSheet(ByVal wb As Workbook, ByVal fw As String) As W
     Dim ws As Worksheet, pt As PivotTable
     Set ws = NewPivotSheet(wb, SH_BALSHEET, _
         "The same balances as the balance sheet reads them, down to the COA.", _
-        "Pre-factor only - this is what the engine took in, before any weighting.")
-    Set pt = NewPivot(ws, "pt_bs")
+        "Pre-factor only - this is what the engine took in, before any weighting.", _
+        UCase$(FwLabel(fw)) & "  " & ChrW(183) & "  BALANCE SHEET")
+    Set pt = NewPivot(ws, "pt_bs", 1)
     If pt Is Nothing Then Exit Function
 
     pt.ManualUpdate = True
@@ -123,8 +144,9 @@ Public Function BuildRuleSheet(ByVal wb As Workbook, ByVal ruleName As String, _
                                ByVal tabName As String) As Worksheet
     Dim ws As Worksheet, pt As PivotTable
     Set ws = NewPivotSheet(wb, tabName, ruleName, _
-        filterField & ": " & filterValue & "   -   balances across the maturity buckets.")
-    Set pt = NewPivot(ws, "pt_" & mSeq)
+        filterField & ": " & filterValue & "   -   balances across the maturity buckets.", _
+        UCase$(filterValue) & "  " & ChrW(183) & "  ONE RULE")
+    Set pt = NewPivot(ws, "pt_" & mSeq, 2)
     If pt Is Nothing Then Exit Function
 
     pt.ManualUpdate = True
@@ -161,8 +183,8 @@ Public Function BuildCurrencySheet(ByVal wb As Workbook, ByVal ccy As String, _
                                    ByVal tabName As String) As Worksheet
     Dim ws As Worksheet, pt As PivotTable
     Set ws = NewPivotSheet(wb, tabName, ccy, _
-        "Every rule for this currency, across the maturity buckets.")
-    Set pt = NewPivot(ws, "pt_ccy" & mSeq)
+        "Every rule for this currency, across the maturity buckets.", "ONE CURRENCY")
+    Set pt = NewPivot(ws, "pt_ccy" & mSeq, 1)
     If pt Is Nothing Then Exit Function
 
     pt.ManualUpdate = True
@@ -213,8 +235,9 @@ Public Function BuildRecipeSheet(ByVal wb As Workbook, ByVal rc As Object, ByVal
         what = IIf(Len(about) > 0, about, title)
     End If
 
-    Set ws = NewPivotSheet(wb, tabName, title, about)
-    Set pt = NewPivot(ws, "pt_r")
+    Set ws = NewPivotSheet(wb, tabName, title, about, _
+        UCase$(FwLabel(fw)) & "  " & ChrW(183) & "  " & IIf(sf.count > 0, "ONE SHEET PER " & UCase$(JoinC(sf)), "PIVOT"))
+    Set pt = NewPivot(ws, "pt_r", sf.count + PageFilterCount(rc))
     If pt Is Nothing Then Exit Function
     pt.ManualUpdate = True
 
@@ -346,13 +369,14 @@ Private Sub FinishRecipe(ByVal pt As PivotTable, ByVal ws As Worksheet, ByVal rc
         Else
             .RepeatAllLabels xlDoNotRepeatLabels
         End If
-        .ShowDrillIndicators = True
+        .ShowDrillIndicators = False
         .EnableDrilldown = True
         .EnableFieldList = True
         .EnableWizard = True
         .DisplayFieldCaptions = True
         .ColumnGrand = CBool(rc("ColGrand"))
         .RowGrand = CBool(rc("RowGrand"))
+        .GrandTotalName = "Total"
         .HasAutoFormat = False
         .PreserveFormatting = True
         .NullString = "-"
@@ -361,7 +385,12 @@ Private Sub FinishRecipe(ByVal pt As PivotTable, ByVal ws As Worksheet, ByVal rc
     End With
     OrderBuckets pt
     SortRecipe pt, rc
-    FitRecipe ws, pt, rc, fl
+    FitPivot ws, pt, rc
+    If Not rc.Exists("Tiles") Then
+        PivotTiles ws, pt
+    ElseIf CBool(rc("Tiles")) Then
+        PivotTiles ws, pt
+    End If
     PrintPivot ws, pt
     Err.Clear
 End Sub
@@ -388,54 +417,89 @@ Private Sub SortRecipe(ByVal pt As PivotTable, ByVal rc As Object)
     Err.Clear
 End Sub
 
-' Widths from the recipe, then the FIELDS list, then the built-in guesses; the
-' figures all one width. Then the same zoom and frozen header as the built-in
-' sheets.
-Private Sub FitRecipe(ByVal ws As Worksheet, ByVal pt As PivotTable, ByVal rc As Object, ByVal fl As Object)
-    Dim rng As Range, c As Long, nLab As Long, lastCol As Long, total As Double, w As Double, x As Variant
+' Every label column as wide as its longest label, every figure column as wide
+' as its widest figure - a recipe's own Widths win - then the zoom that shows
+' the table on a laptop, the bar frozen at the top, and the cursor on the first
+' figure rather than on the chrome.
+Private Sub FitPivot(ByVal ws As Worksheet, ByVal pt As PivotTable, ByVal rc As Object)
+    Dim rng As Range, c As Long, i As Long, nLab As Long, lastCol As Long, total As Double, w As Double
+    Dim compact As Boolean, pf As PivotField, wd As Object, nm As String, t As String
     On Error Resume Next
     Set rng = pt.TableRange1
     If rng Is Nothing Then Exit Sub
-    lastCol = rng.Columns.count
-    If CLng(rc("Layout")) = 0 Then nLab = 1 Else nLab = rc("Rows").count
-    If nLab < 1 Then nLab = 1
-    For c = 1 To lastCol
-        If c <= nLab And rc("Rows").count > 0 Then
-            If CLng(rc("Layout")) = 0 Then
-                w = 0
-                For Each x In rc("Rows")
-                    If LabelWidth(CStr(x), rc, fl) > w Then w = LabelWidth(CStr(x), rc, fl)
-                Next x
+    If Not rc Is Nothing Then
+        compact = (CLng(rc("Layout")) = 0)
+        Set wd = rc("Widths")
+    End If
+    nLab = pt.RowFields.count
+    If compact And nLab > 1 Then nLab = 1
+    lastCol = rng.Column + rng.Columns.count - 1
+    For c = rng.Column To lastCol
+        i = c - rng.Column + 1
+        w = 0
+        If i <= nLab And pt.RowFields.count > 0 Then
+            If compact Then
+                For Each pf In pt.RowFields
+                    If LabelChars(pf) + 2 * (pf.Position - 1) > w Then w = LabelChars(pf) + 2 * (pf.Position - 1)
+                Next pf
+                nm = ""
             Else
-                w = LabelWidth(CStr(rc("Rows")(c)), rc, fl)
+                Set pf = pt.RowFields(i)
+                nm = pf.Name
+                w = LabelChars(pf)
             End If
+            If Not wd Is Nothing And Len(nm) > 0 Then
+                If wd.Exists(nm) Then w = CDbl(wd(nm))
+            End If
+            w = w + 3
+            If w > 62 Then w = 62
+            If w < 10 Then w = 10
         Else
-            w = CDbl(rc("ValueWidth"))
+            ' The widest figure in a column is its total; the header may be wider.
+            t = ws.Cells(rng.Row + rng.Rows.count - 1, c).Text
+            w = Len(t)
+            If Len(ws.Cells(rng.Row, c).Text) > w Then w = Len(ws.Cells(rng.Row, c).Text)
+            If Len(ws.Cells(rng.Row + 1, c).Text) > w Then w = Len(ws.Cells(rng.Row + 1, c).Text)
+            w = w + 4
+            If Not rc Is Nothing Then
+                If CDbl(rc("ValueWidth")) <> 14 Then w = CDbl(rc("ValueWidth"))
+            End If
+            If w < 12 Then w = 12
+            If w > 30 Then w = 30
         End If
-        If w < 4 Then w = 14
         ws.Columns(c).ColumnWidth = w
         total = total + w
     Next c
-    ws.Rows(modPD_Theme.R_HDR).RowHeight = 6
+    ' Filters and body on even rows, tall enough to read.
+    ws.Range(ws.Rows(FILTER_TOP), ws.Rows(rng.Row + rng.Rows.count + 400)).RowHeight = 20
+    ws.Rows(rng.Row - 1).RowHeight = 10
     ws.Activate
     ActiveWindow.DisplayGridlines = False
+    ActiveWindow.DisplayHeadings = False
     ActiveWindow.Zoom = ZoomFor(total)
     ActiveWindow.FreezePanes = False
-    ws.Cells(PIVOT_ROW + 2, nLab + 1).Select
+    ActiveWindow.ScrollRow = 1
+    ActiveWindow.ScrollColumn = 1
+    ws.Range("A2").Select
     ActiveWindow.FreezePanes = True
-    ws.Range("A1").Select
+    rng.Cells(IIf(pt.ColumnFields.count > 0, 3, 2), nLab + 1).Select
     Err.Clear
 End Sub
 
-Private Function LabelWidth(ByVal nm As String, ByVal rc As Object, ByVal fl As Object) As Double
-    Dim wd As Object
-    Set wd = rc("Widths")
-    If wd.Exists(nm) Then LabelWidth = CDbl(wd(nm)): Exit Function
-    If fl.Exists(nm) Then
-        If CDbl(fl(nm)("Width")) > 0 Then LabelWidth = CDbl(fl(nm)("Width")): Exit Function
-    End If
-    LabelWidth = 16
+' The longest item of a row field, and its heading, in characters.
+Private Function LabelChars(ByVal pf As PivotField) As Double
+    Dim pi As PivotItem, n As Long
+    On Error Resume Next
+    n = Len(pf.caption) + 3                 ' the heading and its filter button
+    For Each pi In pf.PivotItems
+        If pi.visible Then
+            If Len(pi.caption) > n Then n = Len(pi.caption)
+        End If
+    Next pi
+    LabelChars = n
+    Err.Clear
 End Function
+
 
 Private Sub RecipeTab(ByVal ws As Worksheet, ByVal tabWord As String)
     On Error Resume Next
@@ -461,7 +525,8 @@ End Function
 ' ===================== the mechanics ========================================
 
 Private Function NewPivotSheet(ByVal wb As Workbook, ByVal wanted As String, _
-                               ByVal title As String, ByVal about As String) As Worksheet
+                               ByVal title As String, ByVal about As String, _
+                               Optional ByVal overline As String = "") As Worksheet
     Dim ws As Worksheet, nm As String
     nm = FreeSheetName(wanted, wb)
     Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.count))
@@ -469,9 +534,13 @@ Private Function NewPivotSheet(ByVal wb As Workbook, ByVal wanted As String, _
     ws.Name = nm
     Err.Clear
     On Error GoTo 0
-    modPD_Theme.Dress ws, title, about
-    ws.Rows(modPD_Theme.R_STATUS).RowHeight = 6
-    BackLink ws
+    modPD_Theme.Dress ws, title, about, overline
+    modPD_Theme.BookBar ws, mBook, True
+    ' Until tiles or slicers arrive, their rows are only breathing room.
+    ws.Rows(TILE_ROW).RowHeight = 6
+    ws.Rows(5).RowHeight = 6
+    ws.Rows(SLICER_BAND_ROW).RowHeight = 4
+    ws.Rows(7).RowHeight = 8
     ' Tabs say what kind of sheet they are before they are opened: the
     ' overviews in emerald, the local-currency sheets deep green, foreign
     ' currency slate.
@@ -483,12 +552,34 @@ Private Function NewPivotSheet(ByVal wb As Workbook, ByVal wanted As String, _
     Set NewPivotSheet = ws
 End Function
 
-Private Function NewPivot(ByVal ws As Worksheet, ByVal nm As String) As PivotTable
+' A pivot placed so its filters - there will be nPages of them - sit on rows
+' of their own from row 8, with one blank row between them and the table.
+Private Function NewPivot(ByVal ws As Worksheet, ByVal nm As String, ByVal nPages As Long) As PivotTable
     On Error Resume Next
     mSeq = mSeq + 1
-    Set NewPivot = mCache.CreatePivotTable(TableDestination:=ws.Cells(PIVOT_ROW, 1), _
+    Set NewPivot = mCache.CreatePivotTable(TableDestination:=ws.Cells(FILTER_TOP + nPages + 1, 1), _
                                            TableName:=nm & "_" & mSeq)
     Err.Clear
+End Function
+
+' How many report filters a recipe's pivot will carry beyond its one-sheet-
+' per fields: the Show only / hide rules on fields that are not on an axis.
+Private Function PageFilterCount(ByVal rc As Object) As Long
+    Dim flt As Object, seen As Object
+    Set seen = NewMap()
+    For Each flt In rc("Filters")
+        If Not modPD_Config.InCollection(rc("Rows"), CStr(flt("Field"))) And _
+           Not modPD_Config.InCollection(rc("Cols"), CStr(flt("Field"))) Then seen(CStr(flt("Field"))) = True
+    Next flt
+    PageFilterCount = seen.count
+End Function
+
+Private Function JoinC(ByVal c As Collection) As String
+    Dim i As Long
+    For i = 1 To c.count
+        If i > 1 Then JoinC = JoinC & " and "
+        JoinC = JoinC & CStr(c(i))
+    Next i
 End Function
 
 Private Sub RowField(ByVal pt As PivotTable, ByVal nm As String, ByVal pos As Long)
@@ -595,13 +686,14 @@ Private Sub Finish(ByVal pt As PivotTable, ByVal ws As Worksheet)
         .ShowTableStyleRowHeaders = True
         .RowAxisLayout xlTabularRow          ' one field per column, not nested
         .RepeatAllLabels xlDoNotRepeatLabels
-        .ShowDrillIndicators = True
+        .ShowDrillIndicators = False         ' no +/- boxes down the labels
         .EnableDrilldown = True
         .EnableFieldList = True
         .EnableWizard = True
         .DisplayFieldCaptions = True
         .ColumnGrand = True
         .RowGrand = True
+        .GrandTotalName = "Total"
         .HasAutoFormat = False               ' stop autofit fighting the widths
         .PreserveFormatting = True
         .NullString = "-"                    ' an empty cell reads as nothing
@@ -609,7 +701,8 @@ Private Sub Finish(ByVal pt As PivotTable, ByVal ws As Worksheet)
         .ManualUpdate = False
     End With
     OrderBuckets pt
-    FitColumns ws, pt
+    FitPivot ws, pt, Nothing
+    PivotTiles ws, pt
     PrintPivot ws, pt
     Err.Clear
 End Sub
@@ -654,11 +747,104 @@ Private Sub PrintPivot(ByVal ws As Worksheet, ByVal pt As PivotTable)
         .Zoom = False
         .FitToPagesWide = 1
         .FitToPagesTall = False
-        .LeftFooter = "&8" & TOOL_NAME & "  " & ChrW(183) & "  &F"
-        .CenterFooter = "&8&A"
+        .BlackAndWhite = True
+        .CenterHeader = "&""Segoe UI Semibold,Regular""&11&A"
+        .LeftFooter = "&8" & TOOL_NAME & " ALM Desk  " & ChrW(183) & "  &F"
+        .CenterFooter = ""
         .RightFooter = "&8Page &P of &N"
     End With
     Application.PrintCommunication = True
+    Err.Clear
+End Sub
+
+' ===================== tiles ================================================
+'
+' Up to four tiles over a pivot, one per value: its grand total. Each is kept
+' live by GETPIVOTDATA in a cell far to the right, and the tile's text is
+' linked to that cell - so a slicer, a filter or a refresh moves the pivot and
+' the tile follows. Values shown as a share of something have no total worth
+' a tile and are passed over.
+Private Sub PivotTiles(ByVal ws As Worksheet, ByVal pt As PivotTable)
+    Dim df As PivotField, n As Long, x As Double, cell As Range, mag As Double, anchor As String, cap As String
+    On Error Resume Next
+    anchor = pt.TableRange1.Cells(1, 1).Address
+    x = 14
+    For Each df In pt.DataFields
+        If n >= 4 Then Exit For
+        If df.Calculation = xlNoAdditionalCalculation Then
+            n = n + 1
+            cap = df.caption
+            Set cell = ws.Cells(TILE_ROW, TILE_HELPER_COL + n)
+            cell.Formula = "=IFERROR(GETPIVOTDATA(""" & Replace(cap, """", """""") & """," & anchor & "),""-"")"
+            mag = Abs(SafeNum(pt.GetPivotData(cap).value))
+            cell.NumberFormat = CompactFormat(mag, df.Function)
+            cell.HorizontalAlignment = xlLeft
+            cell.Font.Color = modPD_Theme.C_SHEET
+            modPD_Theme.Tile ws, "pdb_tile" & n, x, ws.Rows(TILE_ROW).Top + 8, 196, 50, _
+                             UCase$(Trim$(cap)) & IIf(df.Function = xlCount, "", "  " & ChrW(183) & "  TOTAL"), "", cell
+            x = x + 206
+        End If
+    Next df
+    If n > 0 Then ws.Rows(TILE_ROW).RowHeight = 66
+    Err.Clear
+End Sub
+
+' The unit a figure of this size is best read in.
+Private Function CompactFormat(ByVal mag As Double, ByVal fn As Long) As String
+    If fn = xlCount Then
+        CompactFormat = "#,##0"
+    ElseIf mag >= 1000000000# Then
+        CompactFormat = "#,##0.00,,,"" bn"";-#,##0.00,,,"" bn"";""-"""
+    ElseIf mag >= 1000000# Then
+        CompactFormat = "#,##0.0,,"" m"";-#,##0.0,,"" m"";""-"""
+    Else
+        CompactFormat = NUM_FMT
+    End If
+End Function
+
+' ===================== between sheets =======================================
+'
+' Previous and next on every pivot sheet's bar, in the order the index lists
+' them - a family of forty rule sheets is read one after another, not by
+' going back to the index each time. Links, not macros: the book has none.
+Public Sub LinkSiblings(ByVal wb As Workbook)
+    Dim made As Collection, i As Long, ws As Worksheet, sh As Shape, nm As String
+    On Error Resume Next
+    Set made = MadeSheets()
+    For i = 1 To made.count
+        Set ws = Nothing
+        Set ws = wb.Worksheets(CStr(made(i)(0)))
+        If Not ws Is Nothing Then
+            If i > 1 Then
+                nm = CStr(made(i - 1)(0))
+                Set sh = modPD_Theme.Pill(ws, "pdb_prev", ChrW(8249) & "  Previous", "", 0, 8, 88, 24, 0)
+                PlaceAfterBack ws, sh, 0
+                ws.Hyperlinks.Add Anchor:=sh, Address:="", SubAddress:="'" & Replace(nm, "'", "''") & "'!A1", _
+                                  ScreenTip:=nm
+            End If
+            If i < made.count Then
+                nm = CStr(made(i + 1)(0))
+                Set sh = modPD_Theme.Pill(ws, "pdb_next", "Next  " & ChrW(8250), "", 0, 8, 72, 24, 0)
+                PlaceAfterBack ws, sh, 94
+                ws.Hyperlinks.Add Anchor:=sh, Address:="", SubAddress:="'" & Replace(nm, "'", "''") & "'!A1", _
+                                  ScreenTip:=nm
+            End If
+        End If
+    Next i
+    Err.Clear
+End Sub
+
+Private Sub PlaceAfterBack(ByVal ws As Worksheet, ByVal sh As Shape, ByVal offset As Double)
+    Dim back As Shape
+    On Error Resume Next
+    Set back = ws.Shapes("pdb_back")
+    If back Is Nothing Then Exit Sub
+    sh.Left = back.Left + back.Width + 8 + offset
+    sh.Top = back.Top
+    ' Quiet pills on the black bar, with a hairline so they read as buttons.
+    sh.Line.visible = msoTrue
+    sh.Line.ForeColor.RGB = modPD_Theme.C_LINE_2
+    sh.Line.Weight = 0.75
     Err.Clear
 End Sub
 
@@ -669,56 +855,7 @@ End Sub
 ' no decimals and a thousands separator has a known size. Then the sheet's own
 ' zoom is set from how wide the result came out, so it lands on screen whatever
 ' the pivot turned out to be.
-Private Sub FitColumns(ByVal ws As Worksheet, ByVal pt As PivotTable)
-    Dim rng As Range, c As Long, firstData As Long, lastCol As Long, total As Double
 
-    On Error Resume Next
-    Set rng = pt.TableRange1
-    If rng Is Nothing Then Exit Sub
-    lastCol = rng.Columns.count
-    firstData = pt.RowFields.count
-    If firstData < 1 Then firstData = 1
-
-    For c = 1 To lastCol
-        If c <= firstData Then
-            ws.Columns(c).ColumnWidth = RowLabelWidth(pt, c)
-        Else
-            ws.Columns(c).ColumnWidth = 14
-        End If
-        total = total + ws.Columns(c).ColumnWidth
-    Next c
-
-    ws.Rows(modPD_Theme.R_HDR).RowHeight = 6
-    ' A rough character-width budget for a laptop screen. Clamped so it never
-    ' goes so small the figures cannot be read.
-    ws.Activate
-    ActiveWindow.DisplayGridlines = False
-    ActiveWindow.Zoom = ZoomFor(total)
-    ActiveWindow.FreezePanes = False
-    ws.Cells(PIVOT_ROW + 2, firstData + 1).Select
-    ActiveWindow.FreezePanes = True
-    ws.Range("A1").Select
-    Err.Clear
-End Sub
-
-Private Function RowLabelWidth(ByVal pt As PivotTable, ByVal c As Long) As Double
-    Dim nm As String
-    On Error Resume Next
-    nm = pt.RowFields(c).Name
-    Select Case True
-        Case InStr(1, nm, H_COA_NAME, vbTextCompare) > 0: RowLabelWidth = 38
-        Case InStr(1, nm, H_SUBLINE, vbTextCompare) > 0: RowLabelWidth = 34
-        Case InStr(1, nm, H_LINE, vbTextCompare) > 0: RowLabelWidth = 34
-        Case InStr(1, nm, H_RULE_NAME, vbTextCompare) > 0: RowLabelWidth = 40
-        Case InStr(1, nm, H_RULE_CAT, vbTextCompare) > 0: RowLabelWidth = 18
-        Case InStr(1, nm, H_TYPE, vbTextCompare) > 0: RowLabelWidth = 14
-        Case InStr(1, nm, H_FACTOR, vbTextCompare) > 0: RowLabelWidth = 9
-        Case InStr(1, nm, H_RULE_ORDER, vbTextCompare) > 0: RowLabelWidth = 8
-        Case Else: RowLabelWidth = 16
-    End Select
-    If RowLabelWidth = 0 Then RowLabelWidth = 16
-    Err.Clear
-End Function
 
 Private Function ZoomFor(ByVal totalWidth As Double) As Long
     Dim z As Long
@@ -757,11 +894,11 @@ Private Sub Slicers(ByVal ws As Worksheet, ByVal pt As PivotTable, ByRef fields 
     ' The slicers get a band of their own between the masthead and the pivot,
     ' so they sit over nothing.
     On Error Resume Next
-    ws.Rows(SLICER_BAND_ROW).RowHeight = SLICER_H + 10
-    yTop = ws.Rows(SLICER_BAND_ROW).Top + 5
+    ws.Rows(SLICER_BAND_ROW).RowHeight = SLICER_H + 12
+    yTop = ws.Rows(SLICER_BAND_ROW).Top + 6
     Err.Clear
     On Error GoTo 0
-    x = 8
+    x = 14
     For i = 0 To UBound(fields)
         nm = CStr(fields(i))
         Set sc = Nothing
@@ -781,7 +918,7 @@ Private Sub Slicers(ByVal ws As Worksheet, ByVal pt As PivotTable, ByRef fields 
             LogIt V_CHECK, "Slicer", "No slicer for " & Chr$(34) & nm & Chr$(34) & " - " & why, ws.Name
         Else
             On Error Resume Next
-            sl.style = SLICER_STYLE
+            sl.style = SlicerStyleFor(ws.Parent)
             sl.NumberOfColumns = 2
             sl.RowHeight = 15
             sl.caption = nm
@@ -829,29 +966,12 @@ Private Sub NoteSheet(ByVal ws As Worksheet, ByVal what As String)
     MadeSheets.Add Array(ws.Name, what)
 End Sub
 
-' "< Start here" in the black band of every pivot sheet. A hyperlink rather
-' than a button: the built workbook carries no macros, and a link works for
-' whoever it is emailed to.
-Private Sub BackLink(ByVal ws As Worksheet)
-    On Error Resume Next
-    ws.Hyperlinks.Add Anchor:=ws.Cells(modPD_Theme.R_BAR, 1), Address:="", _
-                      SubAddress:="'" & SH_GUIDE & "'!A1", ScreenTip:="Back to the index of this workbook", _
-                      TextToDisplay:=ChrW(8249) & "  " & SH_GUIDE
-    With ws.Cells(modPD_Theme.R_BAR, 1)
-        .Font.Name = modPD_Theme.UI_SEMI
-        .Font.Size = 8.5
-        .Font.Underline = xlUnderlineStyleNone
-        .Font.Color = modPD_Theme.HX("4FC79C")
-        .IndentLevel = 1
-        .VerticalAlignment = xlCenter
-        .WrapText = False
-    End With
-    Err.Clear
-End Sub
 
-' The Avati pivot style, made once per workbook: a black header with
-' mint type, quiet mist banding, hairlines between rows and a grand total
-' that reads as the total - on an emerald-tinted band with a rule above it.
+' The Avati pivot style, made once per workbook: the Desk's rows - near-black,
+' every other one a shade lighter, hairlines between - a black header with
+' mint type over an emerald rule, subtotals a step brighter, and the total on
+' the deep emerald band with a rule above it. The grand-total column's heading
+' is set explicitly: left to inherit, it was pale type on a pale fill.
 '
 ' Element indexes are the XlTableStyleElementType values, written as numbers
 ' so a name this Excel does not know is a skipped line, not a module that
@@ -869,51 +989,131 @@ Private Function PivotStyleFor(ByVal wb As Workbook) As String
         ts.ShowAsAvailablePivotTableStyle = True
         ts.ShowAsAvailableTableStyle = False
         With ts.TableStyleElements(0)                  ' whole table
+            .Interior.Color = modPD_Theme.C_ROW
+            .Font.Color = modPD_Theme.C_TEXT
             .Borders(12).LineStyle = xlContinuous      ' inside horizontal
-            .Borders(12).Color = modPD_Theme.C_HAIR
+            .Borders(12).Color = modPD_Theme.C_LINE
             .Borders(9).LineStyle = xlContinuous       ' bottom edge
-            .Borders(9).Color = modPD_Theme.C_HAIR
-            .Font.Color = modPD_Theme.C_BODY
+            .Borders(9).Color = modPD_Theme.C_LINE_2
         End With
         With ts.TableStyleElements(1)                  ' header row
             .Interior.Color = modPD_Theme.C_INK
             .Font.Color = modPD_Theme.C_BRAND_SOFT
             .Font.Bold = True
+            .Borders(9).LineStyle = xlContinuous
+            .Borders(9).Color = modPD_Theme.C_BRAND
+            .Borders(9).Weight = xlMedium
         End With
         With ts.TableStyleElements(9)                  ' first header cell
             .Interior.Color = modPD_Theme.C_INK
             .Font.Color = modPD_Theme.C_BRAND_SOFT
             .Font.Bold = True
         End With
-        With ts.TableStyleElements(2)                  ' grand total row
-            .Interior.Color = modPD_Theme.C_BRAND_TINT
+        With ts.TableStyleElements(10)                 ' last header cell: the Total column's heading
+            .Interior.Color = modPD_Theme.C_INK
+            .Font.Color = modPD_Theme.C_TEXT
             .Font.Bold = True
-            .Font.Color = modPD_Theme.C_INK
+        End With
+        With ts.TableStyleElements(2)                  ' grand total row
+            .Interior.Color = modPD_Theme.C_TOTAL
+            .Font.Bold = True
+            .Font.Color = modPD_Theme.C_TEXT
             .Borders(8).LineStyle = xlContinuous       ' top edge
             .Borders(8).Color = modPD_Theme.C_BRAND
             .Borders(8).Weight = xlMedium
         End With
         With ts.TableStyleElements(4)                  ' grand total column
-            .Interior.Color = modPD_Theme.C_MIST
+            .Interior.Color = modPD_Theme.HX("16271F")
+            .Font.Color = modPD_Theme.C_TEXT
             .Font.Bold = True
         End With
         With ts.TableStyleElements(5)                  ' row stripe 1
-            .Interior.Color = modPD_Theme.C_MIST
+            .Interior.Color = modPD_Theme.C_ROW_ALT
+        End With
+        With ts.TableStyleElements(16)                 ' subtotal row 1
+            .Interior.Color = modPD_Theme.HX("16271F")
+            .Font.Bold = True
+            .Font.Color = modPD_Theme.C_TEXT
+        End With
+        With ts.TableStyleElements(17)                 ' subtotal row 2
+            .Interior.Color = modPD_Theme.C_ROW_ALT
+            .Font.Bold = True
         End With
         With ts.TableStyleElements(20)                 ' column subheading 1
+            .Interior.Color = modPD_Theme.C_INK
+            .Font.Color = modPD_Theme.C_BRAND_SOFT
             .Font.Bold = True
         End With
         With ts.TableStyleElements(23)                 ' row subheading 1
             .Font.Bold = True
+            .Font.Color = modPD_Theme.C_TEXT
         End With
         With ts.TableStyleElements(26)                 ' report filter labels
+            .Interior.Color = modPD_Theme.C_ROW_ALT
             .Font.Bold = True
-            .Font.Color = modPD_Theme.C_MUTED
+            .Font.Color = modPD_Theme.C_LINK
         End With
         With ts.TableStyleElements(27)                 ' report filter values
-            .Font.Color = modPD_Theme.C_BODY
+            .Interior.Color = modPD_Theme.C_ROW
+            .Font.Color = modPD_Theme.C_TEXT
         End With
     End If
     If ts Is Nothing Then PivotStyleFor = PT_STYLE Else PivotStyleFor = PT_CUSTOM
+    Err.Clear
+End Function
+
+' The slicers in the same room: dark tiles, the chosen items in emerald, the
+' ones with no data dimmed.
+Private Function SlicerStyleFor(ByVal wb As Workbook) As String
+    Dim ts As TableStyle
+    On Error Resume Next
+    Set ts = wb.TableStyles(SLICER_CUSTOM)
+    If ts Is Nothing Then
+        Set ts = wb.TableStyles.Add(SLICER_CUSTOM)
+        If ts Is Nothing Then
+            SlicerStyleFor = SLICER_STYLE
+            Exit Function
+        End If
+        ts.ShowAsAvailableSlicerStyle = True
+        ts.ShowAsAvailablePivotTableStyle = False
+        ts.ShowAsAvailableTableStyle = False
+        With ts.TableStyleElements(0)                  ' whole slicer
+            .Interior.Color = modPD_Theme.C_ROW
+            .Font.Color = modPD_Theme.C_TEXT_2
+            .Borders(xlEdgeLeft).Color = modPD_Theme.C_LINE_2
+            .Borders(xlEdgeTop).Color = modPD_Theme.C_LINE_2
+            .Borders(xlEdgeRight).Color = modPD_Theme.C_LINE_2
+            .Borders(xlEdgeBottom).Color = modPD_Theme.C_LINE_2
+        End With
+        With ts.TableStyleElements(1)                  ' header
+            .Font.Color = modPD_Theme.C_TEXT
+            .Font.Bold = True
+        End With
+        With ts.TableStyleElements(28)                 ' unselected, with data
+            .Interior.Color = modPD_Theme.C_ROW_ALT
+            .Font.Color = modPD_Theme.C_TEXT_2
+        End With
+        With ts.TableStyleElements(29)                 ' unselected, no data
+            .Interior.Color = modPD_Theme.C_ROW
+            .Font.Color = modPD_Theme.C_TX4
+        End With
+        With ts.TableStyleElements(30)                 ' selected, with data
+            .Interior.Color = modPD_Theme.C_BRAND_DEEP
+            .Font.Color = modPD_Theme.C_TEXT
+        End With
+        With ts.TableStyleElements(31)                 ' selected, no data
+            .Interior.Color = modPD_Theme.C_BRAND_900
+            .Font.Color = modPD_Theme.C_TEXT_3
+        End With
+        With ts.TableStyleElements(32)                 ' hovered, unselected
+            .Interior.Color = modPD_Theme.HX("16271F")
+            .Font.Color = modPD_Theme.C_TEXT
+        End With
+        With ts.TableStyleElements(33)                 ' hovered, selected
+            .Interior.Color = modPD_Theme.C_BRAND
+            .Font.Color = modPD_Theme.C_TEXT
+        End With
+    End If
+    If ts Is Nothing Then SlicerStyleFor = SLICER_STYLE Else SlicerStyleFor = SLICER_CUSTOM
     Err.Clear
 End Function

@@ -61,11 +61,14 @@ Private Const R_GROUPS As Long = 6
 Private Const G_NAME As Long = 1
 Private Const G_SOURCE As Long = 2
 Private Const G_KIND As Long = 3
-Private Const G_BLANK As Long = 4
-Private Const G_WIDTH As Long = 5
-Private Const G_FORMAT As Long = 6
-Private Const G_NOTE As Long = 7
-Private Const G_LAST As Long = 7
+Private Const G_LABELS As Long = 4
+Private Const G_BLANK As Long = 5
+Private Const G_WIDTH As Long = 6
+Private Const G_FORMAT As Long = 7
+Private Const G_NOTE As Long = 8
+Private Const G_LAST As Long = 8
+' "Words kept in capitals", beside the table: its heading and its value.
+Private Const G_KEEP_COL As Long = 10
 
 ' Computed sources: not columns of the file, but worked out while staging.
 Public Const SRC_PRE As String = "=PRE"
@@ -142,11 +145,16 @@ Done:
 End Sub
 
 Public Sub BuildFieldsSheet(Optional ByVal withDefaults As Boolean = False)
-    Dim ws As Worksheet, fresh As Boolean
+    Dim ws As Worksheet, fresh As Boolean, old As Collection
     Set ws = GetSheet(SH_FIELDS)
     fresh = ws Is Nothing
     Set ws = EnsureSheet(SH_FIELDS)
-    If fresh Or withDefaults Then
+    ' A sheet from an older version has other columns: its rows are read by
+    ' heading and put back under the same headings after the rebuild.
+    If Not fresh And Not withDefaults Then
+        If Not HeadersMatch(ws, FieldHeads()) Then Set old = Remember(ws)
+    End If
+    If fresh Or withDefaults Or Not old Is Nothing Then
         ws.Cells.Clear
         ws.Cells.Validation.Delete
     End If
@@ -154,11 +162,12 @@ Public Sub BuildFieldsSheet(Optional ByVal withDefaults As Boolean = False)
         "Every column a pivot or a chart may name. The first thirteen are built in; add any column of an " & _
         "output under a name of your own, and use that name anywhere.", _
         "REPORTS  " & ChrW(183) & "  FIELDS"
-    modPD_Theme.Head ws, Array("Field", "Source column", "Kind", "Blank shows as", "Width", "Number format", "Note"), _
-                        Array(26, 42, 10, 20, 8, 22, 64)
+    modPD_Theme.Head ws, FieldHeads(), Array(26, 42, 11, 24, 20, 8, 22, 56)
+    If Not old Is Nothing Then PutBack ws, old, FieldHeads()
     If fresh Or withDefaults Or Len(SafeText(ws.Cells(modPD_Theme.R_FIRST, G_NAME).Value2)) = 0 Then
         WriteDefaultFields ws
     End If
+    KeepBlock ws
     modPD_Theme.SetStatus ws, FieldCount(ws) & " fields. Built-in fields cannot be renamed; any other row can " & _
         "be changed, and new ones added at the bottom.", "Idle"
     DressFields ws
@@ -300,6 +309,9 @@ Private Sub FieldHints(ByVal ws As Worksheet)
          "COUNTERPARTY_NAME. Case and spacing do not matter."
     ListRule ws, r1, r2, G_KIND, "Text,Number,Date", "Kind", _
          "Text is grouped by; Number can be summed; Date is grouped as a date."
+    ListRule ws, r1, r2, G_LABELS, "As is,Drop codes,Drop codes + title case,Title case", "Labels", _
+         "How the values read in a pivot. Drop codes turns 1.07.00.MBGL.1360.LOANS TO CUSTOMERS into LOANS TO " & _
+         "CUSTOMERS; title case makes it Loans to Customers. Blank: this field's default."
     Hint ws, r1, r2, G_BLANK, "Blank shows as", "What a blank cell reads as in a pivot, " & _
          "e.g. (no sector). A named item can be hidden; a true blank cannot, reliably."
     Hint ws, r1, r2, G_WIDTH, "Width", "Column width when this field is on the rows."
@@ -394,9 +406,138 @@ Private Sub WriteDefaultFields(ByVal ws As Worksheet)
     ws.Range(ws.Cells(r, 1), ws.Cells(r + 200, G_LAST)).ClearContents
     For Each f In DefaultFields()
         ws.Range(ws.Cells(r, 1), ws.Cells(r, G_LAST)).NumberFormat = "@"
-        ws.Range(ws.Cells(r, 1), ws.Cells(r, G_LAST)).Value2 = f
+        ws.Range(ws.Cells(r, 1), ws.Cells(r, G_LAST)).Value2 = _
+            Array(f(0), f(1), f(2), DefaultLabels(CStr(f(0))), f(3), f(4), f(5), f(6))
         r = r + 1
     Next f
+End Sub
+
+Public Function FieldHeads() As Variant
+    FieldHeads = Array("Field", "Source column", "Kind", "Labels", "Blank shows as", "Width", "Number format", "Note")
+End Function
+
+' How each field's values read in a pivot. The ledger's own names carry their
+' codes in front and are set in capitals; those are tidied by default.
+Private Function DefaultLabels(ByVal nm As String) As String
+    Select Case nm
+        Case H_LINE, H_SUBLINE, H_COA_NAME: DefaultLabels = "Drop codes + title case"
+        Case "Counterparty", "Sector", "Report class", "Cashflow element", "Product": DefaultLabels = "Title case"
+        Case Else: DefaultLabels = "As is"
+    End Select
+End Function
+
+' The Labels setting as TidyLabel's mode. Blank means the field's default.
+Public Function LabelMode(ByVal nm As String, ByVal setting As String) As Long
+    If Len(Trim$(setting)) = 0 Then setting = DefaultLabels(nm)
+    Select Case LCase$(Trim$(setting))
+        Case "drop codes": LabelMode = 1
+        Case "drop codes + title case", "drop codes and title case": LabelMode = 2
+        Case "title case": LabelMode = 3
+        Case Else: LabelMode = 0
+    End Select
+End Function
+
+' Beside the table: acronyms of the bank's own to keep in capitals when a
+' field is set to title case.
+Private Sub KeepBlock(ByVal ws As Worksheet)
+    On Error Resume Next
+    ws.Columns(G_KEEP_COL - 1).ColumnWidth = 3
+    ws.Columns(G_KEEP_COL).ColumnWidth = 44
+    With ws.Cells(modPD_Theme.R_HDR, G_KEEP_COL)
+        .Value2 = "Words kept in capitals"
+        .Font.Name = modPD_Theme.UI_SEMI
+        .Font.Size = 8.5
+        .Font.Color = modPD_Theme.C_BRAND_SOFT
+        .Interior.Color = modPD_Theme.C_INK
+        .IndentLevel = 1
+        .VerticalAlignment = xlCenter
+        .Borders(xlEdgeBottom).LineStyle = xlContinuous
+        .Borders(xlEdgeBottom).Color = modPD_Theme.C_BRAND
+        .Borders(xlEdgeBottom).Weight = xlMedium
+    End With
+    With ws.Cells(modPD_Theme.R_FIRST, G_KEEP_COL)
+        .NumberFormat = "@"
+        .Interior.Color = modPD_Theme.C_ROW_ALT
+        .Font.Color = modPD_Theme.C_TEXT
+        .IndentLevel = 1
+        .WrapText = True
+        .VerticalAlignment = xlTop
+    End With
+    ws.Rows(modPD_Theme.R_FIRST).RowHeight = 34
+    With ws.Cells(modPD_Theme.R_FIRST + 1, G_KEEP_COL)
+        .Value2 = "Yours, separated by commas. Built in already: ALM, ECL, FVTOCI, IFRS, LCR, LCY, FCY, " & _
+                  "NSFR, OCI, NPL, SME, USD, EGP and about fifty more."
+        .Font.Size = 8.5
+        .Font.Color = modPD_Theme.C_TEXT_3
+        .WrapText = True
+        .IndentLevel = 1
+        .VerticalAlignment = xlTop
+    End With
+    ws.Rows(modPD_Theme.R_FIRST + 1).RowHeight = 34
+    With ws.Cells(modPD_Theme.R_FIRST, G_KEEP_COL).Validation
+        .Delete
+        .Add Type:=xlValidateInputOnly
+        .InputTitle = "Words kept in capitals"
+        .InputMessage = "Acronyms your outputs use that title case should leave alone, e.g. QNB, CIB, NBE."
+        .ShowInput = True
+    End With
+    Err.Clear
+End Sub
+
+Public Function KeepCapsList() As String
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = GetSheet(SH_FIELDS)
+    If Not ws Is Nothing Then KeepCapsList = SafeText(ws.Cells(modPD_Theme.R_FIRST, G_KEEP_COL).Value2)
+    Err.Clear
+End Function
+
+' ===================== older sheets =========================================
+'
+' A sheet built by an older version has other columns. Its rows are read by
+' heading before the sheet is rebuilt and written back under the same headings
+' after, so adding a column never shifts anyone's rows.
+
+Private Function HeadersMatch(ByVal ws As Worksheet, ByVal heads As Variant) As Boolean
+    Dim c As Long
+    For c = 0 To UBound(heads)
+        If StrComp(SafeText(ws.Cells(modPD_Theme.R_HDR, c + 1).Value2), CStr(heads(c)), vbTextCompare) <> 0 Then Exit Function
+    Next c
+    HeadersMatch = True
+End Function
+
+Private Function Remember(ByVal ws As Worksheet) As Collection
+    Dim out As Collection, r As Long, c As Long, lastC As Long, lastR As Long, d As Object, h As String, any_ As Boolean
+    Set out = New Collection
+    Set Remember = out
+    lastC = ws.Cells(modPD_Theme.R_HDR, ws.Columns.count).End(xlToLeft).Column
+    lastR = ws.Cells(ws.Rows.count, 2).End(xlUp).Row
+    For r = modPD_Theme.R_FIRST To lastR
+        Set d = NewMap()
+        any_ = False
+        For c = 1 To lastC
+            h = SafeText(ws.Cells(modPD_Theme.R_HDR, c).Value2)
+            If Len(h) > 0 Then
+                d(h) = SafeText(ws.Cells(r, c).Value2)
+                If Len(d(h)) > 0 Then any_ = True
+            End If
+        Next c
+        If any_ Then out.Add d
+    Next r
+End Function
+
+Private Sub PutBack(ByVal ws As Worksheet, ByVal rows As Collection, ByVal heads As Variant)
+    Dim d As Object, r As Long, c As Long
+    r = modPD_Theme.R_FIRST
+    For Each d In rows
+        For c = 0 To UBound(heads)
+            If d.Exists(CStr(heads(c))) Then
+                ws.Cells(r, c + 1).NumberFormat = "@"
+                ws.Cells(r, c + 1).Value2 = d(CStr(heads(c)))
+            End If
+        Next c
+        r = r + 1
+    Next d
 End Sub
 
 ' Built in first - the thirteen columns 1.0 always staged, under the names its
@@ -473,7 +614,7 @@ Public Function Fields() As Object
     Set ws = GetSheet(SH_FIELDS)
     If ws Is Nothing Then
         For Each v In DefaultFields()
-            AddField d, v(0), v(1), v(2), v(3), v(4), v(5), bi
+            AddField d, v(0), v(1), v(2), v(3), v(4), v(5), bi, ""
         Next v
         Exit Function
     End If
@@ -483,18 +624,19 @@ Public Function Fields() As Object
         If Not d.Exists(nm) Then
             AddField d, nm, SafeText(ws.Cells(r, G_SOURCE).Value2), SafeText(ws.Cells(r, G_KIND).Value2), _
                      SafeText(ws.Cells(r, G_BLANK).Value2), SafeText(ws.Cells(r, G_WIDTH).Value2), _
-                     SafeText(ws.Cells(r, G_FORMAT).Value2), bi
+                     SafeText(ws.Cells(r, G_FORMAT).Value2), bi, SafeText(ws.Cells(r, G_LABELS).Value2)
         End If
         r = r + 1
     Loop
     ' A built-in that was deleted or renamed on the sheet is still built in.
     For Each v In DefaultFields()
-        If bi.Exists(CStr(v(0))) And Not d.Exists(CStr(v(0))) Then AddField d, v(0), v(1), v(2), v(3), v(4), v(5), bi
+        If bi.Exists(CStr(v(0))) And Not d.Exists(CStr(v(0))) Then AddField d, v(0), v(1), v(2), v(3), v(4), v(5), bi, ""
     Next v
 End Function
 
 Private Sub AddField(ByVal d As Object, ByVal nm As String, ByVal src As String, ByVal kind As String, _
-                     ByVal blank As String, ByVal w As String, ByVal fmt As String, ByVal bi As Object)
+                     ByVal blank As String, ByVal w As String, ByVal fmt As String, ByVal bi As Object, _
+                     ByVal labels As String)
     Dim f As Object
     Set f = NewMap()
     f("Name") = nm
@@ -508,6 +650,7 @@ Private Sub AddField(ByVal d As Object, ByVal nm As String, ByVal src As String,
     f("Width") = SafeNum(w)
     f("Format") = fmt
     f("Builtin") = bi.Exists(nm)
+    f("Labels") = LabelMode(nm, labels)
     Set d(nm) = f
 End Sub
 
