@@ -1,4 +1,4 @@
-# PivotDesk 2.0 — look & feel plan
+# PivotDesk 2.1 — look & feel plan
 
 One product, not two. The console window is gone; its best ideas (the three
 action cards, readiness pills, framework chips, one obvious next action, the
@@ -32,7 +32,7 @@ with the reason.
 - [x] A17 Logo mark: an eight-point khatam star on an emerald tile
 - [x] A18 Hero art rendered at 2× for high-DPI laptops
 - [x] A19 Subtle film grain on large dark fields so gradients do not band
-- [x] A20 Design grid for the Desk: 1120 × 630 pt, 28 margin, 16 gutter, 3 × 344 cards
+- [x] A20 Design grid for the Desk: 1120 × 660 pt (630 in 2.0), 28 margin, 16 gutter, 3 × 344 cards
 - [x] A21 Rule: dark chrome, light data — no balance is ever read off a dark field
 - [x] A22 One number format everywhere (existing NUM_FMT) plus a compact form for KPI tiles (4.5 k, 30.1 bn)  
       _compact form used where amounts appear in sentences (the largest break)_
@@ -236,6 +236,32 @@ with the reason.
 - [x] R15 A sheet name with an apostrophe ("Customer's deposits") broke its Start here link; now escaped
 - [x] R16 A deleted Pivot config sheet would have made a build produce nothing; it now comes back as the defaults
 - [x] R17 First open added and dressed sheets with events on, so each new sheet was "activated" half-built; events and repainting now pause until the desk is ready
+
+## S. 2.1 — a few notches higher
+
+- [x] S01 Desk canvas grows to 1120 × 660; the bottom row becomes Recent activity (four rows) beside a Maturity gap card
+- [~] S02 Maturity gap card: net pre-factor in each bucket of the last build, bars around a zero line, emerald above and grey below, "(no bucket)" dim at the end, more than twelve buckets folded into the last bar
+- [~] S03 Net, gross and weighted factor beside the bars; a chip switches between the frameworks built
+- [x] S04 Before any build: the ghost of a gap under an opaque pill that says what will be drawn (the zero line no longer runs through the words)
+- [~] S05 Staging measures the gap in its one pass: net, gross and maturity dates per bucket; nothing is read twice
+- [x] S06 Bucket labels read as tenors (TenorDays): up to / over / ranges / days, weeks, months, years / overnight / demand / non-maturity; a label it cannot read is placed by its rows' average maturity date. Run as VBA in LibreOffice on 37 labels, and agrees with build/tenor.py on every one
+- [~] S07 Every pivot with Bucket on rows or columns orders the buckets by tenor, in the 1.0 layout and in recipes; a recipe's own sort still wins
+- [~] S08 Guided tour: six steps, the desk veiled around one part at a time with a ring and a card, Back / Next / Skip and progress pips; starts by itself the first time the workbook opens; F1 or ? replays it
+- [x] S09 The tour's placement is one piece of arithmetic in the design and in the VBA; the build checks the titles, the targets and the geometry constants agree
+- [~] S10 Motion: framework switches slide over four frames, easing out; toasts fade in
+- [~] S11 The status bar's progress says how long is left once it can tell
+- [~] S12 Pivot config answers as you type, in the status bar, without writing a cell, so Excel's undo keeps working; the Check column catches up when you leave the sheet
+- [~] S13 Add a pivot: a working recipe, switched off, on the next free row
+- [~] S14 A PivotDesk tab on the ribbon for Excel view: go to any sheet, scan, pick, build, reconcile, app view, tour
+- [~] S15 Start here opens on At a glance: rows staged, gross and net pre-factor, weighted factor, local currency, as-of date; a long figure steps down in size rather than spilling out
+- [~] S16 Start here draws the maturity gap as a live PivotChart on the workbook's one cache: tenor order, LCY and FCY stacked, no field buttons, axis in bn or m, columns kept column-shaped when there are only one or two buckets
+- [x] S17 Chart and tile colours measured: text 4.5:1, graphics 3:1 (FCY moved from a pale mint that measured 1.5:1 to deep emerald at 10.4:1)
+- [x] S18 The shipped workbook's VBA runs in LibreOffice (build/lo_run.py): the whole project compiles there, and its pure functions are executed against known answers
+- [x] S19 The lint keeps out the three constructs LibreOffice cannot parse, each rewritten to a plain equivalent Excel reads the same
+- [x] S20 Build gate: every ribbon button reaches PD_RibbonClick and every ribbon image has its relationship
+- [x] S21 Fixed: framework rows and file slots read "412,806 rowsTxt"
+- [x] S22 Fixed: the Start here preview listed FCY sheets the recipe engine does not build, under names longer than Excel allows
+- [x] S23 Previews: desk-showcase, desk-empty, desk-tour, built-start-here (the LCR sample's real figures), built-start-here-ladder (illustrative figures)
 
 ## Q. Configurable pivots (separate workstream)
 

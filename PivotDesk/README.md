@@ -1,12 +1,12 @@
-# PivotDesk 2.0
+# PivotDesk 2.1
 
 A desk for daily ALM analysis at MIDBANK Cairo. Point it at the LCR, NSFR and
 maturity-ladder outputs and control reports 3 and 6; it recognises each file by
 its columns, builds one workbook of live PivotTables per framework, and
 reconciles the outputs against the control reports.
 
-**2.0 is one application instead of two.** The separate console window is
-gone. Everything it did, and the state the sheets used to hold, is on the
+**It is one application, not two.** Since 2.0 the separate console window
+is gone. Everything it did, and the state the sheets used to hold, is on the
 **Desk**. While the workbook is in front it runs as an application: the ribbon,
 formula bar and sheet tabs step aside, and the Desk fills the window. When
 another workbook comes to the front, Excel's chrome is put back as it was.
@@ -24,10 +24,14 @@ another workbook comes to the front, Excel's chrome is put back as it was.
    shows each control against each framework.
 
 The big button in the hero is always the next sensible step, and the sentence
-beside it says why.
+beside it says why. The first time the workbook opens, a one-minute tour
+walks through the Desk; **F1** or the **?** on the app bar plays it again.
+
+![The tour](preview/desk-tour.png)
 
 | Shortcut | Goes to |
 |---|---|
+| F1 | The tour |
 | Ctrl+Shift+D | Desk |
 | Ctrl+Shift+F | Files |
 | Ctrl+Shift+P | Pivot config |
@@ -35,7 +39,36 @@ beside it says why.
 | Ctrl+Shift+A | Activity |
 
 **Excel view** on the app bar brings the ribbon back while you work in the
-workbook. **App view** hides it again.
+workbook, with a **PivotDesk** tab first on it. **App view** hides it again.
+
+## What changed in 2.1
+
+- **Maturity gap on the Desk.** After a build, the bottom right of the Desk
+  draws the net pre-factor balance in each maturity bucket, shortest tenor
+  first: bars above the zero line in emerald, below it in grey. Net, gross and
+  the weighted factor sit beside it, and a chip switches between the
+  frameworks built. Staging measures it in the same pass, so it costs no
+  extra read.
+- **Buckets in tenor order, everywhere.** Labels such as *UPTO 1 MONTH*,
+  *1 - 3 MONTHS*, *OVER 5 YEARS* and *NON MATURITY* are read as tenors. Every
+  pivot with buckets on its rows or columns shows them in that order, not
+  alphabetically, which put *OVER 5 YEARS* before *UPTO 1 MONTH*. A label
+  with no readable tenor is placed by its rows' average maturity date.
+- **Start here is a dashboard.** Every workbook opens on the figures that
+  matter (rows, gross and net pre-factor, weighted factor, local currency,
+  as-of date) and a live PivotChart of its maturity gap, local against
+  foreign currency, over the index of its sheets.
+- **A guided tour**, six steps, on first open and on F1.
+- **Pivot config answers as you type.** The status bar says whether the row
+  you are editing will build and, if not, what to fix. It writes nothing
+  while you edit, so Undo still works. **Add a pivot** puts a working recipe,
+  switched off, on the next free row.
+- **Motion and progress.** Switches slide, messages fade in, and the status
+  bar says how long a build has left.
+- **A PivotDesk tab on the ribbon** for anyone who works in Excel view.
+- Recent activity shows four entries instead of three.
+
+![Start here, Maturity ladder (illustrative figures)](preview/built-start-here-ladder.png)
 
 ## What changed in 2.0
 
@@ -103,12 +136,19 @@ The build fails on any of these:
 - **Package validity.** XML must be well formed, and content types and
   relationships must be complete.
 
+The build also fails if the geometry and the tour's words in the VBA differ
+from the design's, or if a ribbon button reaches no code.
+
 Previews are rendered with the Chromium already on the build machine:
 
 ```
 python3 build/preview.py            # the Desk: preview/desk-*.png
 python3 build/preview_sheets.py     # sheets and a built workbook
 ```
+
+`preview/built-start-here.png` uses the LCR sample's real figures. It has one
+bucket, as an LCR does. `preview/built-start-here-ladder.png` and the Desk
+showcase use illustrative figures.
 
 `build/vbaproj.py` reads and writes the VBA project (MS-OVBA compression and
 MS-CFB container). It writes the project source-only, with no compiled
@@ -121,16 +161,33 @@ Checked here:
 
 - the VBA project round-trips byte for byte;
 - `olevba` and LibreOffice both read every module of the built workbook;
+- **the VBA runs.** `build/lo_run.py` opens the shipped workbook in
+  LibreOffice's VBA-compatible Basic. The whole project compiles there, and
+  the tenor parser and other pure functions are executed against known
+  answers. LibreOffice has no `Scripting.Dictionary` and no Excel object
+  model, so anything built on those still needs Excel;
 - LibreOffice renders the Desk drawing from the file;
-- the lint, contract, palette, contrast and package checks all pass.
+- the lint, contract, geometry, ribbon, palette, contrast and package checks
+  all pass.
 
-Not checked here: the VBA running inside Excel. There is no Excel off
-Windows. The code has been linted and cross-checked, but before anyone relies
-on it, open the workbook once on Windows and walk through these steps:
+```
+python3 build/lo_run.py dist/PivotDesk.xlsm
+```
 
-1. Choose Enable Content. The Desk should fill the window and the ribbon
-   should hide.
-2. Scan a folder, then build one framework, then reconcile.
-3. Switch to another workbook. The ribbon should come back.
+Not checked here: the workbook running inside Excel. There is no Excel off
+Windows. Before anyone relies on it, open the workbook once on Windows and
+walk through these steps:
+
+1. Choose Enable Content. The Desk should fill the window, the ribbon should
+   hide, and the tour should start. Step through it, then Skip.
+2. Scan a folder and build one framework. The Maturity gap card should fill
+   in, and the built workbook should open on Start here with its tiles and
+   chart. Buckets should run shortest first on every pivot.
+3. Reconcile.
+4. On Pivot config, change a cell. The status bar should answer, and Ctrl+Z
+   should still undo the change.
+5. Choose Excel view. The ribbon should come back with a PivotDesk tab
+   first on it.
+6. Switch to another workbook. The ribbon should come back.
 
 Items that need this run are marked `[~]` in [docs/PLAN.md](docs/PLAN.md).

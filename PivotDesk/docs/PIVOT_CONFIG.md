@@ -155,6 +155,30 @@ Only the fields a recipe actually uses are staged, so an unused field costs
 nothing. If a file lacks a field's column, the field is staged blank and the
 *Start here* sheet says so.
 
+## Adding a pivot
+
+**Add a pivot** on the sheet's bar writes a working recipe on the next free
+row: the balance sheet's type and line across the buckets. The row starts
+switched off, so a half-finished row cannot stop a build. Change what you
+need, then set **On** to *Yes*.
+
+## As you type
+
+Change any cell of a recipe and the status bar at the bottom of the window
+answers at once. It says whether that row will build and, if not, what to
+fix. Nothing is written to the sheet while you edit, so **Undo** keeps
+working. The Check column catches up when you leave the sheet, and every
+build checks first anyway.
+
+## Buckets
+
+Wherever Bucket is on a pivot's rows or columns, the buckets run in tenor
+order: *UPTO 1 MONTH*, *1 - 3 MONTHS*, and so on to *OVER 5 YEARS*, then
+*NON MATURITY*. PivotDesk reads the tenor from the label: up to, over, ranges,
+days, weeks, months and years, overnight and on demand. A label it cannot
+read is placed by the average maturity date of its rows. A recipe's own
+**Sort** still wins.
+
 ## Check, and the safety net
 
 - **Check** reads every row. It writes *OK* or *Break* beside each one, with
