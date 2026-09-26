@@ -147,6 +147,10 @@ redraws it.
 - The output is read once and held open. Each workbook stages only its own
   rows, so every total, tile and chart in it belongs to that currency.
 - Inside each ladder workbook, the sheets are one per rule, as for LCR and NSFR.
+- Prefer one workbook, with the currency picked on each sheet? Clear *One
+  workbook per* on the ladder's Workbooks row, and put `Currency` under the new
+  **Report filters** column on its Pivot config row
+  ([how](docs/PIVOT_CONFIG.md#report-filters)).
 
 **The Gallery.** 18 designed cards:
 

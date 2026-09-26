@@ -70,6 +70,7 @@ Private Const PC_RANK_DESC As Long = 15              ' xlRankDecending
 Private Const PC_DIFF As Long = 2                    ' xlDifferenceFrom
 Private Const PC_PCT_DIFF As Long = 4                ' xlPercentDifferenceFrom
 Private Const PC_INDEX As Long = 9                   ' xlIndex
+Private Const PF_EQUALS As Long = 15                 ' xlCaptionEquals
 Private Const PF_CONTAINS As Long = 21               ' xlCaptionContains
 Private Const PF_NOT_CONTAINS As Long = 22           ' xlCaptionDoesNotContain
 Private Const PF_BEGINS As Long = 17                 ' xlCaptionBeginsWith
@@ -93,10 +94,17 @@ Private mCache As PivotCache
 Private mSeq As Long
 Private mBook As String            ' "LCR  ·  MIDBANK CAIRO", on every sheet's bar
 Private mMade As Collection       ' Array(sheetName, what, rows, pre)
+Private mLocalStart As Boolean    ' a Currency filter was started on the local currency
 
 Public Function MadeSheets() As Collection
     If mMade Is Nothing Then Set mMade = New Collection
     Set MadeSheets = mMade
+End Function
+
+' Whether a Currency report filter in this book was started on the local
+' currency - Start here says why.
+Public Function StartedOnLocal() As Boolean
+    StartedOnLocal = mLocalStart
 End Function
 
 Public Sub SetBook(ByVal crumb As String)
@@ -106,6 +114,7 @@ End Sub
 Public Sub ResetPivots()
     Set mCache = Nothing
     Set mMade = New Collection
+    mLocalStart = False
     mSeq = 0
 End Sub
 
@@ -328,6 +337,10 @@ Private Sub LayOut(ByVal pt As PivotTable, ByVal rc As Object, ByVal fl As Objec
             DataFirst pt
         End If
     End If
+    ' Report filters: over the pivot, with every value in - or starting on one.
+    For Each flt In modPD_Recipe.PagesOf(rc)
+        ReportFilter pt, rc, flt
+    Next flt
     ' Show only / hide: on whichever axis the field is on, or - if it is on
     ' neither - as a report filter of its own. Label rules are on an axis.
     For Each flt In rc("Filters")
@@ -342,6 +355,34 @@ Private Sub LayOut(ByVal pt As PivotTable, ByVal rc As Object, ByVal fl As Objec
             ShowItems pt, nm, CBool(flt("Include")), flt("Items")
         End If
     Next flt
+End Sub
+
+' One report filter. Where the staged amounts are each row's own currency, a
+' Currency filter over every value would add dollars to pounds, so unless the
+' row says "= All" it starts on the local currency, one value at a time;
+' the dropdown offers the rest.
+Private Sub ReportFilter(ByVal pt As PivotTable, ByVal rc As Object, ByVal pg As Object)
+    Dim nm As String, start As String, pi As PivotItem
+    nm = modPD_Recipe.PivotFieldName(rc, CStr(pg("Field")))
+    PageField pt, nm
+    start = CStr(pg("Start"))
+    If Len(start) = 0 And Not CBool(pg("All")) Then
+        If StrComp(CStr(pg("Field")), H_CURRENCY, vbTextCompare) = 0 And modPD_Stage.UsedNativeAmounts() Then
+            start = modPD_Stage.LocalCurrency()
+            mLocalStart = True
+        End If
+    End If
+    If Len(start) = 0 Then Exit Sub
+    On Error Resume Next
+    Set pi = pt.PivotFields(nm).PivotItems(start)
+    Err.Clear
+    On Error GoTo 0
+    If pi Is Nothing Then
+        LogIt V_CHECK, "Pivots", "The report filter " & nm & " could not start on " & Chr$(34) & start & Chr$(34) & _
+              " on " & pt.Parent.Name & " - there is no such value; it shows every value.", ""
+        Exit Sub
+    End If
+    PickOne pt, nm, start
 End Sub
 
 ' A chart's own pivot, in a block of the book's hidden chart sheet: the
@@ -363,10 +404,10 @@ Public Function ChartPivot(ByVal ws As Worksheet, ByVal rc As Object, ByVal atCo
     pt.RowAxisLayout xlTabularRow
     pt.ColumnGrand = False
     pt.RowGrand = False
-    pt.ManualUpdate = False
     OrderBuckets pt
     ValueFilters pt, rc
     SortRecipe pt, rc
+    pt.ManualUpdate = False
     Err.Clear
     Set ChartPivot = pt
 End Function
@@ -530,7 +571,7 @@ End Sub
 ' Applied once the pivot has its values; a filter Excel refuses is logged and
 ' the sheet shows everything rather than failing.
 Private Sub ValueFilters(ByVal pt As PivotTable, ByVal rc As Object)
-    Dim f As Object, pf As PivotField, df As PivotField, t As Long, pct As Boolean
+    Dim f As Object, pf As PivotField, df As PivotField, t As Long, pct As Boolean, ok As Boolean
     If rc("VFilters").count = 0 Then Exit Sub
     On Error Resume Next
     pt.AllowMultipleFilters = True
@@ -553,22 +594,38 @@ Private Sub ValueFilters(ByVal pt As PivotTable, ByVal rc As Object)
             Case "between": t = PF_BETWEEN
             Case "notbetween": t = PF_NOT_BETWEEN
         End Select
-        If pf Is Nothing Or df Is Nothing Then
-            Err.Raise vbObjectError + 517
-        ElseIf f("Kind") = "top" Or f("Kind") = "bottom" Then
-            pf.PivotFilters.Add Type:=t, DataField:=df, Value1:=CDbl(f("N"))
-        ElseIf f("Kind") = "between" Or f("Kind") = "notbetween" Then
-            pf.PivotFilters.Add Type:=t, DataField:=df, Value1:=CDbl(f("V1")), Value2:=CDbl(f("V2"))
-        Else
-            pf.PivotFilters.Add Type:=t, DataField:=df, Value1:=CDbl(f("V1"))
+        ok = False
+        If Not pf Is Nothing And Not df Is Nothing Then
+            ok = AddValueFilter(pf, df, f, t)
+            ' Added while the pivot is held, so it is drawn once, filtered. If
+            ' this Excel will not take it that way, once more with it released.
+            If Not ok And pt.ManualUpdate Then
+                pt.ManualUpdate = False
+                ok = AddValueFilter(pf, df, f, t)
+            End If
         End If
-        If Err.Number <> 0 Then
+        If Not ok Then
             LogIt V_CHECK, "Pivots", "The top / value filter on " & CStr(f("Field")) & " by " & CStr(f("By")) & _
                   " could not be applied on " & pt.Parent.Name & " - it shows every item."
         End If
         Err.Clear
     Next f
 End Sub
+
+Private Function AddValueFilter(ByVal pf As PivotField, ByVal df As PivotField, ByVal f As Object, _
+                                ByVal t As Long) As Boolean
+    On Error Resume Next
+    Err.Clear
+    If f("Kind") = "top" Or f("Kind") = "bottom" Then
+        pf.PivotFilters.Add Type:=t, DataField:=df, Value1:=CDbl(f("N"))
+    ElseIf f("Kind") = "between" Or f("Kind") = "notbetween" Then
+        pf.PivotFilters.Add Type:=t, DataField:=df, Value1:=CDbl(f("V1")), Value2:=CDbl(f("V2"))
+    Else
+        pf.PivotFilters.Add Type:=t, DataField:=df, Value1:=CDbl(f("V1"))
+    End If
+    AddValueFilter = (Err.Number = 0)
+    Err.Clear
+End Function
 
 ' Data bars, a heatmap, negatives or the top N, on the plain values (or the
 ' one the recipe names). Scoped to the value's field, so a refresh or a
@@ -629,29 +686,61 @@ Private Sub DataToRows(ByVal pt As PivotTable)
     Err.Clear
 End Sub
 
-' Which items of a field show. Excel refuses a filter that hides every item,
-' so a rule that would leave nothing is left unapplied rather than failing
-' the sheet.
+' Which items of a field show.
+'
+' A hide rule touches only the items it names: a new pivot already shows every
+' item, so the rest need nothing. 3.0 first set Visible on every item, one by
+' one and twice over, and on a field of tens of thousands of customers that is
+' a pivot recalculation per customer - the build stopped answering at the top
+' customers sheet. A show-only rule of one item is one label filter (or, on a
+' report filter, the page); of several, every other item is hidden with the
+' pivot's updates held, and only the items that change are written.
+'
+' Excel refuses a filter that hides every item, so a rule that would leave
+' nothing is left unapplied rather than failing the sheet.
 Private Sub ShowItems(ByVal pt As PivotTable, ByVal nm As String, ByVal include As Boolean, _
                       ByVal items As Collection)
-    Dim pi As PivotItem, pf As PivotField, keep As Long, listed As Boolean
+    Dim pi As PivotItem, pf As PivotField, x As Variant, n As Long, hit As Long, held As Boolean
     On Error Resume Next
     Set pf = pt.PivotFields(nm)
     If pf Is Nothing Then Exit Sub
+    n = pf.PivotItems.count
+    For Each x In items
+        Set pi = Nothing
+        Set pi = pf.PivotItems(CStr(x))
+        If Not pi Is Nothing Then hit = hit + 1
+    Next x
+    Err.Clear
+    If include And hit = 0 Then Exit Sub
+    If Not include And (hit = 0 Or hit >= n) Then Exit Sub
+    held = pt.ManualUpdate
+    pt.ManualUpdate = True
+    If include And items.count = 1 Then
+        If pf.Orientation = xlPageField Then
+            pf.EnableMultiplePageItems = False
+            pf.CurrentPage = CStr(items(1))
+        Else
+            pf.PivotFilters.Add Type:=PF_EQUALS, Value1:=CStr(items(1))
+        End If
+        If Err.Number = 0 Then GoTo Done
+        Err.Clear
+    End If
     If pf.Orientation = xlPageField Then pf.EnableMultiplePageItems = True
-    For Each pi In pf.PivotItems
-        listed = modPD_Recipe.InCollection(items, pi.Name)
-        If listed = include Then keep = keep + 1
-    Next pi
-    If keep = 0 Then Exit Sub
-    For Each pi In pf.PivotItems
-        listed = modPD_Recipe.InCollection(items, pi.Name)
-        If listed = include Then pi.visible = True
-    Next pi
-    For Each pi In pf.PivotItems
-        listed = modPD_Recipe.InCollection(items, pi.Name)
-        If listed <> include Then pi.visible = False
-    Next pi
+    If include Then
+        For Each pi In pf.PivotItems
+            If Not modPD_Recipe.InCollection(items, pi.Name) Then
+                If pi.visible Then pi.visible = False
+            End If
+        Next pi
+    Else
+        For Each x In items
+            Set pi = Nothing
+            Set pi = pf.PivotItems(CStr(x))
+            If Not pi Is Nothing Then pi.visible = False
+        Next x
+    End If
+Done:
+    pt.ManualUpdate = held
     Err.Clear
 End Sub
 
@@ -701,11 +790,13 @@ Private Sub FinishRecipe(ByVal pt As PivotTable, ByVal ws As Worksheet, ByVal rc
         .PreserveFormatting = True
         .NullString = "-"
         .DisplayNullString = True
-        .ManualUpdate = False
     End With
+    ' Order, top-N and sort while the pivot is still held, so it is drawn once,
+    ' filtered - not first with every one of fifty thousand customers.
     OrderBuckets pt
     ValueFilters pt, rc
     SortRecipe pt, rc
+    pt.ManualUpdate = False
     ExpandTo pt, rc
     Highlight pt, rc
     FitPivot ws, pt, rc
@@ -835,16 +926,21 @@ Private Function GroupedFrom(ByVal rc As Object, ByVal nm As String) As String
     Next k
 End Function
 
-' The longest item of a row field, and its heading, in characters.
+' The longest label a row field shows, and its heading, in characters - read
+' from the cells the pivot drew, in one call. Asking each item for its caption
+' is one call per item, and a field can hold fifty thousand with 25 on show.
 Private Function LabelChars(ByVal pf As PivotField) As Double
-    Dim pi As PivotItem, n As Long
+    Dim v As Variant, x As Variant, n As Long
     On Error Resume Next
     n = Len(pf.caption) + 3                 ' the heading and its filter button
-    For Each pi In pf.PivotItems
-        If pi.visible Then
-            If Len(pi.caption) > n Then n = Len(pi.caption)
-        End If
-    Next pi
+    v = pf.DataRange.Value2
+    If IsArray(v) Then
+        For Each x In v
+            If Len(CStr(x)) > n Then n = Len(CStr(x))
+        Next x
+    ElseIf Not IsEmpty(v) Then
+        If Len(CStr(v)) > n Then n = Len(CStr(v))
+    End If
     LabelChars = n
     Err.Clear
 End Function
@@ -909,6 +1005,9 @@ Private Function PageFilterCount(ByVal rc As Object) As Long
     For Each flt In rc("Filters")
         If Not modPD_Recipe.InCollection(rc("Rows"), CStr(flt("Field"))) And _
            Not modPD_Recipe.InCollection(rc("Cols"), CStr(flt("Field"))) Then seen(CStr(flt("Field"))) = True
+    Next flt
+    For Each flt In modPD_Recipe.PagesOf(rc)
+        seen(CStr(flt("Field"))) = True
     Next flt
     PageFilterCount = seen.count
 End Function
@@ -1051,13 +1150,14 @@ End Sub
 ' 1 MONTH. The order is the staging pass's (modPD_Stage.BucketOrder), set item
 ' by item on this pivot; a Bucket field that is only a filter is left alone.
 Private Sub OrderBuckets(ByVal pt As PivotTable)
-    Dim pf As PivotField, order As Variant, i As Long, pos As Long, pi As PivotItem
+    Dim pf As PivotField, order As Variant, i As Long, pos As Long, pi As PivotItem, held As Boolean
     On Error Resume Next
     Set pf = pt.PivotFields(H_BUCKET)
     If pf Is Nothing Then Exit Sub
     If pf.Orientation <> xlRowField And pf.Orientation <> xlColumnField Then Exit Sub
     order = modPD_Stage.BucketOrder()
     If UBound(order) < 1 Then Exit Sub
+    held = pt.ManualUpdate
     pt.ManualUpdate = True
     For i = 0 To UBound(order)
         Set pi = Nothing
@@ -1069,7 +1169,7 @@ Private Sub OrderBuckets(ByVal pt As PivotTable)
             End If
         End If
     Next i
-    pt.ManualUpdate = False
+    pt.ManualUpdate = held
     Err.Clear
 End Sub
 

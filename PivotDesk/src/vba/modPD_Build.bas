@@ -279,8 +279,8 @@ End Function
 ' Biggest first - by the first field's total, then within it by the
 ' combination - so a rule's LCY and FCY sheets sit side by side, as in 1.0.
 Private Function BySize(ByVal d As Object) As Variant
-    Dim keys() As String, w() As Double, g() As Double, n As Long, i As Long, j As Long, k As Variant
-    Dim firstW As Object, head As String, td As Double, ts As String, tg As Double, swap As Boolean
+    Dim keys() As String, heads() As String, w() As Double, g() As Double, idx() As Long, out() As String
+    Dim n As Long, i As Long, k As Variant, firstW As Object, head As String
     n = d.count
     If n = 0 Then BySize = Array(): Exit Function
     Set firstW = NewMap()
@@ -289,35 +289,81 @@ Private Function BySize(ByVal d As Object) As Variant
         firstW(head) = SafeNum(firstW(head)) + SafeNum(d(k))
     Next k
     ReDim keys(0 To n - 1)
+    ReDim heads(0 To n - 1)
     ReDim w(0 To n - 1)
     ReDim g(0 To n - 1)
-    i = 0
+    ReDim idx(0 To n - 1)
     For Each k In d.keys
         keys(i) = CStr(k)
+        heads(i) = Split(CStr(k) & Chr$(30), Chr$(30))(0)
         w(i) = SafeNum(d(k))
-        g(i) = SafeNum(firstW(Split(CStr(k) & Chr$(30), Chr$(30))(0)))
+        g(i) = SafeNum(firstW(heads(i)))
+        idx(i) = i
         i = i + 1
     Next k
-    For i = 0 To n - 2
-        For j = 0 To n - 2 - i
-            swap = False
-            If g(j) < g(j + 1) Then
-                swap = True
-            ElseIf g(j) = g(j + 1) Then
-                If Split(keys(j) & Chr$(30), Chr$(30))(0) = Split(keys(j + 1) & Chr$(30), Chr$(30))(0) Then
-                    If w(j) < w(j + 1) Then swap = True
-                ElseIf Split(keys(j) & Chr$(30), Chr$(30))(0) > Split(keys(j + 1) & Chr$(30), Chr$(30))(0) Then
-                    swap = True
-                End If
-            End If
-            If swap Then
-                td = w(j): w(j) = w(j + 1): w(j + 1) = td
-                tg = g(j): g(j) = g(j + 1): g(j + 1) = tg
-                ts = keys(j): keys(j) = keys(j + 1): keys(j + 1) = ts
-            End If
-        Next j
+    ' A merge sort: a family of fifty thousand values sorts in a moment, where
+    ' comparing every pair (as 3.0 first did) would not finish.
+    MergeSort idx, heads, w, g
+    ReDim out(0 To n - 1)
+    For i = 0 To n - 1
+        out(i) = keys(idx(i))
     Next i
-    BySize = keys
+    BySize = out
+End Function
+
+' Bottom-up and stable, on positions into the arrays.
+Private Sub MergeSort(ByRef idx() As Long, ByRef heads() As String, ByRef w() As Double, ByRef g() As Double)
+    Dim n As Long, width As Long, lo As Long, mid_ As Long, hi As Long, a As Long, b As Long, t As Long
+    Dim tmp() As Long
+    n = UBound(idx) + 1
+    ReDim tmp(0 To n - 1)
+    width = 1
+    Do While width < n
+        lo = 0
+        Do While lo < n
+            mid_ = lo + width
+            If mid_ > n Then mid_ = n
+            hi = lo + 2 * width
+            If hi > n Then hi = n
+            a = lo
+            b = mid_
+            For t = lo To hi - 1
+                If a < mid_ And b < hi Then
+                    If Before(idx(b), idx(a), heads, w, g) Then
+                        tmp(t) = idx(b)
+                        b = b + 1
+                    Else
+                        tmp(t) = idx(a)
+                        a = a + 1
+                    End If
+                ElseIf a < mid_ Then
+                    tmp(t) = idx(a)
+                    a = a + 1
+                Else
+                    tmp(t) = idx(b)
+                    b = b + 1
+                End If
+            Next t
+            lo = hi
+        Loop
+        For t = 0 To n - 1
+            idx(t) = tmp(t)
+        Next t
+        width = width * 2
+    Loop
+End Sub
+
+' Biggest first family by its first field's total; within one first value,
+' the biggest combination first; between first values of equal total, A to Z.
+Private Function Before(ByVal x As Long, ByVal y As Long, ByRef heads() As String, ByRef w() As Double, _
+                        ByRef g() As Double) As Boolean
+    If g(x) <> g(y) Then
+        Before = (g(x) > g(y))
+    ElseIf heads(x) = heads(y) Then
+        Before = (w(x) > w(y))
+    Else
+        Before = (heads(x) < heads(y))
+    End If
 End Function
 
 ' The first value cut to fit and the rest appended after it, so the values
@@ -522,6 +568,12 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
         r = r + 1
         Note ws, r, "Not in this file", "These fields' columns are not in this output, so they are blank here: " & _
             modPD_Stage.MissingFields() & "."
+    End If
+    If modPD_Pivot.StartedOnLocal() Then
+        r = r + 1
+        Note ws, r, "Currency filter", "Starts on " & Chr$(34) & modPD_Stage.LocalCurrency() & Chr$(34) & ". The " & _
+            "amounts are each row's own currency, and adding one currency to another means nothing - choose " & _
+            "another from the filter over each sheet."
     End If
     If capped Then
         r = r + 1

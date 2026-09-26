@@ -31,6 +31,7 @@ dropdown.
 |---|---|---|
 | **Rows** | Fields down the side, in order | `Type, Line, Subline, COA name` |
 | **Columns** | Fields across the top | `Bucket` |
+| **Report filters** | Fields that filter the whole pivot from a dropdown over it (see [Report filters](#report-filters)) | `Currency` |
 | **Values** | One or more, separated by `;` (see [Values](#values)) | `Gross pre-factor sum as Exposure` |
 | **Show only / hide** | Item and label rules, separated by `;` (see [Show only / hide](#show-only--hide)) | `Bucket <> (no bucket)` |
 | **Top / value filter** | Top or bottom N, or a comparison, by a value (see [Top / value filter](#top--value-filter)) | `Top 25 by Exposure` |
@@ -132,6 +133,39 @@ Bucket <> (no bucket); Counterparty <> (no counterparty)
 Counterparty contains BANK
 Type = Asset | Liability
 ```
+
+## Report filters
+
+Each field listed becomes a dropdown over the pivot that filters the whole
+table. Separate several with commas.
+
+| Written | Starts on |
+|---|---|
+| `Currency` | every value |
+| `Currency = USD` | USD, one value at a time |
+| `Currency = All` | every value, always |
+
+The dropdown offers every value; the start only decides what the sheet
+opens on.
+
+**A Currency filter and native amounts.** Some outputs carry amounts in each
+row's own currency as well as in local currency. Staging uses those native
+amounts when it finds them, and adding dollars to pounds means nothing. So
+when a file has them, a plain `Currency` filter starts on the local
+currency, and Start here says why. `Currency = All` overrides this. On a file
+with local-currency amounts only, which is what the LCR sample has, every
+currency is already in EGP and `Currency` starts on every value.
+
+**Maturity ladder: currency as a filter instead of a workbook each.**
+
+1. On **Workbooks**, clear *One workbook per* on the Maturity ladder row, and
+   set *File name* to `{fw}`.
+2. On **Pivot config**, on the ladder's `{split}` row (One sheet per = Rule
+   name), write `Currency` under **Report filters**.
+
+The ladder then builds as one workbook with one sheet per rule, and each
+sheet has a Currency dropdown over it. To get the per-currency workbooks
+back, undo both changes.
 
 ## Top / value filter
 
