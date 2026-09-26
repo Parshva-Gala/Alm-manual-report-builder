@@ -1494,7 +1494,7 @@ Private Sub FreezeHeader(ByVal sh As Object)
     wn.ScrollRow = 1
     wn.ScrollColumn = 1
     ' Pivot config is wide: its On and Pivot columns stay put as well.
-    If StrComp(sh.Name, SH_CONFIG, vbTextCompare) = 0 Then
+    If StrComp(sh.Name, SH_CONFIG, vbTextCompare) = 0 Or StrComp(sh.Name, SH_CHARTS, vbTextCompare) = 0 Then
         sh.Cells(modPD_Theme.R_FIRST, 3).Select
     Else
         sh.Cells(modPD_Theme.R_FIRST, 1).Select

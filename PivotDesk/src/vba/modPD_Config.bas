@@ -153,6 +153,7 @@ Public Sub BuildConfigSheet(Optional ByVal withDefaults As Boolean = False)
     BuildFieldsSheet withDefaults
     ' Workbooks keeps its own rows: it has its own Restore defaults.
     modPD_Books.BuildBooksSheet False
+    modPD_Charts.BuildChartsSheet False
     mDirty = False
 Done:
     ' Events are Excel's, not this workbook's: they go back on whatever happened.
@@ -223,7 +224,7 @@ Private Function RecipeWidths() As Variant
                          10, 16, 12, 24, 7, 9, 9, 40, 10, 60)
 End Function
 
-Private Sub Band(ByVal ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, ByVal label As String)
+Public Sub Band(ByVal ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, ByVal label As String)
     On Error Resume Next
     With ws.Range(ws.Cells(R_GROUPS, c1), ws.Cells(R_GROUPS, c2))
         .Interior.Color = modPD_Theme.C_BRAND_950
@@ -703,6 +704,7 @@ Public Sub PD_ConfigDefaults()
     modPD_Theme.Rail GetSheet(SH_CONFIG)
     modPD_Theme.Rail GetSheet(SH_FIELDS)
     modPD_Theme.Rail GetSheet(SH_BOOKS)
+    modPD_Theme.Rail GetSheet(SH_CHARTS)
     Application.ScreenUpdating = True
     PD_ConfigCheck
 End Sub
@@ -891,10 +893,14 @@ Public Sub LiveCheck(ByVal sh As Object, ByVal target As Range)
             End If
         Next rc
         If Len(msg) = 0 Then msg = "Row " & r & " is empty."
+    ElseIf StrComp(sh.Name, SH_CHARTS, vbTextCompare) = 0 Then
+        If target.Row < modPD_Theme.R_FIRST Then Exit Sub
+        mDirty = True
+        msg = modPD_Charts.ChartRowSays(target.Row)
     ElseIf StrComp(sh.Name, SH_BOOKS, vbTextCompare) = 0 Then
         If target.Row < modPD_Theme.R_FIRST Then Exit Sub
         mDirty = True
-        msg = modPD_Books.RowSays(target.Row)
+        msg = modPD_Books.BookRowSays(target.Row)
         If Len(msg) = 0 Then Exit Sub
     ElseIf StrComp(sh.Name, SH_FIELDS, vbTextCompare) = 0 Then
         If target.Row < modPD_Theme.R_FIRST Then Exit Sub
@@ -924,12 +930,13 @@ Public Sub LeaveCheck(ByVal sh As Object)
     On Error Resume Next
     If Not mDirty Then Exit Sub
     If StrComp(sh.Name, SH_CONFIG, vbTextCompare) <> 0 And StrComp(sh.Name, SH_FIELDS, vbTextCompare) <> 0 And _
-       StrComp(sh.Name, SH_BOOKS, vbTextCompare) <> 0 Then Exit Sub
+       StrComp(sh.Name, SH_BOOKS, vbTextCompare) <> 0 And StrComp(sh.Name, SH_CHARTS, vbTextCompare) <> 0 Then Exit Sub
     mDirty = False
     ev = Application.EnableEvents
     Application.EnableEvents = False
     CheckAll True
     modPD_Books.CheckBooks True
+    modPD_Charts.CheckCharts True
     Application.EnableEvents = ev
     Application.StatusBar = False
     modPD_Desk.RefreshDesk

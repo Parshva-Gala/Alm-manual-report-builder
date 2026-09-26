@@ -223,7 +223,7 @@ End Function
 
 ' The status-bar line for a row just edited - read, never written, so Excel's
 ' undo survives the edit.
-Public Function RowSays(ByVal r As Long) As String
+Public Function BookRowSays(ByVal r As Long) As String
     Dim ws As Worksheet, fw As String, p As Object
     Set ws = GetSheet(SH_BOOKS)
     If ws Is Nothing Then Exit Function
@@ -232,12 +232,12 @@ Public Function RowSays(ByVal r As Long) As String
     Set p = PlanFor(fw)
     If CLng(p("Row")) <> r Then Exit Function
     If Len(p("Problem")) > 0 Then
-        RowSays = FwLabel(fw) & " will not build: " & p("Problem")
+        BookRowSays = FwLabel(fw) & " will not build: " & p("Problem")
     ElseIf Len(p("Per")) > 0 Then
-        RowSays = FwLabel(fw) & ": one workbook per " & p("Per") & ", saved as " & _
+        BookRowSays = FwLabel(fw) & ": one workbook per " & p("Per") & ", saved as " & _
                   FileBase(p, fw, "[" & p("Per") & "]") & ".xlsx"
     Else
-        RowSays = FwLabel(fw) & ": one workbook, saved as " & FileBase(p, fw, "") & ".xlsx"
+        BookRowSays = FwLabel(fw) & ": one workbook, saved as " & FileBase(p, fw, "") & ".xlsx"
     End If
 End Function
 

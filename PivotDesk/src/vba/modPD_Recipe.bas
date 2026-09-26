@@ -64,7 +64,7 @@ Private Function ForFramework(ByVal rc As Object, ByVal fw As String) As Boolean
     Next t
 End Function
 
-Private Function NormFw(ByVal s As String) As String
+Public Function NormFw(ByVal s As String) As String
     Select Case UCase$(Replace(Replace(Trim$(s), " ", ""), "_", ""))
         Case "ALL", "": NormFw = "ALL"
         Case "LCR": NormFw = FW_LCR
@@ -264,7 +264,7 @@ End Function
 '
 ' The words are peeled off the end only while what is left is not already a
 ' field, so a field called "Price index" or "Days in arrears" reads as itself.
-Private Function ParseValues(ByVal s As String, ByVal fl As Object, ByRef prob As String) As Collection
+Public Function ParseValues(ByVal s As String, ByVal fl As Object, ByRef prob As String) As Collection
     Dim out As Collection, it As Variant, item As String, cap As String, p As Long, w As String
     Dim v As Object, seenCap As Object, along As String
     Set out = New Collection
@@ -402,7 +402,7 @@ Private Function DefaultCaption(ByVal fld As String, ByVal agg As String, ByVal 
 End Function
 
 ' "Bucket <> (no bucket); LCY / FCY = LCY; Counterparty contains BANK"
-Private Function ParseFilters(ByVal s As String, ByRef prob As String) As Collection
+Public Function ParseFilters(ByVal s As String, ByRef prob As String) As Collection
     Dim out As Collection, it As Variant, item As String, p As Long, f As Object, rest As String
     Dim pEq As Long, pNe As Long, pOp As Long, op As Variant, q As Long, opFound As String
     Set out = New Collection
@@ -468,7 +468,7 @@ End Function
 
 ' "Top 25 by Exposure; Top 10 Counterparty by Exposure; Top 5% by Share;
 '  Exposure > 1m; Counterparty: Exposure between 1m and 5m"
-Private Function ParseVFilters(ByVal s As String, ByRef prob As String) As Collection
+Public Function ParseVFilters(ByVal s As String, ByRef prob As String) As Collection
     Dim out As Collection, it As Variant, item As String, low As String, p As Long, f As Object
     Dim rest As String, num As String, ok As Boolean, op As Variant, q As Long, rhs As String
     Set out = New Collection
@@ -611,7 +611,7 @@ End Function
 ' Grouped while staging, into a column of its own - "Maturity date by year" -
 ' rather than by Excel's grouping, which groups the cache every sheet shares
 ' and gives up on a column with one blank in it.
-Private Function ParseGroups(ByVal s As String, ByRef prob As String) As Collection
+Public Function ParseGroups(ByVal s As String, ByRef prob As String) As Collection
     Dim out As Collection, it As Variant, p As Long, g As Object, per As String, ok As Boolean
     Set out = New Collection
     Set ParseGroups = out
@@ -672,7 +672,7 @@ Public Function HeldCaption(ByVal rc As Object, ByVal cap As String) As String
     Next v
 End Function
 
-Private Sub ParseSort(ByVal s As String, ByVal rc As Object)
+Public Sub ParseSort(ByVal s As String, ByVal rc As Object)
     Dim p As Long, dirWord As String
     rc("SortBy") = ""
     rc("SortDesc") = True
@@ -719,13 +719,16 @@ End Function
 
 ' Everything that would stop Excel building the pivot, or make it build the
 ' wrong one, said in words that point at the cell to change.
-Private Function Validate(ByVal rc As Object, ByVal fl As Object) As String
+Public Function Validate(ByVal rc As Object, ByVal fl As Object) As String
     Dim place As Object, x As Variant, v As Object, t As Variant, caps As Object, f As Object, g As Object
     Dim k As String, seen As Object, nPlain As Long
     If Len(rc("Name")) = 0 Then Validate = "Give the pivot a name - it becomes the sheet's name.": Exit Function
     ' measured with the longest framework label, which {fw} can become
-    If Len(Replace(Replace(rc("Name"), "{fw}", "Maturity Ladder"), "{split}", "")) > 31 Then
-        Validate = "The pivot name is longer than a sheet name can be (31 characters).": Exit Function
+    ' A chart on Start here is not a sheet, and its title can be as long as it likes.
+    If Not rc.Exists("Chart") Then
+        If Len(Replace(Replace(rc("Name"), "{fw}", "Maturity Ladder"), "{split}", "")) > 31 Then
+            Validate = "The pivot name is longer than a sheet name can be (31 characters).": Exit Function
+        End If
     End If
     For Each t In SplitList(CStr(rc("Frameworks")), ",")
         If Left$(NormFw(CStr(t)), 1) = "?" Then

@@ -254,9 +254,8 @@ End Function
 ' fields for this sheet, in the order the recipe lists them.
 Public Function BuildRecipeSheet(ByVal wb As Workbook, ByVal rc As Object, ByVal fw As String, _
                                  ByVal splitVals As Variant, ByVal tabName As String) As Worksheet
-    Dim ws As Worksheet, pt As PivotTable, x As Variant, pos As Long, v As Object, flt As Object
-    Dim title As String, about As String, fl As Object, i As Long, sf As Collection, what As String
-    Dim overline As String, nm As String
+    Dim ws As Worksheet, pt As PivotTable, title As String, about As String, fl As Object, i As Long
+    Dim sf As Collection, what As String, overline As String
 
     Set fl = modPD_Config.Fields()
     Set sf = rc("Split")
@@ -285,7 +284,24 @@ Public Function BuildRecipeSheet(ByVal wb As Workbook, ByVal rc As Object, ByVal
     If pt Is Nothing Then Exit Function
     pt.ManualUpdate = True
 
-    pos = 0
+    ' One sheet per: its fields become filters fixed to this sheet's values.
+    For i = 1 To sf.count
+        PageField pt, CStr(sf(i))
+        PickOne pt, CStr(sf(i)), CStr(splitVals(i - 1))
+    Next i
+    LayOut pt, rc, fl
+    RecipeSubtotals pt, rc
+
+    FinishRecipe pt, ws, rc, fl
+    NoteSheet ws, what
+    If sf.count = 0 And rc("Slicers").count > 0 Then Slicers ws, pt, SlicerFields(rc)
+    RecipeTab ws, CStr(rc("Tab"))
+    Set BuildRecipeSheet = ws
+End Function
+
+' Rows, columns, values and filters, as a recipe - or a chart - spells them.
+Private Sub LayOut(ByVal pt As PivotTable, ByVal rc As Object, ByVal fl As Object)
+    Dim x As Variant, pos As Long, v As Object, flt As Object, nm As String
     For Each x In rc("Rows")
         pos = pos + 1
         RowField pt, modPD_Recipe.PivotFieldName(rc, CStr(x)), pos
@@ -305,12 +321,6 @@ Public Function BuildRecipeSheet(ByVal wb As Workbook, ByVal rc As Object, ByVal
             DataFirst pt
         End If
     End If
-
-    ' One sheet per: its fields become filters fixed to this sheet's values.
-    For i = 1 To sf.count
-        PageField pt, CStr(sf(i))
-        PickOne pt, CStr(sf(i)), CStr(splitVals(i - 1))
-    Next i
     ' Show only / hide: on whichever axis the field is on, or - if it is on
     ' neither - as a report filter of its own. Label rules are on an axis.
     For Each flt In rc("Filters")
@@ -325,13 +335,45 @@ Public Function BuildRecipeSheet(ByVal wb As Workbook, ByVal rc As Object, ByVal
             ShowItems pt, nm, CBool(flt("Include")), flt("Items")
         End If
     Next flt
-    RecipeSubtotals pt, rc
+End Sub
 
-    FinishRecipe pt, ws, rc, fl
+' A chart's own pivot, in a block of the book's hidden chart sheet: the
+' chart row's categories down the side, its series across, its values and
+' filters - and no totals, which a chart would plot as one more bar.
+Public Function ChartPivot(ByVal ws As Worksheet, ByVal rc As Object, ByVal atCol As Long) As PivotTable
+    Dim pt As PivotTable, fl As Object
+    Set fl = modPD_Config.Fields()
+    On Error Resume Next
+    mSeq = mSeq + 1
+    Set pt = mCache.CreatePivotTable(TableDestination:=ws.Cells(3 + PageFilterCount(rc), atCol), _
+                                     TableName:="pt_chart_" & mSeq)
+    Err.Clear
+    On Error GoTo 0
+    If pt Is Nothing Then Exit Function
+    pt.ManualUpdate = True
+    LayOut pt, rc, fl
+    On Error Resume Next
+    pt.RowAxisLayout xlTabularRow
+    pt.ColumnGrand = False
+    pt.RowGrand = False
+    pt.ManualUpdate = False
+    OrderBuckets pt
+    ValueFilters pt, rc
+    SortRecipe pt, rc
+    Err.Clear
+    Set ChartPivot = pt
+End Function
+
+' A sheet that is not a pivot - a chart of its own - in the book's index.
+Public Sub NoteMade(ByVal ws As Worksheet, ByVal what As String)
     NoteSheet ws, what
-    If sf.count = 0 And rc("Slicers").count > 0 Then Slicers ws, pt, SlicerFields(rc)
-    RecipeTab ws, CStr(rc("Tab"))
-    Set BuildRecipeSheet = ws
+End Sub
+
+' A sheet dressed as every other in the book - bar, title, what it is - for
+' something that is not a pivot.
+Public Function NewBookSheet(ByVal wb As Workbook, ByVal wanted As String, ByVal title As String, _
+                             ByVal about As String, ByVal overline As String) As Worksheet
+    Set NewBookSheet = NewPivotSheet(wb, wanted, title, about, overline)
 End Function
 
 Private Function SlicerFields(ByVal rc As Object) As Variant

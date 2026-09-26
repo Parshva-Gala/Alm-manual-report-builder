@@ -45,6 +45,7 @@ import ribbon  # noqa: E402
 import vbalint  # noqa: E402
 import vbaproj  # noqa: E402
 from design_tokens import EM, CANVAS, TX_1, GRID_COL_PT, GRID_ROW_PT  # noqa: E402
+import design_tokens  # noqa: E402
 from shapes import to_drawingml  # noqa: E402
 
 SEED = os.path.join(ROOT, "src", "seed", "PivotDesk_v1.xlsm")
@@ -516,6 +517,40 @@ def check_config(sources):
     w = re.search(r"RecipeWidths = Array\(([^)]*)\)", src.replace(" _\n", " "))
     if not w or len(w.group(1).split(",")) != len(heads):
         problems.append("config: RecipeWidths does not give one width per heading")
+    # Every chart colour must stand out from the chart's surface (graphics: 3:1).
+    pal = re.search(r"Public Function Palette\(.*?End Function", sources.get("modPD_Charts", ""), re.S)
+    for hexc in sorted(set(re.findall(r'"([0-9A-F]{6})"', pal.group(0) if pal else ""))):
+        cr = contrast.ratio(contrast.rgb(hexc), contrast.rgb(design_tokens.SURFACE))
+        if cr < 3.0:
+            problems.append("config: chart colour %s is %.2f:1 on the chart surface (needs 3:1)" % (hexc, cr))
+    if not pal:
+        problems.append("config: modPD_Charts.Palette not found")
+    # Chart config is written the same way.
+    csrc = sources.get("modPD_Charts", "")
+    cm = re.search(r"ChartHeads = Array\((.*?)\)\s*\n\s*End Function", csrc, re.S)
+    if not cm:
+        problems.append("config: ChartHeads() not found")
+    else:
+        cheads = re.findall(r'"([^"]*)"', cm.group(1))
+        clower = {h.lower() for h in cheads}
+        cbody = csrc.replace(" _\n", " ")
+        calls = re.findall(r"^\s*ChartRec ws, [^\n]*", cbody, re.M)
+        if not calls:
+            problems.append("config: no default charts found")
+        for call in calls:
+            for kv in re.findall(r'"([^"=]+)=', call):
+                if kv.lower() not in clower:
+                    problems.append("config: a default chart names %r, which is not a Chart config heading" % kv)
+        xs = {k: int(v) for k, v in re.findall(r"Private Const (X_\w+) As Long = (\d+)", csrc)}
+        if xs.get("X_LAST") != len(cheads):
+            problems.append("config: X_LAST is %s but ChartHeads has %d columns" % (xs.get("X_LAST"), len(cheads)))
+        cw = re.search(r"ChartWidths = Array\(([^)]*)\)", cbody)
+        if not cw or len(cw.group(1).split(",")) != len(cheads):
+            problems.append("config: ChartWidths does not give one width per heading")
+        for const, head in (("X_NAME", "Chart"), ("X_TYPE", "Type"), ("X_VALUES", "Values"), ("X_WHERE", "Where"),
+                            ("X_PALETTE", "Colours"), ("X_DESC", "Description"), ("X_WHY", "What to fix")):
+            if const not in xs or xs[const] > len(cheads) or cheads[xs[const] - 1] != head:
+                problems.append("config: %s does not point at the %r column" % (const, head))
     for const, head in (("K_ON", "On"), ("K_NAME", "Pivot"), ("K_VALUES", "Values"), ("K_VFILTER", "Top / value filter"),
                         ("K_GROUP", "Group"), ("K_UNITS", "Units"), ("K_HILITE", "Highlight"), ("K_TILES", "Tiles"),
                         ("K_DESC", "Description"), ("K_WHY", "What to fix")):

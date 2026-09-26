@@ -154,12 +154,14 @@ Private Sub PrintSetup()
     If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
     Set ws = GetSheet(SH_BOOKS)
     If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
+    Set ws = GetSheet(SH_CHARTS)
+    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 20
 End Sub
 
 Private Sub OrderSheets()
     Dim order As Variant, i As Long, ws As Worksheet
     On Error Resume Next
-    order = Array(SH_HOME, SH_SOURCES, SH_CONFIG, SH_BOOKS, SH_FIELDS, SH_RECON, SH_LOG)
+    order = Array(SH_HOME, SH_SOURCES, SH_CONFIG, SH_CHARTS, SH_BOOKS, SH_FIELDS, SH_RECON, SH_LOG)
     For i = 0 To UBound(order)
         Set ws = GetSheet(CStr(order(i)))
         If Not ws Is Nothing Then ws.Move Before:=ThisWorkbook.Worksheets(i + 1)
@@ -210,8 +212,16 @@ Public Sub BuildPivotsFor(ByVal args As String)
             modPD_Theme.Rail GetSheet(SH_CONFIG)
             modPD_Theme.Rail GetSheet(SH_FIELDS)
             modPD_Theme.Rail GetSheet(SH_BOOKS)
+            modPD_Theme.Rail GetSheet(SH_CHARTS)
         End If
         If GetSheet(SH_BOOKS) Is Nothing Then modPD_Books.BuildBooksSheet
+        If GetSheet(SH_CHARTS) Is Nothing Then modPD_Charts.BuildChartsSheet
+        If modPD_Charts.CheckCharts(True) > 0 Then
+            Notify "A chart that is on will not draw - the reason is beside it on Chart config, under What to fix.", _
+                   V_BREAK
+            modPD_Theme.GoTo_ SH_CHARTS
+            Exit Sub
+        End If
         If modPD_Books.CheckBooks(True) > 0 Then
             Notify "A row on Workbooks will not build - the reason is beside it, under What to fix.", V_BREAK
             modPD_Theme.GoTo_ SH_BOOKS

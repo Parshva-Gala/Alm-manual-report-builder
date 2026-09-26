@@ -101,6 +101,7 @@ Private Function BuildBook(ByVal fw As String, ByVal outFolder As String, ByRef 
                            ByVal fileBase As String) As String
     Dim wb As Workbook, lo As ListObject, nSheets As Long, capped As Boolean
     Dim Path As String, t0 As Single, recipes As Collection, fromConfig As Boolean, what As String
+    Dim charts As Collection, needs As Collection, x As Variant
 
     what = FwLabel(fw) & IIf(Len(mPart) > 0, " " & mPart, "")
 
@@ -112,6 +113,11 @@ Private Function BuildBook(ByVal fw As String, ByVal outFolder As String, ByRef 
             errOut = "no pivot on the Pivot config sheet is switched on for " & FwLabel(fw)
             Exit Function
         End If
+        ' What staging must add is what the pivots and the charts both name.
+        Set charts = modPD_Charts.ChartsFor(fw)
+        Set needs = New Collection
+        For Each x In recipes: needs.Add x: Next x
+        For Each x In charts: needs.Add x: Next x
     End If
 
     Step_ what & " - opening a new workbook"
@@ -121,7 +127,7 @@ Private Function BuildBook(ByVal fw As String, ByVal outFolder As String, ByRef 
     modPD_Pivot.ResetPivots
     Step_ what & " - staging the output"
     If fromConfig Then
-        Set lo = modPD_Stage.StageFramework(fw, wb, errOut, modPD_Recipe.ExtraFields(recipes, mPer), Signatures(recipes))
+        Set lo = modPD_Stage.StageFramework(fw, wb, errOut, modPD_Recipe.ExtraFields(needs, mPer), Signatures(recipes))
     Else
         Set lo = modPD_Stage.StageFramework(fw, wb, errOut)
     End If
@@ -137,7 +143,9 @@ Private Function BuildBook(ByVal fw As String, ByVal outFolder As String, ByRef 
 
     If fromConfig Then
         nSheets = RecipeSheets(wb, fw, recipes, capped)
+        nSheets = nSheets + modPD_Charts.MakeCharts(wb, fw, charts)
     Else
+        modPD_Charts.MakeCharts wb, fw, Nothing
         Step_ what & " - the Output pivot"
         modPD_Pivot.BuildOutputSheet wb, fw
         Step_ what & " - the Balance sheet pivot"
@@ -442,8 +450,15 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
         "Every sheet below is a live PivotTable over it - drag a field, drop a slicer, drill a total.", "OK"
     ws.Rows(6).RowHeight = 12
 
-    ' --- the index -----------------------------------------------------------------
+    ' --- the charts: a grid, before the index -----------------------------------------
     r = 7
+    If modPD_Charts.GuideCharts() > 0 Then
+        Section ws, r, "AT A GLANCE  " & ChrW(183) & "  " & modPD_Charts.GuideCharts() & _
+                       IIf(modPD_Charts.GuideCharts() = 1, " CHART", " CHARTS")
+        r = modPD_Charts.PlaceOnGuide(ws, r + 1, wide, fw) + 1
+    End If
+
+    ' --- the index -----------------------------------------------------------------
     Section ws, r, "IN THIS BOOK  " & ChrW(183) & "  " & modPD_Pivot.MadeSheets().count & " SHEETS"
     modPD_Theme.Head ws, Array("Sheet", "What is on it"), Array(38, 110), r + 1
     first = r + 2
