@@ -42,6 +42,9 @@ Public Const SH_FIELDS As String = "Pivot fields"
 
 ' --- sheets in a generated framework workbook -------------------------------
 Public Const SH_STAGE As String = "_data"
+' The pivot behind the Start here chart. Hidden, not very hidden: a PivotChart
+' must be able to reach its pivot.
+Public Const SH_CHART As String = "_chart"
 Public Const SH_BALSHEET As String = "Balance sheet"
 Public Const SH_GUIDE As String = "Start here"
 

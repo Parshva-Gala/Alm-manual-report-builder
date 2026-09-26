@@ -230,14 +230,16 @@ Public Sub Dress(ByVal ws As Worksheet, ByVal title As String, ByVal about As St
     Err.Clear
 End Sub
 
-Public Sub Head(ByVal ws As Worksheet, ByRef headings As Variant, ByRef widths As Variant)
+Public Sub Head(ByVal ws As Worksheet, ByRef headings As Variant, ByRef widths As Variant, _
+                Optional ByVal hdrRow As Long = 0)
     Dim c As Long
     On Error Resume Next
+    If hdrRow = 0 Then hdrRow = R_HDR
     For c = 0 To UBound(headings)
-        ws.Cells(R_HDR, c + 1).Value2 = headings(c)
+        ws.Cells(hdrRow, c + 1).Value2 = headings(c)
         If c <= UBound(widths) Then ws.Columns(c + 1).ColumnWidth = widths(c)
     Next c
-    With ws.Range(ws.Cells(R_HDR, 1), ws.Cells(R_HDR, UBound(headings) + 1))
+    With ws.Range(ws.Cells(hdrRow, 1), ws.Cells(hdrRow, UBound(headings) + 1))
         .Font.Name = UI_SEMI
         .Font.Size = 8.5
         .Font.Color = C_BRAND_SOFT
@@ -249,7 +251,7 @@ Public Sub Head(ByVal ws As Worksheet, ByRef headings As Variant, ByRef widths A
         .Borders(xlEdgeBottom).Color = C_BRAND
         .Borders(xlEdgeBottom).Weight = xlMedium
     End With
-    ws.Rows(R_HDR).RowHeight = 26
+    ws.Rows(hdrRow).RowHeight = 26
     Err.Clear
 End Sub
 
@@ -333,13 +335,14 @@ End Sub
 ' second and a minute. The verdict column is repainted last so the banding
 ' cannot wash its colour out.
 Public Sub DressTable(ByVal ws As Worksheet, ByVal lastCol As Long, ByVal LastRow As Long, _
-                      Optional ByVal verdictCol As Long = 0)
+                      Optional ByVal verdictCol As Long = 0, Optional ByVal firstRow As Long = 0)
     Dim rng As Range, r As Long
     On Error Resume Next
-    If LastRow < R_FIRST Then Exit Sub
-    Set rng = ws.Range(ws.Cells(R_FIRST, 1), ws.Cells(LastRow, lastCol))
+    If firstRow = 0 Then firstRow = R_FIRST
+    If LastRow < firstRow Then Exit Sub
+    Set rng = ws.Range(ws.Cells(firstRow, 1), ws.Cells(LastRow, lastCol))
     rng.Interior.Color = C_PAPER
-    For r = R_FIRST + 1 To LastRow Step 2
+    For r = firstRow + 1 To LastRow Step 2
         ws.Range(ws.Cells(r, 1), ws.Cells(r, lastCol)).Interior.Color = C_MIST
     Next r
     With rng.Borders(xlInsideHorizontal)
@@ -357,11 +360,11 @@ Public Sub DressTable(ByVal ws As Worksheet, ByVal lastCol As Long, ByVal LastRo
     rng.Font.Name = UI_FONT
     rng.Font.Size = 9.5
     rng.Font.Color = C_BODY
-    ws.Range(ws.Rows(R_FIRST), ws.Rows(LastRow)).RowHeight = 21
+    ws.Range(ws.Rows(firstRow), ws.Rows(LastRow)).RowHeight = 21
     If verdictCol > 0 Then PaintVerdictColumn ws, verdictCol, LastRow
     ' AutoFilter on a range TOGGLES. Applied on every refresh it switched the
     ' filter off every other time; now it is only ever turned on.
-    If Not ws.AutoFilterMode Then ws.Range(ws.Cells(R_HDR, 1), ws.Cells(LastRow, lastCol)).AutoFilter
+    If Not ws.AutoFilterMode Then ws.Range(ws.Cells(firstRow - 1, 1), ws.Cells(LastRow, lastCol)).AutoFilter
     Err.Clear
 End Sub
 

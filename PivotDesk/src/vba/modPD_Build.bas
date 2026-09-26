@@ -328,7 +328,7 @@ End Function
 
 Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Long, ByVal capped As Boolean, _
                   ByVal fromConfig As Boolean)
-    Dim ws As Worksheet, made As Collection, i As Long, r As Long, e As Variant
+    Dim ws As Worksheet, made As Collection, i As Long, r As Long, e As Variant, first As Long, wide As Double
 
     Set ws = wb.Worksheets.Add(Before:=wb.Worksheets(1))
     On Error Resume Next
@@ -343,7 +343,9 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     modPD_Theme.SetStatus ws, Fmt(modPD_Stage.StagedRows()) & " rows staged into one pivot cache.  " & _
         "Every sheet below is a live PivotTable over it - drag a field, drop a slicer, drill a total.", "OK"
 
-    modPD_Theme.Head ws, Array("Sheet", "What is on it"), Array(38, 96)
+    ws.Columns(1).ColumnWidth = 38
+    ws.Columns(2).ColumnWidth = 110
+    wide = ws.Cells(1, 3).Left - ws.Cells(1, 1).Left - 12
     With ws.Cells(modPD_Theme.R_BAR, 1)
         .Value2 = UCase$(TOOL_NAME) & "  " & ChrW(183) & "  START HERE"
         .Font.Name = modPD_Theme.UI_SEMI
@@ -354,7 +356,32 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     End With
     ws.Tab.Color = modPD_Theme.C_INK
 
-    r = modPD_Theme.R_FIRST
+    ' --- at a glance: the figures wanted before any pivot ----------------------
+    r = modPD_Theme.R_HDR
+    Section ws, r, "AT A GLANCE"
+    ws.Rows(r + 1).RowHeight = 66
+    Glance ws, ws.Cells(r + 1, 1).Top + 6, wide
+
+    ' --- the shape of the book --------------------------------------------------
+    r = r + 3
+    Section ws, r, "MATURITY GAP  " & ChrW(183) & "  NET PRE-FACTOR IN EACH BUCKET, LOCAL AND FOREIGN CURRENCY"
+    ws.Rows(r + 1).RowHeight = 238
+    If Not modPD_Pivot.GapChart(wb, ws, ws.Cells(r + 1, 1).Left + 6, ws.Cells(r + 1, 1).Top + 8, wide, 222) Then
+        With ws.Cells(r + 1, 1)
+            .Value2 = "This output has no maturity buckets, so there is no gap to draw."
+            .Font.Color = modPD_Theme.C_MUTED
+            .IndentLevel = 1
+            .VerticalAlignment = xlCenter
+        End With
+        ws.Rows(r + 1).RowHeight = 28
+    End If
+
+    ' --- the index -----------------------------------------------------------------
+    r = r + 3
+    Section ws, r, "IN THIS BOOK"
+    modPD_Theme.Head ws, Array("Sheet", "What is on it"), Array(38, 110), r + 1
+    first = r + 2
+    r = first
     Set made = modPD_Pivot.MadeSheets()
     For i = 1 To made.count
         e = made(i)
@@ -369,34 +396,22 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
         On Error GoTo 0
         r = r + 1
     Next i
-    modPD_Theme.DressTable ws, 2, r - 1
+    modPD_Theme.DressTable ws, 2, r - 1, 0, first
     ' Links in the brand's emerald, not the default blue underline - they are
     ' the index of the book and should read as part of it.
-    If r - 1 >= modPD_Theme.R_FIRST Then
-        With ws.Range(ws.Cells(modPD_Theme.R_FIRST, 1), ws.Cells(r - 1, 1)).Font
+    If r - 1 >= first Then
+        With ws.Range(ws.Cells(first, 1), ws.Cells(r - 1, 1)).Font
             .Name = modPD_Theme.UI_SEMI
             .Underline = xlUnderlineStyleNone
             .Color = modPD_Theme.C_BRAND_DEEP
         End With
-        ws.Range(ws.Cells(modPD_Theme.R_FIRST, 2), ws.Cells(r - 1, 2)).Font.Color = modPD_Theme.C_MUTED
+        ws.Range(ws.Cells(first, 2), ws.Cells(r - 1, 2)).Font.Color = modPD_Theme.C_MUTED
     End If
 
     ' What the tool had to decide for itself goes here, where it is read, not
     ' into a log nobody opens.
-    r = r + 2
-    With ws.Cells(r, 1)
-        .Value2 = "HOW TO READ THIS"
-        .Font.Name = modPD_Theme.UI_SEMI
-        .Font.Size = 8.5
-        .Font.Color = modPD_Theme.C_BRAND_DEEP
-        .IndentLevel = 1
-    End With
-    With ws.Range(ws.Cells(r, 1), ws.Cells(r, 2)).Borders(xlEdgeBottom)
-        .LineStyle = xlContinuous
-        .Color = modPD_Theme.C_BRAND
-        .Weight = xlThin
-    End With
-    ws.Rows(r).RowHeight = 24
+    r = r + 1
+    Section ws, r, "HOW TO READ THIS"
     r = r + 1
     Note ws, r, "Amounts", "Pre-factor and post-factor from " & modPD_Stage.AmountFieldNote() & _
         IIf(modPD_Stage.UsedNativeAmounts(), ".", _
@@ -430,12 +445,103 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
             "The rest are not here; everything is still in the overview pivots."
     End If
 
-    ws.Columns(1).ColumnWidth = 38
-    ws.Columns(2).ColumnWidth = 110
     On Error Resume Next
     ws.Activate
     ActiveWindow.DisplayGridlines = False
     ActiveWindow.Zoom = 100
+    Err.Clear
+End Sub
+
+' A section of the Start here sheet: small capitals in emerald over a rule.
+Private Sub Section(ByVal ws As Worksheet, ByVal r As Long, ByVal title As String)
+    On Error Resume Next
+    With ws.Cells(r, 1)
+        .Value2 = title
+        .Font.Name = modPD_Theme.UI_SEMI
+        .Font.Size = 8.5
+        .Font.Color = modPD_Theme.C_BRAND_DEEP
+        .IndentLevel = 1
+        .VerticalAlignment = xlBottom
+    End With
+    With ws.Range(ws.Cells(r, 1), ws.Cells(r, 2)).Borders(xlEdgeBottom)
+        .LineStyle = xlContinuous
+        .Color = modPD_Theme.C_BRAND
+        .Weight = xlThin
+    End With
+    ws.Rows(r).RowHeight = 26
+    Err.Clear
+End Sub
+
+' Six tiles across the top: how much was read, how much money in which
+' direction, how hard the factors bite, and which currency and date it is.
+' Drawn at build time - the numbers are this build's, as the heading says.
+Private Sub Glance(ByVal ws As Worksheet, ByVal top As Double, ByVal wide As Double)
+    Dim items As Variant, i As Long, n As Long, w As Double, gp As Double, gross As Double
+    gross = modPD_Stage.GrossPre()
+    items = Array(Array("ROWS STAGED", Fmt(modPD_Stage.StagedRows())), _
+                  Array("GROSS PRE-FACTOR", Compact(gross)), _
+                  Array("NET PRE-FACTOR", Replace(Compact(modPD_Stage.NetPre()), "-", ChrW(8722))), _
+                  Array("WEIGHTED FACTOR", IIf(gross > 0, Format$(modPD_Stage.GrossPost() / IIf(gross > 0, gross, 1), "0.0%"), ChrW(8212))), _
+                  Array("LOCAL CURRENCY", modPD_Stage.LocalCurrency()), _
+                  Array("DATA AS OF", modPD_Stage.StagedAsOf()))
+    n = UBound(items) + 1
+    gp = 10
+    w = (wide - (n - 1) * gp) / n
+    For i = 0 To n - 1
+        Tile ws, "pd_tile" & (i + 1), ws.Cells(1, 1).Left + 6 + i * (w + gp), top, w, 54, _
+             CStr(items(i)(0)), CStr(items(i)(1))
+    Next i
+End Sub
+
+Private Sub Tile(ByVal ws As Worksheet, ByVal nm As String, ByVal l As Double, ByVal t As Double, _
+                 ByVal w As Double, ByVal h As Double, ByVal label As String, ByVal value As String)
+    Dim sh As Shape, bar As Shape, sz As Single
+    On Error Resume Next
+    If Len(value) = 0 Then value = ChrW(8212)
+    ' The figure at 17 pt, smaller only when it would not fit the tile
+    ' ("Egyptian Pound" is longer than any number).
+    sz = 17
+    If (w - 22) / (Len(value) * 0.52) < sz Then sz = Int((w - 22) / (Len(value) * 0.52))
+    If sz < 10 Then sz = 10
+    Set sh = ws.Shapes.AddShape(msoShapeRoundedRectangle, l, t, w, h)
+    If sh Is Nothing Then Exit Sub
+    sh.Name = nm
+    sh.Adjustments.Item(1) = 0.1
+    sh.Fill.ForeColor.RGB = modPD_Theme.C_MIST
+    sh.Line.ForeColor.RGB = modPD_Theme.C_HAIR
+    sh.Line.Weight = 0.75
+    sh.Shadow.visible = msoFalse
+    sh.Placement = xlFreeFloating
+    sh.AlternativeText = label & ": " & value
+    With sh.TextFrame2
+        .MarginLeft = 14
+        .MarginRight = 6
+        .MarginTop = 8
+        .MarginBottom = 4
+        .VerticalAnchor = msoAnchorTop
+        .WordWrap = msoFalse
+        .TextRange.Text = label & vbCr & value
+        .TextRange.ParagraphFormat.Alignment = msoAlignLeft
+        With .TextRange.Paragraphs(1).Font
+            .Name = modPD_Theme.UI_SEMI
+            .Size = 7
+            .Spacing = 0.8
+            .Fill.ForeColor.RGB = modPD_Theme.C_MUTED
+        End With
+        With .TextRange.Paragraphs(2).Font
+            .Name = modPD_Theme.UI_LIGHT
+            .Size = sz
+            .Fill.ForeColor.RGB = modPD_Theme.C_BODY
+        End With
+    End With
+    ' An emerald edge on the left, as on the status line.
+    Set bar = ws.Shapes.AddShape(msoShapeRectangle, l, t + 12, 2.5, h - 24)
+    If Not bar Is Nothing Then
+        bar.Name = nm & "_edge"
+        bar.Fill.ForeColor.RGB = modPD_Theme.C_BRAND
+        bar.Line.visible = msoFalse
+        bar.Placement = xlFreeFloating
+    End If
     Err.Clear
 End Sub
 

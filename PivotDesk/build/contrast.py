@@ -154,6 +154,13 @@ SHEET_PAIRS = [
     ("pivot header", "C2EBDA", "000000", 10),
     ("pivot grand total", "000000", "E6F6EF", 10),
     ("pivot filter labels", "5F7068", "FFFFFF", 10),
+    ("Start here tile label", "5F7068", "F4F7F5", 7),
+    ("Start here tile figure", "18241F", "F4F7F5", 17),
+    ("chart axis and legend", "5F7068", "FFFFFF", 8.5),
+    # graphics, not text: WCAG 1.4.11 asks 3:1 against what they sit on
+    ("chart bar LCY (graphic)", "009060", "FFFFFF", None),
+    ("chart bar FCY (graphic)", "004A32", "FFFFFF", None),
+    ("tile edge (graphic)", "009060", "F4F7F5", None),
 ]
 
 
@@ -162,12 +169,13 @@ def check_sheets():
              "| ratio | needs | where | fg | bg | pt |", "|---:|---:|---|---|---|---:|"]
     fails = []
     for where, fg, bg, pt in SHEET_PAIRS:
-        need = 3.0 if pt >= 18 else 4.5
+        need = 3.0 if pt is None or pt >= 18 else 4.5
         cr = ratio(rgb(fg), rgb(bg))
         if cr < need:
             fails.append((cr, need, where, fg, bg))
-        lines.append("| %.2f%s | %.1f | %s | #%s | #%s | %.1f |" % (cr, " **FAIL**" if cr < need else "",
-                                                                   need, where, fg, bg, pt))
+        lines.append("| %.2f%s | %.1f | %s | #%s | #%s | %s |" % (cr, " **FAIL**" if cr < need else "",
+                                                                 need, where, fg, bg,
+                                                                 "graphic" if pt is None else "%.1f" % pt))
     return fails, "\n".join(lines)
 
 

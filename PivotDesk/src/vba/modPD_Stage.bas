@@ -80,6 +80,22 @@ Public Function AmountFieldNote() As String
         AmountFieldNote = mPreField & "  /  " & mPostField & "   (no native-currency field found)"
     End If
 End Function
+' Totals of the last pass, for the Start here tiles: gross is the sum of the
+' amounts' sizes, net keeps their signs.
+Public Function GrossPre() As Double
+    GrossPre = mPreAbs
+End Function
+Public Function GrossPost() As Double
+    GrossPost = mPostAbs
+End Function
+Public Function NetPre() As Double
+    Dim k As Variant
+    If mBktNet Is Nothing Then Exit Function
+    For Each k In mBktNet.keys
+        NetPre = NetPre + SafeNum(mBktNet(k))
+    Next k
+End Function
+
 Public Function UsedNativeAmounts() As Boolean
     UsedNativeAmounts = mNative
 End Function

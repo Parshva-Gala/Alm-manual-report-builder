@@ -55,6 +55,108 @@ Public Sub UseCache(ByVal wb As Workbook, ByVal lo As ListObject)
     Set mCache = wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=lo.Range)
 End Sub
 
+' ===================== the Start here chart ================================
+
+' Net pre-factor in each maturity bucket, local against foreign, as a live
+' PivotChart on the same cache as every sheet: a refresh moves it with the
+' rest. Its pivot sits on a hidden sheet; the chart is the thing read. Returns
+' False, and leaves nothing behind, when the output has no buckets to draw.
+Public Function GapChart(ByVal wb As Workbook, ByVal host As Worksheet, ByVal l As Double, ByVal t As Double, _
+                         ByVal w As Double, ByVal h As Double) As Boolean
+    Dim ws As Worksheet, pt As PivotTable, co As ChartObject, ch As Chart, i As Long
+    Dim order As Variant, big As Double, fmt As String, clr As Long
+    On Error Resume Next
+    order = modPD_Stage.BucketOrder()
+    If UBound(order) < 0 Then Exit Function
+    If UBound(order) = 0 And StrComp(CStr(order(0)), "(no bucket)", vbTextCompare) = 0 Then Exit Function
+
+    KillSheet SH_CHART, wb
+    Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.count))
+    ws.Name = SH_CHART
+    Set pt = NewPivot(ws, "Gap")
+    If pt Is Nothing Then GoTo Fail
+    RowField pt, H_BUCKET, 1
+    ColField pt, H_CCYCLASS, 1
+    AddSum pt, H_PRE, CAP_PRE
+    If pt.DataFields.count = 0 Then GoTo Fail
+    DropBlanks pt, H_BUCKET, "(no bucket)"
+    pt.ColumnGrand = False
+    pt.RowGrand = False
+    OrderBuckets pt
+
+    Set co = host.ChartObjects.Add(l, t, w, h)
+    If co Is Nothing Then GoTo Fail
+    co.Name = "pd_gap_chart"
+    co.Placement = xlFreeFloating
+    Set ch = co.Chart
+    ch.SetSourceData pt.TableRange1
+    ch.ChartType = xlColumnStacked
+    ch.ShowAllFieldButtons = False
+    ch.HasTitle = False
+    ch.HasLegend = True
+    ch.Legend.Position = xlLegendPositionTop
+    ch.ChartArea.Font.Name = modPD_Theme.UI_FONT
+    ch.ChartArea.Font.Size = 8.5
+    ch.ChartArea.Font.Color = modPD_Theme.C_MUTED
+    ch.ChartArea.Format.Fill.ForeColor.RGB = modPD_Theme.C_PAPER
+    ch.ChartArea.Format.Line.Visible = msoFalse
+    ch.PlotArea.Format.Fill.Visible = msoFalse
+    ' Columns stay column-shaped however few buckets there are: an LCR has one.
+    Select Case UBound(order) + 1
+        Case Is <= 2: ch.ChartGroups(1).GapWidth = 400
+        Case Is <= 4: ch.ChartGroups(1).GapWidth = 180
+        Case Else: ch.ChartGroups(1).GapWidth = 55
+    End Select
+    ch.ChartGroups(1).Overlap = 100
+
+    ' The axis in the unit the money is counted in.
+    big = modPD_Stage.GrossPre()
+    If big >= 1000000000# Then
+        fmt = "#,##0.0,,,"" bn"";-#,##0.0,,,"" bn"";0"
+    ElseIf big >= 1000000# Then
+        fmt = "#,##0,,"" m"";-#,##0,,"" m"";0"
+    Else
+        fmt = NUM_FMT
+    End If
+    With ch.Axes(xlValue)
+        .HasMajorGridlines = True
+        .MajorGridlines.Format.Line.ForeColor.RGB = modPD_Theme.C_HAIR
+        .MajorGridlines.Format.Line.Weight = 0.75
+        .Format.Line.Visible = msoFalse
+        .TickLabels.NumberFormat = fmt
+    End With
+    With ch.Axes(xlCategory)
+        ' Labels along the bottom even where the bars go below zero.
+        .TickLabelPosition = xlTickLabelPositionLow
+        .Format.Line.ForeColor.RGB = modPD_Theme.C_MUTED
+        .Format.Line.Weight = 0.75
+    End With
+    For i = 1 To ch.SeriesCollection.count
+        ' Two tones of the one brand colour, apart in lightness as well as in
+        ' hue, so they stay two to a colour-blind reader; both hold 3:1 on white.
+        If StrComp(ch.SeriesCollection(i).Name, "FCY", vbTextCompare) = 0 Then
+            clr = modPD_Theme.HX("004A32")
+        Else
+            clr = modPD_Theme.C_BRAND
+        End If
+        ch.SeriesCollection(i).Format.Fill.ForeColor.RGB = clr
+        ' A hairline of white between stacked segments.
+        ch.SeriesCollection(i).Format.Line.visible = msoTrue
+        ch.SeriesCollection(i).Format.Line.ForeColor.RGB = modPD_Theme.C_PAPER
+        ch.SeriesCollection(i).Format.Line.Weight = 0.75
+    Next i
+    ws.visible = xlSheetHidden
+    GapChart = True
+    Err.Clear
+    Exit Function
+Fail:
+    Application.DisplayAlerts = False
+    If Not co Is Nothing Then co.Delete
+    KillSheet SH_CHART, wb
+    Application.DisplayAlerts = True
+    Err.Clear
+End Function
+
 ' ===================== the three sheet kinds ================================
 
 ' Rule order / category / rule name / factor, against pre- and post-factor,

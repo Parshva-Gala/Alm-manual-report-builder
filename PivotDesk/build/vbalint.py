@@ -83,6 +83,11 @@ msothemecolortext1
 # Constants added in 2.0, each checked against the Excel / Office type
 # library by name and value before it went in.
 REVIEWED_CONSTANTS = {
+    "xlcolumnstacked": 52,                # XlChartType
+    "xllegendpositiontop": -4160,         # XlLegendPosition
+    "xlvalue": 2,                         # XlAxisType
+    "xlcategory": 1,
+    "xlticklabelpositionlow": -4134,      # XlTickLabelPosition
     "xlformatfromrightorbelow": 1,        # XlInsertFormatOrigin
     "xlformatfromleftorabove": 0,
     "xlwait": 2,                          # XlMousePointer
