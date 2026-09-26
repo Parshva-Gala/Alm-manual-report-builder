@@ -695,7 +695,7 @@ Public Function Divider(ByVal ws As Worksheet, ByVal x As Double, Optional ByVal
     Divider = x + 18
 End Function
 
-Private Function BarText(ByVal ws As Worksheet, ByVal nm As String, ByVal txt As String, ByVal x As Double, _
+Public Function BarText(ByVal ws As Worksheet, ByVal nm As String, ByVal txt As String, ByVal x As Double, _
                        ByVal y As Double, ByVal size As Single, ByVal clr As Long, ByVal font As String, _
                        Optional ByVal spacing As Single = 0) As Shape
     Dim sh As Shape
@@ -773,7 +773,8 @@ End Function
 ' tabs across its toolbar.
 Public Function ReportsSheets() As Variant
     ReportsSheets = Array(Array(SH_CONFIG, "Pivots", "PD_GoConfig"), Array(SH_CHARTS, "Charts", "PD_GoCharts"), _
-                          Array(SH_BOOKS, "Workbooks", "PD_GoBooks"), Array(SH_FIELDS, "Fields", "PD_GoFields"))
+                          Array(SH_BOOKS, "Workbooks", "PD_GoBooks"), Array(SH_FIELDS, "Fields", "PD_GoFields"), _
+                          Array(SH_GALLERY, "Gallery", "PD_GoGallery"))
 End Function
 
 ' Row 4: for the Reports sheets, their tabs; then what this sheet can do.
@@ -958,11 +959,20 @@ Public Sub PD_GoCharts()
     EnsureConfig
     GoTo_ SH_CHARTS
 End Sub
+' The gallery is repainted on the way in: its cards say what is on the
+' config sheets now.
+Public Sub PD_GoGallery()
+    EnsureConfig
+    Application.ScreenUpdating = False
+    modPD_Gallery.PaintCards GetSheet(SH_GALLERY)
+    Application.ScreenUpdating = True
+    GoTo_ SH_GALLERY
+End Sub
 
 Private Sub EnsureConfig()
     On Error Resume Next
     If GetSheet(SH_CONFIG) Is Nothing Or GetSheet(SH_FIELDS) Is Nothing Or GetSheet(SH_BOOKS) Is Nothing Or _
-       GetSheet(SH_CHARTS) Is Nothing Then
+       GetSheet(SH_CHARTS) Is Nothing Or GetSheet(SH_GALLERY) Is Nothing Then
         Application.ScreenUpdating = False
         modPD_Config.BuildConfigSheet
         modPD_Config.CheckAll True
@@ -970,6 +980,7 @@ Private Sub EnsureConfig()
         Rail GetSheet(SH_FIELDS)
         Rail GetSheet(SH_BOOKS)
         Rail GetSheet(SH_CHARTS)
+        Rail GetSheet(SH_GALLERY)
         Application.ScreenUpdating = True
     End If
     Err.Clear

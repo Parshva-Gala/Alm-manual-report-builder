@@ -161,7 +161,7 @@ End Sub
 Private Sub OrderSheets()
     Dim order As Variant, i As Long, ws As Worksheet
     On Error Resume Next
-    order = Array(SH_HOME, SH_SOURCES, SH_CONFIG, SH_CHARTS, SH_BOOKS, SH_FIELDS, SH_RECON, SH_LOG)
+    order = Array(SH_HOME, SH_SOURCES, SH_CONFIG, SH_CHARTS, SH_BOOKS, SH_FIELDS, SH_GALLERY, SH_RECON, SH_LOG)
     For i = 0 To UBound(order)
         Set ws = GetSheet(CStr(order(i)))
         If Not ws Is Nothing Then ws.Move Before:=ThisWorkbook.Worksheets(i + 1)
@@ -213,6 +213,7 @@ Public Sub BuildPivotsFor(ByVal args As String)
             modPD_Theme.Rail GetSheet(SH_FIELDS)
             modPD_Theme.Rail GetSheet(SH_BOOKS)
             modPD_Theme.Rail GetSheet(SH_CHARTS)
+            modPD_Theme.Rail GetSheet(SH_GALLERY)
         End If
         If GetSheet(SH_BOOKS) Is Nothing Then modPD_Books.BuildBooksSheet
         If GetSheet(SH_CHARTS) Is Nothing Then modPD_Charts.BuildChartsSheet

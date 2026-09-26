@@ -154,6 +154,7 @@ Public Sub BuildConfigSheet(Optional ByVal withDefaults As Boolean = False)
     ' Workbooks keeps its own rows: it has its own Restore defaults.
     modPD_Books.BuildBooksSheet False
     modPD_Charts.BuildChartsSheet False
+    modPD_Gallery.BuildGallerySheet
     mDirty = False
 Done:
     ' Events are Excel's, not this workbook's: they go back on whatever happened.
@@ -476,6 +477,25 @@ Private Sub WriteDefaultRecipes(ByVal ws As Worksheet)
         "Tab=Deep", "Max sheets=20", "Description=One sheet per product: its balances across the maturity buckets."
 End Sub
 
+' A row written by heading from an array of "Heading=value" - the gallery's
+' templates, for either sheet.
+Public Sub WriteByHeads(ByVal ws As Worksheet, ByVal r As Long, ByVal heads As Variant, ByVal kv As Variant)
+    Dim i As Long, c As Long, p As Long, k As String
+    ws.Range(ws.Cells(r, 1), ws.Cells(r, UBound(heads) + 1)).NumberFormat = "@"
+    For i = LBound(kv) To UBound(kv)
+        p = InStr(CStr(kv(i)), "=")
+        If p > 1 Then
+            k = Left$(CStr(kv(i)), p - 1)
+            For c = 0 To UBound(heads)
+                If StrComp(CStr(heads(c)), k, vbTextCompare) = 0 Then
+                    ws.Cells(r, c + 1).Value2 = Mid$(CStr(kv(i)), p + 1)
+                    Exit For
+                End If
+            Next c
+        End If
+    Next i
+End Sub
+
 ' A recipe row written by heading - Rec ws, r, "On=Yes", "Pivot={fw} Output", ...
 ' A heading not named stays blank, so a new column never shifts a default,
 ' and the build checks every heading named here is one the sheet has.
@@ -705,6 +725,7 @@ Public Sub PD_ConfigDefaults()
     modPD_Theme.Rail GetSheet(SH_FIELDS)
     modPD_Theme.Rail GetSheet(SH_BOOKS)
     modPD_Theme.Rail GetSheet(SH_CHARTS)
+    modPD_Theme.Rail GetSheet(SH_GALLERY)
     Application.ScreenUpdating = True
     PD_ConfigCheck
 End Sub

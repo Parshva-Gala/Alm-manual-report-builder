@@ -551,6 +551,25 @@ def check_config(sources):
                             ("X_PALETTE", "Colours"), ("X_DESC", "Description"), ("X_WHY", "What to fix")):
             if const not in xs or xs[const] > len(cheads) or cheads[xs[const] - 1] != head:
                 problems.append("config: %s does not point at the %r column" % (const, head))
+    # The gallery's templates are rows for one sheet or the other.
+    gsrc = sources.get("modPD_Gallery", "").replace(" _\n", " ")
+    gm = re.search(r"Private Function Templates\(\).*?End Function", gsrc, re.S)
+    gsrc = gm.group(0) if gm else ""
+    cheads_l = {h.lower() for h in (cheads if cm else [])}
+    ntpl = 0
+    for chunk in gsrc.split("c.Add Array(")[1:]:
+        kind = re.match(r'\s*"[^"]*", "(pivot|chart)"', chunk)
+        if not kind:
+            continue
+        ntpl += 1
+        allowed = lower if kind.group(1) == "pivot" else cheads_l
+        inner = chunk[chunk.index("Array(") + 6:] if "Array(" in chunk else ""
+        inner = inner.split("Set Templates")[0]
+        for kv in re.findall(r'"([^"=]+)=', inner):
+            if kv.lower() not in allowed:
+                problems.append("config: a gallery %s template names %r, which is not a heading" % (kind.group(1), kv))
+    if ntpl == 0:
+        problems.append("config: no gallery templates found")
     for const, head in (("K_ON", "On"), ("K_NAME", "Pivot"), ("K_VALUES", "Values"), ("K_VFILTER", "Top / value filter"),
                         ("K_GROUP", "Group"), ("K_UNITS", "Units"), ("K_HILITE", "Highlight"), ("K_TILES", "Tiles"),
                         ("K_DESC", "Description"), ("K_WHY", "What to fix")):
