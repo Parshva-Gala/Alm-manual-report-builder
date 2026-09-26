@@ -746,7 +746,7 @@ Private Sub StyleSurface(ByVal ch As Object, ByVal title As String)
         .Format.Fill.Solid
         .Format.Fill.ForeColor.RGB = modPD_Theme.C_SURFACE
         .Format.Line.Visible = msoTrue
-        .Format.Line.ForeColor.RGB = modPD_Theme.C_LINE
+        .Format.Line.ForeColor.RGB = modPD_Theme.C_HAIRLINE
         .Format.Line.Weight = 0.75
         .Font.Name = modPD_Theme.UI_FONT
         .Font.Size = 8.5
@@ -773,7 +773,7 @@ Private Sub StyleAxes(ByVal ch As Object, ByVal rc As Object, ByVal u As String)
     On Error Resume Next
     With ch.Axes(AX_VALUE)
         .HasMajorGridlines = True
-        .MajorGridlines.Format.Line.ForeColor.RGB = modPD_Theme.C_LINE
+        .MajorGridlines.Format.Line.ForeColor.RGB = modPD_Theme.C_HAIRLINE
         .MajorGridlines.Format.Line.Weight = 0.5
         .Format.Line.Visible = msoFalse
         .MajorTickMark = xlNone
@@ -786,7 +786,7 @@ Private Sub StyleAxes(ByVal ch As Object, ByVal rc As Object, ByVal u As String)
     End With
     With ch.Axes(AX_CATEGORY)
         .Format.Line.Visible = msoTrue
-        .Format.Line.ForeColor.RGB = modPD_Theme.C_LINE_2
+        .Format.Line.ForeColor.RGB = modPD_Theme.C_HAIRLINE_2
         .MajorTickMark = xlNone
         .TickLabelPosition = TICK_LOW
         .TickLabels.Font.Color = modPD_Theme.C_TEXT_2

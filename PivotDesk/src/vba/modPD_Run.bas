@@ -124,9 +124,9 @@ Private Sub DressLogBlock(ByVal ws As Worksheet, ByVal lastR As Long)
         .IndentLevel = 1
         .WrapText = False
         .Borders(xlInsideHorizontal).LineStyle = xlContinuous
-        .Borders(xlInsideHorizontal).Color = modPD_Theme.C_LINE
+        .Borders(xlInsideHorizontal).Color = modPD_Theme.C_HAIRLINE
         .Borders(xlEdgeBottom).LineStyle = xlContinuous
-        .Borders(xlEdgeBottom).Color = modPD_Theme.C_LINE
+        .Borders(xlEdgeBottom).Color = modPD_Theme.C_HAIRLINE
     End With
     With ws.Range(ws.Cells(modPD_Theme.R_FIRST, 1), ws.Cells(lastR, 1)).Font
         .Name = modPD_Theme.UI_MONO

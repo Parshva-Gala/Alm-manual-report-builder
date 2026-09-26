@@ -13,7 +13,7 @@ There is no VBA compiler off Windows, so the build checks what it can:
     module, a procedure - or is part of VBA / Excel / Office
   * every xl*/mso*/vb* constant is one known to exist (the ones the shipped
     code already compiled with, plus a reviewed list)
-  * no Public procedure name is declared twice across modules, because a
+  * no Public name - procedure, constant or variable - is declared twice across modules, because a
     shape's OnAction is an unqualified name and two of them is "Ambiguous
     name detected" on every press
   * module-level declarations sit above the first procedure
@@ -442,19 +442,22 @@ def analyse(modules: dict[str, str], known_constants=None, extra_names=None):
         for kind, ln in stack:
             issues.append((m.name, ln, "unclosed %s" % kind))
 
-    # Public procedure names across modules: OnAction is unqualified.
+    # Public names across standard modules - procedures, constants, variables,
+    # enum members, whatever the kind. Two of the same name are "Ambiguous name
+    # detected" in Excel the moment either is used unqualified, and Excel only
+    # says so when it compiles the module that uses it, mid-build. A constant
+    # in one module and a function in another collide as surely as two
+    # functions (3.0 shipped C_LINE as both; LibreOffice compiled it).
+    # Document and class modules do not collide.
     owners = {}
     for m in mods.values():
-        for lname, (name, pub, ln) in m.procs.items():
-            if pub:
-                owners.setdefault(lname, []).append((m.name, ln))
-    for lname, where in owners.items():
-        if len(where) > 1 and not all(w[0] in ("ThisWorkbook",) for w in where):
-            # Same public name in two standard modules is ambiguous when called
-            # unqualified. Document/class modules do not collide.
-            std = [w for w in where if w[0] not in ("ThisWorkbook", "PDTrace") and not w[0].startswith("Sheet")]
-            if len(std) > 1:
-                issues.append((std[1][0], std[1][1], "Public %s also declared in %s" % (lname, std[0][0])))
+        if m.name in ("ThisWorkbook", "PDTrace") or m.name.startswith("Sheet"):
+            continue
+        for lname in m.public_names:
+            owners.setdefault(lname, []).append(m.name)
+    for lname, where in sorted(owners.items()):
+        if len(where) > 1:
+            issues.append((where[1], 0, "Public %s also declared in %s" % (lname, ", ".join(where[:1] + where[2:]))))
 
     global_names = set(extra) | set(n.lower() for n in mods)
     for m in mods.values():

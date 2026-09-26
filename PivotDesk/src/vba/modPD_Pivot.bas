@@ -1182,7 +1182,7 @@ Private Sub PlaceAfterBack(ByVal ws As Worksheet, ByVal sh As Shape, ByVal offse
     sh.Top = back.Top
     ' Quiet pills on the black bar, with a hairline so they read as buttons.
     sh.Line.visible = msoTrue
-    sh.Line.ForeColor.RGB = modPD_Theme.C_LINE_2
+    sh.Line.ForeColor.RGB = modPD_Theme.C_HAIRLINE_2
     sh.Line.Weight = 0.75
     Err.Clear
 End Sub
@@ -1331,9 +1331,9 @@ Private Function PivotStyleFor(ByVal wb As Workbook) As String
             .Interior.Color = modPD_Theme.C_ROW
             .Font.Color = modPD_Theme.C_TEXT
             .Borders(12).LineStyle = xlContinuous      ' inside horizontal
-            .Borders(12).Color = modPD_Theme.C_LINE
+            .Borders(12).Color = modPD_Theme.C_HAIRLINE
             .Borders(9).LineStyle = xlContinuous       ' bottom edge
-            .Borders(9).Color = modPD_Theme.C_LINE_2
+            .Borders(9).Color = modPD_Theme.C_HAIRLINE_2
         End With
         With ts.TableStyleElements(1)                  ' header row
             .Interior.Color = modPD_Theme.C_INK
@@ -1419,10 +1419,10 @@ Private Function SlicerStyleFor(ByVal wb As Workbook) As String
         With ts.TableStyleElements(0)                  ' whole slicer
             .Interior.Color = modPD_Theme.C_ROW
             .Font.Color = modPD_Theme.C_TEXT_2
-            .Borders(xlEdgeLeft).Color = modPD_Theme.C_LINE_2
-            .Borders(xlEdgeTop).Color = modPD_Theme.C_LINE_2
-            .Borders(xlEdgeRight).Color = modPD_Theme.C_LINE_2
-            .Borders(xlEdgeBottom).Color = modPD_Theme.C_LINE_2
+            .Borders(xlEdgeLeft).Color = modPD_Theme.C_HAIRLINE_2
+            .Borders(xlEdgeTop).Color = modPD_Theme.C_HAIRLINE_2
+            .Borders(xlEdgeRight).Color = modPD_Theme.C_HAIRLINE_2
+            .Borders(xlEdgeBottom).Color = modPD_Theme.C_HAIRLINE_2
         End With
         With ts.TableStyleElements(1)                  ' header
             .Font.Color = modPD_Theme.C_TEXT

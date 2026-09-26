@@ -231,7 +231,7 @@ Private Sub Card(ByVal ws As Worksheet, ByVal t As Variant, ByVal x As Double, B
     sh.Name = "pdg_card_" & key
     sh.Adjustments.Item(1) = 0.06
     sh.Fill.ForeColor.RGB = modPD_Theme.C_SURFACE
-    sh.Line.ForeColor.RGB = IIf(st = "on", modPD_Theme.C_BRAND, modPD_Theme.C_LINE_2)
+    sh.Line.ForeColor.RGB = IIf(st = "on", modPD_Theme.C_BRAND, modPD_Theme.C_HAIRLINE_2)
     sh.Line.Weight = 0.75
     sh.Shadow.visible = msoFalse
     sh.Placement = xlFreeFloating
@@ -274,7 +274,7 @@ Private Sub Glyph(ByVal ws As Worksheet, ByVal key As String, ByVal kind As Stri
         w = Array(48, 40, 44, 30)
         For i = 0 To 3
             Set sh = ws.Shapes.AddShape(msoShapeRectangle, x, y + 2 + i * 8, 14, 4)
-            Paint sh, "pdg_glyph_" & key & "_l" & i, modPD_Theme.C_LINE_2
+            Paint sh, "pdg_glyph_" & key & "_l" & i, modPD_Theme.C_HAIRLINE_2
             Set sh = ws.Shapes.AddShape(msoShapeRectangle, x + 18, y + 2 + i * 8, CDbl(w(i)) - 18, 4)
             Paint sh, "pdg_glyph_" & key & "_v" & i, IIf(i = 0, modPD_Theme.C_BRAND_BRIGHT, modPD_Theme.C_BRAND_DEEP)
         Next i

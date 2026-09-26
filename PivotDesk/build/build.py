@@ -43,6 +43,7 @@ import contrast  # noqa: E402
 import desk  # noqa: E402
 import ribbon  # noqa: E402
 import vbalint  # noqa: E402
+import vbacompile  # noqa: E402
 import vbaproj  # noqa: E402
 from design_tokens import EM, CANVAS, TX_1, GRID_COL_PT, GRID_ROW_PT  # noqa: E402
 import design_tokens  # noqa: E402
@@ -428,8 +429,8 @@ def check_palette(sources):
         "C_OK_TX": T.OK_TX, "C_OK_BG": T.OK_LT, "C_WARN_TX": T.WARN_TX, "C_WARN_BG": T.WARN_LT,
         "C_BAD_TX": T.BAD_TX, "C_BAD_BG": T.BAD_LT, "C_IDLE_TX": T.IDLE_TX, "C_IDLE_BG": T.IDLE_LT,
         "C_OK_DK": T.OK, "C_WARN_DK": T.WARN, "C_BAD_DK": T.BAD, "C_IDLE_DK": T.IDLE,
-        "C_SHEET": T.CANVAS, "C_ROW": T.SURFACE, "C_ROW_ALT": T.SURFACE_2, "C_LINE": T.HAIR,
-        "C_LINE_2": T.HAIR_2, "C_BAR_WELL": T.BAR_WELL, "C_TEXT": T.TX_1, "C_TEXT_2": T.TX_2, "C_TEXT_3": T.TX_3,
+        "C_SHEET": T.CANVAS, "C_ROW": T.SURFACE, "C_ROW_ALT": T.SURFACE_2, "C_HAIRLINE": T.HAIR,
+        "C_HAIRLINE_2": T.HAIR_2, "C_BAR_WELL": T.BAR_WELL, "C_TEXT": T.TX_1, "C_TEXT_2": T.TX_2, "C_TEXT_3": T.TX_3,
         "C_LINK": T.EM[300], "C_TOTAL": T.EM[950], "C_OK_BG_DK": T.OK_BG, "C_WARN_BG_DK": T.WARN_BG,
         "C_BAD_BG_DK": T.BAD_BG, "C_IDLE_BG_DK": T.IDLE_BG, "C_AVATI": T.AVATI_BLUE,
     }
@@ -583,6 +584,7 @@ def main():
     problems = []
     lint = vbalint.analyse(dict(sources)) + vbalint.arity_problems(dict(sources))
     problems += ["vba %s:%d %s" % i for i in lint]
+    problems += ["excel-compile %s:%s %s" % i for i in vbacompile.problems(dict(sources))]
     problems += check_contract(shapes, sources)
     problems += check_package(parts)
     problems += check_palette(sources)

@@ -178,11 +178,11 @@ End Function
 Public Function C_ROW_ALT() As Long
     C_ROW_ALT = HX("111F19")          ' every other row
 End Function
-Public Function C_LINE() As Long
-    C_LINE = HX("1A2922")             ' the hairline between rows
+Public Function C_HAIRLINE() As Long
+    C_HAIRLINE = HX("1A2922")             ' the hairline between rows
 End Function
-Public Function C_LINE_2() As Long
-    C_LINE_2 = HX("243A31")           ' a stronger edge
+Public Function C_HAIRLINE_2() As Long
+    C_HAIRLINE_2 = HX("243A31")           ' a stronger edge
 End Function
 Public Function C_BAR_WELL() As Long
     C_BAR_WELL = HX("0B1310")         ' the well a group of pills sits in
@@ -370,7 +370,7 @@ Public Sub Head(ByVal ws As Worksheet, ByRef headings As Variant, ByRef widths A
         .Borders(xlEdgeBottom).Color = C_BRAND
         .Borders(xlEdgeBottom).Weight = xlMedium
         .Borders(xlInsideVertical).LineStyle = xlContinuous
-        .Borders(xlInsideVertical).Color = C_LINE
+        .Borders(xlInsideVertical).Color = C_HAIRLINE
         .Borders(xlInsideVertical).Weight = xlThin
     End With
     ws.Rows(hdrRow).RowHeight = 28
@@ -467,12 +467,12 @@ Public Sub DressTable(ByVal ws As Worksheet, ByVal lastCol As Long, ByVal LastRo
     Next r
     With rng.Borders(xlInsideHorizontal)
         .LineStyle = xlContinuous
-        .Color = C_LINE
+        .Color = C_HAIRLINE
         .Weight = xlThin
     End With
     With rng.Borders(xlEdgeBottom)
         .LineStyle = xlContinuous
-        .Color = C_LINE_2
+        .Color = C_HAIRLINE_2
         .Weight = xlThin
     End With
     rng.VerticalAlignment = xlCenter
@@ -502,7 +502,7 @@ Public Sub DressLogRow(ByVal ws As Worksheet, ByVal r As Long)
         .IndentLevel = 1
         .WrapText = False
         .Borders(xlEdgeBottom).LineStyle = xlContinuous
-        .Borders(xlEdgeBottom).Color = C_LINE
+        .Borders(xlEdgeBottom).Color = C_HAIRLINE
         .Borders(xlEdgeBottom).Weight = xlThin
     End With
     With ws.Cells(r, 1)
@@ -640,7 +640,7 @@ Public Function Pill(ByVal ws As Worksheet, ByVal nm As String, ByVal caption As
             sh.Line.ForeColor.RGB = C_BRAND_DEEP
         Case 3
             sh.Fill.ForeColor.RGB = C_BAR_WELL
-            sh.Line.ForeColor.RGB = C_LINE
+            sh.Line.ForeColor.RGB = C_HAIRLINE
         Case Else
             ' Invisible but still there: a fully transparent fill keeps the
             ' whole pill clickable, where no fill would leave only the letters.
@@ -688,7 +688,7 @@ Public Function Divider(ByVal ws As Worksheet, ByVal x As Double, Optional ByVal
         sh.Name = "pdr_div_" & row & "_" & CLng(x)
         sh.Placement = xlFreeFloating
         sh.Line.visible = msoFalse
-        sh.Fill.ForeColor.RGB = C_LINE_2
+        sh.Fill.ForeColor.RGB = C_HAIRLINE_2
         sh.Shadow.visible = msoFalse
     End If
     Err.Clear
@@ -873,7 +873,7 @@ Public Sub Tile(ByVal ws As Worksheet, ByVal nm As String, ByVal l As Double, By
     sh.Name = nm
     sh.Adjustments.Item(1) = 0.12
     sh.Fill.ForeColor.RGB = C_ROW
-    sh.Line.ForeColor.RGB = C_LINE_2
+    sh.Line.ForeColor.RGB = C_HAIRLINE_2
     sh.Line.Weight = 0.75
     sh.Shadow.visible = msoFalse
     sh.Placement = xlFreeFloating

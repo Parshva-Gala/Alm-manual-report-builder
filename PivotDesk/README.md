@@ -177,6 +177,19 @@ The build fails on any of these:
   Every Excel constant must be known. No Public name may be declared twice.
   Every call must match its procedure's argument count. The three constructs
   LibreOffice cannot parse are kept out.
+- **Excel compile checks** (`build/vbacompile.py`). LibreOffice compiles
+  things Excel refuses, and Excel only reports them when a module is first
+  used, often mid-build. The check covers:
+  - a public name declared in two modules, of any kind;
+  - a private member used through its module's name;
+  - `ByRef argument type mismatch`;
+  - `For Each` over a typed variable;
+  - duplicate declarations in one procedure;
+  - a Sub used as a value;
+  - parentheses around a statement call's arguments;
+  - `Exit` of the wrong kind, and `Next` closing the wrong `For`;
+  - `GoTo` to a missing label;
+  - unknown named arguments.
 - **Config agreement.** Every heading named by a default pivot, a default
   chart or a gallery template must be a column of its sheet. The column
   constants must point at the right headings.

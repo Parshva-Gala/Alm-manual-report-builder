@@ -326,6 +326,7 @@ Accessibility and verification
 
 - [x] T30 Contrast pairs brought up to the dark theme: 46 pairs, including data bars (one emerald, 00794F, that is 3.4:1 against the rows and carries white figures at 5:1), highlights, slicers, charts and the gallery
 - [x] T31 LibreOffice runs the shipped VBA: all 19 modules compile; number parsing, unit formats, date periods and number steps run against known answers
+- [x] T33 Fixed from the first Excel run: "Ambiguous name detected: C_LINE". The palette's hairline colour and a stage column shared the name; the colours are now C_HAIRLINE and C_HAIRLINE_2. The lint now rejects any public name declared twice, of any kind, and build/vbacompile.py gates the other compile errors Excel raises and LibreOffice does not
 - [x] T32 Previews of Chart config, Workbooks, the Gallery, Start here with its charts and the top counterparties pivot, from the LCR sample staged as the VBA stages it
 
 ## Q. Configurable pivots (separate workstream)
