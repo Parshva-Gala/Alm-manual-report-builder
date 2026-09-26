@@ -56,6 +56,7 @@ Public Sub Restyle()
     modPD_Theme.RailEverywhere
     PrintSetup
     SettingSet "styled_version", TOOL_VERSION
+    SettingSet "welcome", "1"
     Err.Clear
 End Sub
 

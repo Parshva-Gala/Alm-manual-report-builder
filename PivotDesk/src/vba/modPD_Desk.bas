@@ -277,6 +277,7 @@ Private Function NextAction(ByRef label As String, ByRef lede As String) As Stri
     Dim missingKey As String, ready As New Collection, fw As Variant, nSel As Long
     Dim ctl As String, built As Boolean, reconciled As Boolean, nBreak As Long, nCmp As Long
     Dim worst As Double, folder As String
+    On Error Resume Next      ' a question it cannot answer must not stop the Desk
 
     keys = SlotKeys()
     For i = 0 To UBound(keys)
@@ -423,6 +424,7 @@ Private Sub PaintHero(ByVal ws As Worksheet)
     Dim label As String, lede As String, h As Long, g As String
     Dim keys As Variant, i As Long, nFiles As Long, nFw As Long, nCtl As Long, st As String
     Dim ran As Boolean, nBreak As Long, nCmp As Long, asOf As String, fw As Variant
+    On Error Resume Next      ' one label that will not paint must not stop the rest
 
     h = Hour(Now)
     If h < 12 Then
@@ -489,6 +491,7 @@ End Sub
 Private Sub Kpi(ByVal ws As Worksheet, ByVal key As String, ByVal n As Long, ByVal total As Long, _
                 ByVal subText As String)
     Dim j As Long
+    On Error Resume Next      ' one label that will not paint must not stop the rest
     SetText ws, "pdx_kpi_" & key & "_value", CStr(n)
     SetText ws, "pdx_kpi_" & key & "_sub", subText
     For j = 1 To total
@@ -502,6 +505,7 @@ End Sub
 
 Private Sub PaintFiles(ByVal ws As Worksheet)
     Dim keys As Variant, i As Long, st As String, n As Long
+    On Error Resume Next      ' one label that will not paint must not stop the rest
     keys = SlotKeys()
     For i = 0 To UBound(keys)
         st = SlotState(CStr(keys(i)))
@@ -517,6 +521,7 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
     Dim fws As Variant, j As Long, fw As String, st As String, sel As Boolean, nm As String
     Dim nReady As Long, nSel As Long, rows As String, asOf As String, meta As String
     Dim track As Shape, knob As Shape, lastWhen As String, lastN As String, folder As String
+    On Error Resume Next      ' one label that will not paint must not stop the rest
 
     fws = Frameworks()
     For j = 0 To UBound(fws)
@@ -573,7 +578,6 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
                 knob.Left = track.Left + 2
             End If
             Err.Clear
-            On Error GoTo 0
         End If
     Next j
 
@@ -616,6 +620,7 @@ Private Sub PaintRecon(ByVal ws As Worksheet)
     Dim st3 As String, st6 As String, nFw As Long, fw As Variant, ran As Boolean
     Dim r As Long, c As Long, v As String, ctlKey As Variant, fws As Variant, nm As String
     Dim nBreak As Long, nCmp As Long, lvl As String
+    On Error Resume Next      ' one label that will not paint must not stop the rest
 
     st3 = SlotState("CTRL3|")
     st6 = SlotState("CTRL6|")
@@ -707,6 +712,7 @@ End Function
 ' One cell of the verdict matrix: a control against a framework.
 Private Sub PaintCell(ByVal ws As Worksheet, ByVal nm As String, ByVal verdict As String)
     Dim lvl As String, word As String
+    On Error Resume Next      ' one label that will not paint must not stop the rest
     Select Case UCase$(verdict)
         Case "OK": lvl = "OK": word = "OK"
         Case "BREAK": lvl = "BREAK": word = "Break"
@@ -726,6 +732,7 @@ End Sub
 
 Private Sub PaintActivity(ByVal ws As Worksheet)
     Dim lg As Worksheet, a As Long, r As Long, n As Long, lvl As String, msg As String
+    On Error Resume Next      ' one label that will not paint must not stop the rest
     Set lg = GetSheet(SH_LOG)
     For a = 1 To 3
         r = modPD_Theme.R_FIRST + a - 1
@@ -1190,6 +1197,12 @@ Public Sub Opened()
     RefreshDesk
     modPD_Theme.GoTo_ SH_HOME
     AppEnter
+    ' Once, after an upgrade: what moved where.
+    If SettingGet("welcome") = "1" Then
+        SettingSet "welcome", ""
+        Toast "Welcome to " & TOOL_NAME & " " & TOOL_VERSION & ". The console is now this Desk, and Pivot config " & _
+              "lets you shape every pivot a build makes. Excel view brings the ribbon back.", V_OK
+    End If
     Err.Clear
 End Sub
 

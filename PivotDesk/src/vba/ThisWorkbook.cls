@@ -5,15 +5,20 @@ Option Explicit
 ' windows and on saving can be read in one place per concern.
 
 Private Sub Workbook_Open()
-    Dim wasSaved As Boolean
+    Dim wasSaved As Boolean, st As Object
     On Error Resume Next
     wasSaved = ThisWorkbook.Saved
+    ' Setting up or upgrading adds and dresses sheets; with events on, each
+    ' new sheet would be "activated" half-built, and the screen would show
+    ' every step. Both are paused until the desk is ready to be seen.
+    Set st = CaptureState()
     If ThisWorkbook.Worksheets.count <= 1 Or GetSheet(SH_HOME) Is Nothing Then
         modPD_Run.PD_Setup
     Else
         modPD_Run.Restyle
         modPD_Files.RefreshStatuses
     End If
+    RestoreState st
     modPD_Desk.Opened
     ' Repainting what was already true is not a change: closing straight
     ' away should not ask to save.

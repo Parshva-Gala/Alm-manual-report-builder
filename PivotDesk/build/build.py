@@ -408,7 +408,7 @@ def check_palette(sources):
 def main():
     parts, shapes, sources = build()
     problems = []
-    lint = vbalint.analyse({k: v for k, v in sources.items()})
+    lint = vbalint.analyse(dict(sources)) + vbalint.arity_problems(dict(sources))
     problems += ["vba %s:%d %s" % i for i in lint]
     problems += check_contract(shapes, sources)
     problems += check_package(parts)

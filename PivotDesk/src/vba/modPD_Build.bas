@@ -361,8 +361,10 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
         ws.Cells(r, 1).Value2 = CStr(e(0))
         ws.Cells(r, 2).Value2 = CStr(e(1))
         On Error Resume Next
+        ' An apostrophe in a sheet name ("Customer's deposits") is doubled in a
+        ' link, or the link goes nowhere.
         ws.Hyperlinks.Add Anchor:=ws.Cells(r, 1), Address:="", _
-                          SubAddress:="'" & CStr(e(0)) & "'!A1", ScreenTip:="Open " & CStr(e(0))
+                          SubAddress:="'" & Replace(CStr(e(0)), "'", "''") & "'!A1", ScreenTip:="Open " & CStr(e(0))
         Err.Clear
         On Error GoTo 0
         r = r + 1

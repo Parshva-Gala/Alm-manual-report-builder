@@ -503,12 +503,117 @@ def check_statement(m, ln, st, local, labels, global_names, known_constants, iss
         issues.append((m.name, ln, "not declared: %s   [%s]" % (tok, st[:90])))
 
 
+# ---------------------------------------------------------------------------
+#  Arity: a call to one of the project's own procedures passes a number of
+#  arguments the signature accepts ("Wrong number of arguments" is a compile
+#  error, and it is the one a rename most often leaves behind).
+# ---------------------------------------------------------------------------
+def _split_args(text):
+    args, depth, cur, in_str = [], 0, "", False
+    for ch in text:
+        if ch == '"':
+            in_str = not in_str
+        if not in_str:
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            if ch == "," and depth == 0:
+                args.append(cur)
+                cur = ""
+                continue
+        cur += ch
+    if cur.strip() or args:
+        args.append(cur)
+    return [a for a in args]
+
+
+def signatures(modules):
+    sigs = {}
+    for mod, code in modules.items():
+        for ln, text in logical_lines(code):
+            for st in split_statements(text):
+                pm = PROC_RE.match(st)
+                if not pm or st.lower().startswith(("end ", "exit ")):
+                    continue
+                name = pm.group(2).lower()
+                params = [x for x in _split_args(pm.group(4) or "") if x.strip()]
+                req = sum(1 for x in params if not re.match(r"\s*(Optional|ParamArray)\b", x, re.I))
+                has_pa = any(re.match(r"\s*ParamArray\b", x, re.I) for x in params)
+                mx = 10 ** 6 if has_pa else len(params)
+                kind = pm.group(1).split()[0].lower()
+                public = not st.lower().startswith("private")
+                sigs.setdefault(name, []).append((mod, req, mx, kind, public))
+    return sigs
+
+
+def arity_problems(modules):
+    sigs = signatures(modules)
+    out = []
+    for mod, code in modules.items():
+        for ln, text in logical_lines(code):
+            for st in split_statements(text):
+                if PROC_RE.match(st) or re.match(r"^\s*(Dim|Private|Public|Const|Declare)\b", st, re.I):
+                    continue
+                s2 = re.sub(r'"[^"]*"', '""', st)
+                # statement form:  [Call] [Module.]Name arg, arg
+                m = re.match(r"^(?:Call\s+)?(?:(\w+)\.)?(\w+)(?:\s+(.*))?$", s2)
+                if m and m.group(2).lower() in sigs and not re.match(r"^\s*\w+(\.\w+)?\s*=", s2):
+                    rest = m.group(3)
+                    if rest is not None and rest.strip().startswith("="):
+                        rest = None
+                    if rest is not None and rest.strip().startswith("(") and s2.lower().startswith("call "):
+                        rest = rest.strip()[1:-1]
+                    n = len([a for a in _split_args(rest or "") if a.strip()]) if rest else 0
+                    if not _fits(sigs, m.group(1), m.group(2), n, modules, caller=mod):
+                        out.append((mod, ln, "%s called with %d argument(s)" % (m.group(2), n)))
+                    continue
+                # function form inside expressions:  Name( ... )
+                for fm in re.finditer(r"(?<![\w.])(?:(\w+)\.)?(\w+)\(", s2):
+                    name = fm.group(2).lower()
+                    if name not in sigs:
+                        continue
+                    depth, i = 1, fm.end()
+                    while i < len(s2) and depth:
+                        if s2[i] == "(":
+                            depth += 1
+                        elif s2[i] == ")":
+                            depth -= 1
+                        i += 1
+                    inner = s2[fm.end():i - 1]
+                    n = len([a for a in _split_args(inner) if a.strip()])
+                    if not _fits(sigs, fm.group(1), fm.group(2), n, modules, as_index=True, caller=mod):
+                        out.append((mod, ln, "%s( ) called with %d argument(s)" % (fm.group(2), n)))
+    return out
+
+
+def _fits(sigs, qual, name, n, modules, as_index=False, caller=None):
+    cands = sigs.get(name.lower(), [])
+    if qual:
+        if qual not in modules:
+            return True                     # a member of an object, not ours
+        cands = [c for c in cands if c[0] == qual]
+    else:
+        # VBA's scope: this module's own, then any Public one elsewhere
+        own = [c for c in cands if c[0] == caller]
+        cands = own or [c for c in cands if c[4]]
+    if not cands:
+        return True
+    for mod, req, mx, kind, public in cands:
+        if req <= n <= mx:
+            return True
+        # Name(0) on a function returning an array/collection indexes the result
+        if as_index and req == 0 and kind == "function":
+            return True
+    return False
+
+
 def main(paths):
     mods = {}
     for p in paths:
         name = re.sub(r"\.(bas|cls)$", "", p.split("/")[-1])
         mods[name] = open(p, encoding="cp1252").read()
-    issues = analyse(mods)
+    issues = analyse(mods) + arity_problems(mods)
     for mod, ln, msg in issues:
         print("%s:%d  %s" % (mod, ln, msg))
     print("%d issue(s)" % len(issues))
