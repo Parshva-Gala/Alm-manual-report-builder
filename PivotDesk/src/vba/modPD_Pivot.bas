@@ -50,6 +50,44 @@ Private Const SLICER_H As Double = 62
 Private Const TILE_HELPER_COL As Long = 240
 Private Const SLICER_CUSTOM As String = "Avati Slicer"
 
+' Conditional formats, by value rather than by a name the lint cannot check.
+Private Const DB_FILL_SOLID As Long = 0          ' xlDataBarFillSolid
+Private Const DB_BORDER_NONE As Long = 0         ' xlDataBarBorderNone
+Private Const FC_LESS As Long = 6                ' xlLess
+Private Const FC_TOP As Long = 1                 ' xlTop10Top
+Private Const FC_FIELDS_SCOPE As Long = 1        ' xlFieldsScope: this value, totals left out
+
+' Excel 2010's calculations and filters, by value: a name the type library of
+' an older Excel - or LibreOffice - does not know stops the whole module compiling.
+Private Const PC_PARENT_ROW As Long = 10             ' xlPercentOfParentRow
+Private Const PC_PARENT_COL As Long = 11             ' xlPercentOfParentColumn
+Private Const PC_PARENT As Long = 12                 ' xlPercentOfParent
+Private Const PC_RUNNING As Long = 5                 ' xlRunningTotal
+Private Const PC_PCT_RUNNING As Long = 13            ' xlPercentRunningTotal
+Private Const PC_RANK_ASC As Long = 14               ' xlRankAscending
+Private Const PC_RANK_DESC As Long = 15              ' xlRankDecending
+Private Const PC_DIFF As Long = 2                    ' xlDifferenceFrom
+Private Const PC_PCT_DIFF As Long = 4                ' xlPercentDifferenceFrom
+Private Const PC_INDEX As Long = 9                   ' xlIndex
+Private Const PF_CONTAINS As Long = 21               ' xlCaptionContains
+Private Const PF_NOT_CONTAINS As Long = 22           ' xlCaptionDoesNotContain
+Private Const PF_BEGINS As Long = 17                 ' xlCaptionBeginsWith
+Private Const PF_NOT_BEGINS As Long = 18             ' xlCaptionDoesNotBeginWith
+Private Const PF_ENDS As Long = 19                   ' xlCaptionEndsWith
+Private Const PF_NOT_ENDS As Long = 20               ' xlCaptionDoesNotEndWith
+Private Const PF_TOP As Long = 1                     ' xlTopCount
+Private Const PF_BOTTOM As Long = 2                  ' xlBottomCount
+Private Const PF_TOP_PCT As Long = 3                 ' xlTopPercent
+Private Const PF_BOTTOM_PCT As Long = 4              ' xlBottomPercent
+Private Const PF_EQ As Long = 7                      ' xlValueEquals
+Private Const PF_NE As Long = 8                      ' xlValueDoesNotEqual
+Private Const PF_GE As Long = 10                     ' xlValueIsGreaterThanOrEqualTo
+Private Const PF_GT As Long = 9                      ' xlValueIsGreaterThan
+Private Const PF_LE As Long = 12                     ' xlValueIsLessThanOrEqualTo
+Private Const PF_LT As Long = 11                     ' xlValueIsLessThan
+Private Const PF_BETWEEN As Long = 13                ' xlValueIsBetween
+Private Const PF_NOT_BETWEEN As Long = 14            ' xlValueIsNotBetween
+
 Private mCache As PivotCache
 Private mSeq As Long
 Private mBook As String            ' "LCR  ·  MIDBANK CAIRO", on every sheet's bar
@@ -218,6 +256,7 @@ Public Function BuildRecipeSheet(ByVal wb As Workbook, ByVal rc As Object, ByVal
                                  ByVal splitVals As Variant, ByVal tabName As String) As Worksheet
     Dim ws As Worksheet, pt As PivotTable, x As Variant, pos As Long, v As Object, flt As Object
     Dim title As String, about As String, fl As Object, i As Long, sf As Collection, what As String
+    Dim overline As String, nm As String
 
     Set fl = modPD_Config.Fields()
     Set sf = rc("Split")
@@ -234,9 +273,14 @@ Public Function BuildRecipeSheet(ByVal wb As Workbook, ByVal rc As Object, ByVal
         about = CStr(rc("Desc"))
         what = IIf(Len(about) > 0, about, title)
     End If
+    overline = UCase$(FwLabel(fw)) & "  " & ChrW(183) & "  " & _
+               IIf(sf.count > 0, "ONE SHEET PER " & UCase$(JoinC(sf)), "PIVOT")
+    ' The unit the figures are read in, where the eye starts.
+    If Len(rc("Units")) > 0 And Not CBool(rc("FormatSet")) Then
+        overline = overline & "  " & ChrW(183) & "  IN " & UCase$(CStr(rc("Units")))
+    End If
 
-    Set ws = NewPivotSheet(wb, tabName, title, about, _
-        UCase$(FwLabel(fw)) & "  " & ChrW(183) & "  " & IIf(sf.count > 0, "ONE SHEET PER " & UCase$(JoinC(sf)), "PIVOT"))
+    Set ws = NewPivotSheet(wb, tabName, title, about, overline)
     Set pt = NewPivot(ws, "pt_r", sf.count + PageFilterCount(rc))
     If pt Is Nothing Then Exit Function
     pt.ManualUpdate = True
@@ -244,17 +288,23 @@ Public Function BuildRecipeSheet(ByVal wb As Workbook, ByVal rc As Object, ByVal
     pos = 0
     For Each x In rc("Rows")
         pos = pos + 1
-        RowField pt, CStr(x), pos
+        RowField pt, modPD_Recipe.PivotFieldName(rc, CStr(x)), pos
     Next x
     pos = 0
     For Each x In rc("Cols")
         pos = pos + 1
-        ColField pt, CStr(x), pos
+        ColField pt, modPD_Recipe.PivotFieldName(rc, CStr(x)), pos
     Next x
     For Each v In rc("Values")
-        AddValue pt, v, CStr(rc("Format"))
+        AddValue pt, v, rc, fl
     Next v
-    If rc("Values").count > 1 And rc("Cols").count > 0 Then DataFirst pt
+    If rc("Values").count > 1 Then
+        If CBool(rc("ValuesInRows")) Then
+            DataToRows pt
+        ElseIf rc("Cols").count > 0 Then
+            DataFirst pt
+        End If
+    End If
 
     ' One sheet per: its fields become filters fixed to this sheet's values.
     For i = 1 To sf.count
@@ -262,39 +312,67 @@ Public Function BuildRecipeSheet(ByVal wb As Workbook, ByVal rc As Object, ByVal
         PickOne pt, CStr(sf(i)), CStr(splitVals(i - 1))
     Next i
     ' Show only / hide: on whichever axis the field is on, or - if it is on
-    ' neither - as a report filter of its own.
+    ' neither - as a report filter of its own. Label rules are on an axis.
     For Each flt In rc("Filters")
-        If Not modPD_Config.InCollection(rc("Rows"), CStr(flt("Field"))) And _
-           Not modPD_Config.InCollection(rc("Cols"), CStr(flt("Field"))) Then
-            PageField pt, CStr(flt("Field"))
+        nm = modPD_Recipe.PivotFieldName(rc, CStr(flt("Field")))
+        If flt("Kind") = "label" Then
+            LabelFilter pt, nm, CStr(flt("Op")), CStr(flt("Text"))
+        Else
+            If Not modPD_Recipe.InCollection(rc("Rows"), CStr(flt("Field"))) And _
+               Not modPD_Recipe.InCollection(rc("Cols"), CStr(flt("Field"))) Then
+                PageField pt, nm
+            End If
+            ShowItems pt, nm, CBool(flt("Include")), flt("Items")
         End If
-        ShowItems pt, CStr(flt("Field")), CBool(flt("Include")), flt("Items")
     Next flt
     RecipeSubtotals pt, rc
 
     FinishRecipe pt, ws, rc, fl
     NoteSheet ws, what
-    If sf.count = 0 And rc("Slicers").count > 0 Then Slicers ws, pt, ToArray(rc("Slicers"))
+    If sf.count = 0 And rc("Slicers").count > 0 Then Slicers ws, pt, SlicerFields(rc)
     RecipeTab ws, CStr(rc("Tab"))
     Set BuildRecipeSheet = ws
 End Function
 
-' A value, as the recipe spelled it: which field, how to aggregate, and what
-' to call it. Raises if Excel refuses it - a pivot without its value is
-' empty, and saying so beats building it.
-Private Sub AddValue(ByVal pt As PivotTable, ByVal v As Object, ByVal fmt As String)
-    Dim df As PivotField, fn As Long, calc As Long, nf As String
+Private Function SlicerFields(ByVal rc As Object) As Variant
+    Dim a() As String, i As Long, c As Collection
+    Set c = rc("Slicers")
+    ReDim a(0 To c.count - 1)
+    For i = 1 To c.count
+        a(i - 1) = modPD_Recipe.PivotFieldName(rc, CStr(c(i)))
+    Next i
+    SlicerFields = a
+End Function
+
+' A value, as the recipe spelled it: which field, how to aggregate, how to
+' show it and what to call it. Raises if Excel refuses any of it - a pivot
+' whose "Share" column quietly shows sums is worse than no pivot.
+Private Sub AddValue(ByVal pt As PivotTable, ByVal v As Object, ByVal rc As Object, ByVal fl As Object)
+    Dim df As PivotField, fn As Long, calc As Long, nf As String, fld As Object, along As String, calcKey As String
+    Set fld = fl(CStr(v("Field")))
+    If fld("Kind") = "Calculated" Then EnsureCalculated pt, fld
     Select Case CStr(v("Agg"))
         Case "count": fn = xlCount
-        Case "average", "avg", "mean": fn = xlAverage
+        Case "average": fn = xlAverage
         Case "max": fn = xlMax
         Case "min": fn = xlMin
         Case Else: fn = xlSum
     End Select
-    Select Case CStr(v("Agg"))
+    calcKey = CStr(v("Calc"))
+    Select Case calcKey
         Case "%row": calc = xlPercentOfRow
-        Case "%col", "%column": calc = xlPercentOfColumn
+        Case "%col": calc = xlPercentOfColumn
         Case "%total": calc = xlPercentOfTotal
+        Case "%parent": calc = PC_PARENT
+        Case "%parentrow": calc = PC_PARENT_ROW
+        Case "%parentcol": calc = PC_PARENT_COL
+        Case "running": calc = PC_RUNNING
+        Case "%running": calc = PC_PCT_RUNNING
+        Case "rank"
+            If CBool(v("RankDesc")) Then calc = PC_RANK_DESC Else calc = PC_RANK_ASC
+        Case "diff": calc = PC_DIFF
+        Case "%diff": calc = PC_PCT_DIFF
+        Case "index": calc = PC_INDEX
     End Select
     On Error Resume Next
     Set df = pt.AddDataField(pt.PivotFields(CStr(v("Field"))), CStr(v("Caption")), fn)
@@ -303,18 +381,198 @@ Private Sub AddValue(ByVal pt As PivotTable, ByVal v As Object, ByVal fmt As Str
         Err.Raise vbObjectError + 514, "AddValue", _
             "Could not add " & CStr(v("Field")) & " as a value called " & Chr$(34) & CStr(v("Caption")) & Chr$(34) & "."
     End If
-    On Error Resume Next
     If calc <> 0 Then
-        df.Calculation = calc
-        nf = "0.0%"
-    ElseIf fn = xlCount Then
-        nf = "#,##0"
-    Else
-        nf = fmt
+        along = ""
+        If Len(v("Base")) > 0 Then along = modPD_Recipe.PivotFieldName(rc, CStr(v("Base")))
+        If Not ShowAs(df, calc, along, (calcKey = "diff" Or calcKey = "%diff")) Then
+            Err.Raise vbObjectError + 515, "AddValue", "Could not show " & Chr$(34) & Trim$(CStr(v("Caption"))) & _
+                Chr$(34) & " as " & calcKey & IIf(Len(along) > 0, " along " & along, "") & "."
+        End If
     End If
+    On Error Resume Next
+    Select Case calcKey
+        Case "%row", "%col", "%total", "%parent", "%parentrow", "%parentcol", "%running", "%diff"
+            nf = "0.0%"
+        Case "rank"
+            nf = "0"
+        Case "index"
+            nf = "0.00"
+        Case Else
+            If fn = xlCount Then
+                nf = "#,##0"
+            ElseIf CBool(rc("FormatSet")) Then
+                nf = CStr(rc("Format"))
+            ElseIf Len(fld("Format")) > 0 And fld("Format") <> NUM_FMT Then
+                nf = CStr(fld("Format"))         ' a rate, a date, a factor: the field knows best
+            Else
+                nf = CStr(rc("Format"))
+            End If
+    End Select
     df.NumberFormat = nf
     ' Set again: changing the calculation can make Excel regenerate it.
     df.caption = CStr(v("Caption"))
+    Err.Clear
+End Sub
+
+' Shows a value as a calculation, along a field when it needs one. The base
+' field is set on both sides of the calculation: some versions of Excel want
+' it first, others reset it when the calculation changes.
+Private Function ShowAs(ByVal df As PivotField, ByVal calc As Long, ByVal along As String, _
+                        ByVal fromPrevious As Boolean) As Boolean
+    On Error Resume Next
+    If Len(along) > 0 Then df.BaseField = along
+    Err.Clear
+    df.Calculation = calc
+    If Err.Number <> 0 Then Exit Function
+    If Len(along) > 0 Then
+        df.BaseField = along
+        If Err.Number <> 0 Then Exit Function
+    End If
+    If fromPrevious Then
+        df.BaseItem = "(previous)"
+        If Err.Number <> 0 Then Exit Function
+    End If
+    ShowAs = (df.Calculation = calc)
+    Err.Clear
+End Function
+
+' A calculated field lives on the cache, so the first sheet that uses it adds
+' it and every later one finds it there.
+Private Sub EnsureCalculated(ByVal pt As PivotTable, ByVal fld As Object)
+    Dim pf As PivotField, why As String
+    On Error Resume Next
+    Set pf = pt.PivotFields(CStr(fld("Name")))
+    Err.Clear
+    If Not pf Is Nothing Then Exit Sub
+    Set pf = pt.CalculatedFields.Add(CStr(fld("Name")), CStr(fld("Source")), True)
+    why = Err.Description
+    On Error GoTo 0
+    If pf Is Nothing Then
+        Err.Raise vbObjectError + 516, "EnsureCalculated", "Could not calculate " & Chr$(34) & CStr(fld("Name")) & _
+            Chr$(34) & " from " & CStr(fld("Source")) & IIf(Len(why) > 0, " - " & why, "") & "."
+    End If
+End Sub
+
+' "contains BANK", "does not begin with 9" - a rule on the labels, kept when
+' the data changes, rather than a list of items that goes stale.
+Private Sub LabelFilter(ByVal pt As PivotTable, ByVal nm As String, ByVal op As String, ByVal text As String)
+    Dim pf As PivotField, t As Long
+    Select Case op
+        Case "contains": t = PF_CONTAINS
+        Case "does not contain": t = PF_NOT_CONTAINS
+        Case "begins with": t = PF_BEGINS
+        Case "does not begin with": t = PF_NOT_BEGINS
+        Case "ends with": t = PF_ENDS
+        Case "does not end with": t = PF_NOT_ENDS
+    End Select
+    On Error Resume Next
+    pt.AllowMultipleFilters = True
+    Set pf = pt.PivotFields(nm)
+    If pf Is Nothing Or t = 0 Then Exit Sub
+    pf.PivotFilters.Add Type:=t, Value1:=text
+    If Err.Number <> 0 Then
+        LogIt V_CHECK, "Pivots", "The rule " & Chr$(34) & nm & " " & op & " " & text & Chr$(34) & " could not be " & _
+              "applied on " & pt.Parent.Name & ": " & Err.Description
+    End If
+    Err.Clear
+End Sub
+
+' Top 25 by Exposure, Exposure > 1m: value filters, on the field they name.
+' Applied once the pivot has its values; a filter Excel refuses is logged and
+' the sheet shows everything rather than failing.
+Private Sub ValueFilters(ByVal pt As PivotTable, ByVal rc As Object)
+    Dim f As Object, pf As PivotField, df As PivotField, t As Long, pct As Boolean
+    If rc("VFilters").count = 0 Then Exit Sub
+    On Error Resume Next
+    pt.AllowMultipleFilters = True
+    For Each f In rc("VFilters")
+        Set pf = Nothing
+        Set df = Nothing
+        Set pf = pt.PivotFields(modPD_Recipe.PivotFieldName(rc, CStr(f("Field"))))
+        Set df = pt.DataFields(modPD_Recipe.HeldCaption(rc, CStr(f("By"))))
+        Err.Clear
+        pct = CBool(f("Pct"))
+        Select Case CStr(f("Kind"))
+            Case "top": If pct Then t = PF_TOP_PCT Else t = PF_TOP
+            Case "bottom": If pct Then t = PF_BOTTOM_PCT Else t = PF_BOTTOM
+            Case "gt": t = PF_GT
+            Case "ge": t = PF_GE
+            Case "lt": t = PF_LT
+            Case "le": t = PF_LE
+            Case "eq": t = PF_EQ
+            Case "ne": t = PF_NE
+            Case "between": t = PF_BETWEEN
+            Case "notbetween": t = PF_NOT_BETWEEN
+        End Select
+        If pf Is Nothing Or df Is Nothing Then
+            Err.Raise vbObjectError + 517
+        ElseIf f("Kind") = "top" Or f("Kind") = "bottom" Then
+            pf.PivotFilters.Add Type:=t, DataField:=df, Value1:=CDbl(f("N"))
+        ElseIf f("Kind") = "between" Or f("Kind") = "notbetween" Then
+            pf.PivotFilters.Add Type:=t, DataField:=df, Value1:=CDbl(f("V1")), Value2:=CDbl(f("V2"))
+        Else
+            pf.PivotFilters.Add Type:=t, DataField:=df, Value1:=CDbl(f("V1"))
+        End If
+        If Err.Number <> 0 Then
+            LogIt V_CHECK, "Pivots", "The top / value filter on " & CStr(f("Field")) & " by " & CStr(f("By")) & _
+                  " could not be applied on " & pt.Parent.Name & " - it shows every item."
+        End If
+        Err.Clear
+    Next f
+End Sub
+
+' Data bars, a heatmap, negatives or the top N, on the plain values (or the
+' one the recipe names). Scoped to the value's field, so a refresh or a
+' filter re-applies it and the totals are left out of the scale.
+Private Sub Highlight(ByVal pt As PivotTable, ByVal rc As Object)
+    Dim df As PivotField, anchor As Range, fc As Object, pick As Boolean
+    If Len(rc("Hilite")) = 0 Then Exit Sub
+    On Error Resume Next
+    For Each df In pt.DataFields
+        If Len(rc("HiliteOn")) > 0 Then
+            pick = (StrComp(Trim$(df.caption), CStr(rc("HiliteOn")), vbTextCompare) = 0)
+        Else
+            pick = (df.Calculation = xlNoAdditionalCalculation)
+        End If
+        If pick Then
+            Set anchor = Nothing
+            Set fc = Nothing
+            Set anchor = df.DataRange.Cells(1, 1)
+            If Not anchor Is Nothing Then
+                Select Case CStr(rc("Hilite"))
+                    Case "bars"
+                        Set fc = anchor.FormatConditions.AddDatabar
+                        fc.BarFillType = DB_FILL_SOLID
+                        fc.BarColor.Color = modPD_Theme.C_BRAND_DEEP
+                        fc.BarBorder.Type = DB_BORDER_NONE
+                        fc.ShowValue = True
+                    Case "heat"
+                        Set fc = anchor.FormatConditions.AddColorScale(ColorScaleType:=2)
+                        fc.ColorScaleCriteria(1).FormatColor.Color = modPD_Theme.C_SURFACE
+                        fc.ColorScaleCriteria(2).FormatColor.Color = modPD_Theme.C_BRAND_DEEP
+                    Case "neg"
+                        Set fc = anchor.FormatConditions.Add(Type:=xlCellValue, Operator:=FC_LESS, Formula1:="=0")
+                        fc.Interior.Color = modPD_Theme.C_BAD_BG_DK
+                    Case "top"
+                        Set fc = anchor.FormatConditions.AddTop10
+                        fc.TopBottom = FC_TOP
+                        fc.Rank = CLng(rc("HiliteN"))
+                        fc.Percent = False
+                        fc.Interior.Color = modPD_Theme.C_BRAND_900
+                        fc.Font.Bold = True
+                End Select
+                If Not fc Is Nothing Then fc.ScopeType = FC_FIELDS_SCOPE
+            End If
+        End If
+    Next df
+    Err.Clear
+End Sub
+
+' With two or more values: stacked down the rows, under the row fields.
+Private Sub DataToRows(ByVal pt As PivotTable)
+    On Error Resume Next
+    pt.DataPivotField.Orientation = xlRowField
+    pt.DataPivotField.Position = pt.RowFields.count
     Err.Clear
 End Sub
 
@@ -329,28 +587,36 @@ Private Sub ShowItems(ByVal pt As PivotTable, ByVal nm As String, ByVal include 
     If pf Is Nothing Then Exit Sub
     If pf.Orientation = xlPageField Then pf.EnableMultiplePageItems = True
     For Each pi In pf.PivotItems
-        listed = modPD_Config.InCollection(items, pi.Name)
+        listed = modPD_Recipe.InCollection(items, pi.Name)
         If listed = include Then keep = keep + 1
     Next pi
     If keep = 0 Then Exit Sub
     For Each pi In pf.PivotItems
-        listed = modPD_Config.InCollection(items, pi.Name)
+        listed = modPD_Recipe.InCollection(items, pi.Name)
         If listed = include Then pi.visible = True
     Next pi
     For Each pi In pf.PivotItems
-        listed = modPD_Config.InCollection(items, pi.Name)
+        listed = modPD_Recipe.InCollection(items, pi.Name)
         If listed <> include Then pi.visible = False
     Next pi
     Err.Clear
 End Sub
 
 Private Sub RecipeSubtotals(ByVal pt As PivotTable, ByVal rc As Object)
-    Dim x As Variant, subs As Object
+    Dim x As Variant, subs As Object, pf As PivotField, n As Long
     Set subs = rc("SubFields")
     On Error Resume Next
     For Each x In rc("Rows")
-        If CBool(rc("SubAll")) Or subs.Exists(CStr(x)) Then
-            pt.PivotFields(CStr(x)).Subtotals(1) = True       ' automatic
+        n = n + 1
+        Set pf = Nothing
+        Set pf = pt.PivotFields(modPD_Recipe.PivotFieldName(rc, CStr(x)))
+        If Not pf Is Nothing Then
+            If CBool(rc("SubAll")) Or subs.Exists(CStr(x)) Then
+                pf.Subtotals(1) = True                        ' automatic
+                If CLng(rc("SubAt")) > 0 Then pf.LayoutSubtotalLocation = CLng(rc("SubAt"))
+            End If
+            ' A breath after each group of the outer fields.
+            If CBool(rc("BlankLine")) And n < rc("Rows").count Then pf.LayoutBlankLine = True
         End If
     Next x
     Err.Clear
@@ -369,14 +635,15 @@ Private Sub FinishRecipe(ByVal pt As PivotTable, ByVal ws As Worksheet, ByVal rc
         Else
             .RepeatAllLabels xlDoNotRepeatLabels
         End If
-        .ShowDrillIndicators = False
+        ' Folded rows need their +/- to open; nothing else does.
+        .ShowDrillIndicators = (Len(rc("ExpandTo")) > 0)
         .EnableDrilldown = True
         .EnableFieldList = True
         .EnableWizard = True
         .DisplayFieldCaptions = True
         .ColumnGrand = CBool(rc("ColGrand"))
         .RowGrand = CBool(rc("RowGrand"))
-        .GrandTotalName = "Total"
+        .GrandTotalName = CStr(rc("TotalLabel"))
         .HasAutoFormat = False
         .PreserveFormatting = True
         .NullString = "-"
@@ -384,34 +651,50 @@ Private Sub FinishRecipe(ByVal pt As PivotTable, ByVal ws As Worksheet, ByVal rc
         .ManualUpdate = False
     End With
     OrderBuckets pt
+    ValueFilters pt, rc
     SortRecipe pt, rc
+    ExpandTo pt, rc
+    Highlight pt, rc
     FitPivot ws, pt, rc
-    If Not rc.Exists("Tiles") Then
-        PivotTiles ws, pt
-    ElseIf CBool(rc("Tiles")) Then
-        PivotTiles ws, pt
-    End If
+    If CBool(rc("Tiles")) Then PivotTiles ws, pt
     PrintPivot ws, pt
     Err.Clear
 End Sub
 
+' Folds every row field below the one named, so the sheet opens as a summary
+' that opens up with a click.
+Private Sub ExpandTo(ByVal pt As PivotTable, ByVal rc As Object)
+    Dim pf As Object, pi As Object          ' late bound: ShowDetail on a field is Excel 2010's
+    If Len(rc("ExpandTo")) = 0 Then Exit Sub
+    On Error Resume Next
+    Set pf = pt.PivotFields(modPD_Recipe.PivotFieldName(rc, CStr(rc("ExpandTo"))))
+    If pf Is Nothing Then Exit Sub
+    pf.ShowDetail = False
+    If Err.Number <> 0 Then
+        Err.Clear
+        pt.ManualUpdate = True
+        For Each pi In pf.PivotItems
+            If pi.visible Then pi.ShowDetail = False
+        Next pi
+        pt.ManualUpdate = False
+    End If
+    Err.Clear
+End Sub
+
 Private Sub SortRecipe(ByVal pt As PivotTable, ByVal rc As Object)
-    Dim x As Variant, ord As Long, sortBy As String, v As Object
+    Dim x As Variant, ord As Long, sortBy As String
     sortBy = CStr(rc("SortBy"))
     If Len(sortBy) = 0 Then Exit Sub
     If CBool(rc("SortDesc")) Then ord = xlDescending Else ord = xlAscending
     ' the caption as Excel holds it - it may carry the anti-collision space
-    If sortBy <> "label" Then
-        For Each v In rc("Values")
-            If StrComp(Trim$(CStr(v("Caption"))), sortBy, vbTextCompare) = 0 Then sortBy = CStr(v("Caption"))
-        Next v
-    End If
+    If sortBy <> "label" Then sortBy = modPD_Recipe.HeldCaption(rc, sortBy)
     On Error Resume Next
     For Each x In rc("Rows")
         If sortBy = "label" Then
-            pt.PivotFields(CStr(x)).AutoSort ord, CStr(x)
+            pt.PivotFields(modPD_Recipe.PivotFieldName(rc, CStr(x))).AutoSort ord, _
+                modPD_Recipe.PivotFieldName(rc, CStr(x))
         Else
-            pt.PivotFields(CStr(x)).AutoSort ord, sortBy
+            pt.PivotFields(modPD_Recipe.PivotFieldName(rc, CStr(x))).AutoSort ord, sortBy
         End If
     Next x
     Err.Clear
@@ -449,7 +732,11 @@ Private Sub FitPivot(ByVal ws As Worksheet, ByVal pt As PivotTable, ByVal rc As 
                 w = LabelChars(pf)
             End If
             If Not wd Is Nothing And Len(nm) > 0 Then
-                If wd.Exists(nm) Then w = CDbl(wd(nm))
+                If wd.Exists(nm) Then
+                    w = CDbl(wd(nm))
+                ElseIf wd.Exists(GroupedFrom(rc, nm)) Then
+                    w = CDbl(wd(GroupedFrom(rc, nm)))
+                End If
             End If
             w = w + 3
             If w > 62 Then w = 62
@@ -486,6 +773,15 @@ Private Sub FitPivot(ByVal ws As Worksheet, ByVal pt As PivotTable, ByVal rc As 
     Err.Clear
 End Sub
 
+' The field a grouped column was made from - widths are set on the field.
+Private Function GroupedFrom(ByVal rc As Object, ByVal nm As String) As String
+    Dim k As Variant
+    GroupedFrom = nm
+    For Each k In rc("GroupOf").keys
+        If StrComp(CStr(rc("GroupOf")(k)), nm, vbTextCompare) = 0 Then GroupedFrom = CStr(k)
+    Next k
+End Function
+
 ' The longest item of a row field, and its heading, in characters.
 Private Function LabelChars(ByVal pf As PivotField) As Double
     Dim pi As PivotItem, n As Long
@@ -511,16 +807,6 @@ Private Sub RecipeTab(ByVal ws As Worksheet, ByVal tabWord As String)
     End Select
     Err.Clear
 End Sub
-
-Private Function ToArray(ByVal c As Collection) As Variant
-    Dim a() As String, i As Long
-    If c.count = 0 Then ToArray = Array(): Exit Function
-    ReDim a(0 To c.count - 1)
-    For i = 1 To c.count
-        a(i - 1) = CStr(c(i))
-    Next i
-    ToArray = a
-End Function
 
 ' ===================== the mechanics ========================================
 
@@ -568,8 +854,8 @@ Private Function PageFilterCount(ByVal rc As Object) As Long
     Dim flt As Object, seen As Object
     Set seen = NewMap()
     For Each flt In rc("Filters")
-        If Not modPD_Config.InCollection(rc("Rows"), CStr(flt("Field"))) And _
-           Not modPD_Config.InCollection(rc("Cols"), CStr(flt("Field"))) Then seen(CStr(flt("Field"))) = True
+        If Not modPD_Recipe.InCollection(rc("Rows"), CStr(flt("Field"))) And _
+           Not modPD_Recipe.InCollection(rc("Cols"), CStr(flt("Field"))) Then seen(CStr(flt("Field"))) = True
     Next flt
     PageFilterCount = seen.count
 End Function

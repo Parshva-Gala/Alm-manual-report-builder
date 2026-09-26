@@ -493,6 +493,37 @@ def check_geometry(sources):
     return problems
 
 
+def check_config(sources):
+    """The default recipes are written by heading - Rec ws, r, "Units=Millions" -
+    so a heading that is misspelt, or renamed on one side only, would be
+    dropped without a sound. Every one named must be a column the sheet has,
+    and the K_ constants must number those columns in the same order."""
+    problems = []
+    src = sources.get("modPD_Config", "")
+    m = re.search(r"RecipeHeads = Array\((.*?)\)\s*\n\s*End Function", src, re.S)
+    if not m:
+        return ["config: RecipeHeads() not found"]
+    heads = re.findall(r'"([^"]*)"', m.group(1))
+    lower = {h.lower() for h in heads}
+    body = src.replace(" _\n", " ")
+    for call in re.findall(r"^\s*Rec ws, [^\n]*", body, re.M):
+        for kv in re.findall(r'"([^"=]+)=', call):
+            if kv.lower() not in lower:
+                problems.append("config: a default recipe names %r, which is not a Pivot config heading" % kv)
+    ks = {k: int(v) for k, v in re.findall(r"(?:Private|Public) Const (K_\w+) As Long = (\d+)", src)}
+    if ks.get("K_LAST") != len(heads):
+        problems.append("config: K_LAST is %s but RecipeHeads has %d columns" % (ks.get("K_LAST"), len(heads)))
+    w = re.search(r"RecipeWidths = Array\(([^)]*)\)", src.replace(" _\n", " "))
+    if not w or len(w.group(1).split(",")) != len(heads):
+        problems.append("config: RecipeWidths does not give one width per heading")
+    for const, head in (("K_ON", "On"), ("K_NAME", "Pivot"), ("K_VALUES", "Values"), ("K_VFILTER", "Top / value filter"),
+                        ("K_GROUP", "Group"), ("K_UNITS", "Units"), ("K_HILITE", "Highlight"), ("K_TILES", "Tiles"),
+                        ("K_DESC", "Description"), ("K_WHY", "What to fix")):
+        if const not in ks or ks[const] > len(heads) or heads[ks[const] - 1] != head:
+            problems.append("config: %s does not point at the %r column" % (const, head))
+    return problems
+
+
 def main():
     parts, shapes, sources = build()
     problems = []
@@ -503,6 +534,7 @@ def main():
     problems += check_palette(sources)
     problems += check_geometry(sources)
     problems += check_ribbon(parts, sources)
+    problems += check_config(sources)
     tour = desk.showcase_state()
     tour.update({"toast": None, "tour": 5})
     for label, st in (("shipped", shipped_state()), ("showcase", desk.showcase_state()), ("tour", tour)):

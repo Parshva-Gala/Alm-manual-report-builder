@@ -42,9 +42,27 @@ KNOWN = [
     ('modPD_Util.MidTrim("LCR_Output_30Nov2025_final.xlsx", 20)', "LCR_Output…inal.xlsx"),
     ('modPD_Util.MidTrim("short.xlsx", 20)', "short.xlsx"),
     ('modPD_Util.AsOfText(45991)', "30 Nov 2025"),
-    ('modPD_Config.SplitList("Type, Line ,, Subline", ",").count', "3"),
-    ('modPD_Config.SplitList("Type, Line ,, Subline", ",").Item(2)', "Line"),
-    ('modPD_Config.SplitList("Type, Line ,, Subline", ",").Item(3)', "Subline"),
+    ('modPD_Recipe.SplitList("Type, Line ,, Subline", ",").count', "3"),
+    ('modPD_Recipe.SplitList("Type, Line ,, Subline", ",").Item(2)', "Line"),
+    ('modPD_Recipe.SplitList("Type, Line ,, Subline", ",").Item(3)', "Subline"),
+    ('Num("1,500,000")', "1500000|True"),
+    ('Num("1.5m")', "1500000|True"),
+    ('Num("2bn")', "2000000000|True"),
+    ('Num("750k")', "750000|True"),
+    ('Num("25%")', ".25|True"),
+    ('Num("(5)")', "0|False"),
+    ('Num("m")', "0|False"),
+    ('modPD_Recipe.UnitFormat("millions")', "#,##0.0,,;[Red](#,##0.0,,);-"),
+    ('modPD_Recipe.UnitFormat("")', "#,##0;[Red](#,##0);-"),
+    ('modPD_Stage.PeriodOf(46082, "year", "(none)")', "2026"),
+    ('modPD_Stage.PeriodOf(46082, "quarter", "(none)")', "2026 Q1"),
+    ('modPD_Stage.PeriodOf(46296, "quarter", "(none)")', "2026 Q4"),
+    ('Format$(modPD_Stage.PeriodOf(46082, "month", "(none)"), "yyyy-mm-dd")', "2026-03-01"),
+    ('modPD_Stage.PeriodOf(Empty, "year", "(none)")', "(none)"),
+    ('modPD_Stage.StepOf(1234567, 1000000, False, "(none)")', "1000000"),
+    ('modPD_Stage.StepOf(-1234567, 1000000, True, "(none)")', "1000000"),
+    ('modPD_Stage.StepOf(-1234567, 1000000, False, "(none)")', "-2000000"),
+    ('modPD_Stage.StepOf("n/a", 1000000, False, "(none)")', "(none)"),
 ]
 
 HARNESS = '''Option VBASupport 1
@@ -53,6 +71,11 @@ Function Sentinel()
 End Function
 Function Tidy(ByVal lbl As String, ByVal mode As Long) As String
     Tidy = modPD_Util.TidyLabel(lbl, mode, "QNB, CIB")
+End Function
+Function Num(ByVal s As String) As String
+    Dim ok As Boolean, d As Double
+    d = modPD_Recipe.NumOf(s, ok)
+    Num = Trim$(Str$(d)) & "|" & IIf(ok, "True", "False")
 End Function
 Function Tenor(ByVal lbl As String) As String
     Dim s As String, d As Double

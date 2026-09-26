@@ -45,6 +45,9 @@ Private mXSrc() As Long
 Private mXBlank() As String
 Private mXFormat() As String
 Private mXFrom() As Long
+Private mXAbs() As Boolean            ' the computed column without its sign
+Private mXBy() As String              ' a group: year, quarter, month, day or step
+Private mXStep() As Double
 Private mMissing As String
 
 ' "One sheet per" families: signature (field names joined by Chr(30)) ->
@@ -242,6 +245,9 @@ End Sub
 
 ' Where each extra field comes from in this file, resolved against the header
 ' the same way the built-ins are: case and punctuation do not matter.
+'
+'   kind 0 text   1 number   2 date   3 a computed column   4 the same, unsigned
+'        5 a date cut to a period   6 a number cut to a step
 Private Sub PlanExtras(ByVal extras As Collection, ByVal h As Object, ByVal ix As Object)
     Dim i As Long, f As Object, src As String
     If extras Is Nothing Then Exit Sub
@@ -253,6 +259,9 @@ Private Sub PlanExtras(ByVal extras As Collection, ByVal h As Object, ByVal ix A
     ReDim mXBlank(1 To mXCount)
     ReDim mXFormat(1 To mXCount)
     ReDim mXFrom(1 To mXCount)
+    ReDim mXAbs(1 To mXCount)
+    ReDim mXBy(1 To mXCount)
+    ReDim mXStep(1 To mXCount)
     For i = 1 To mXCount
         Set f = extras(i)
         mXName(i) = CStr(f("Name"))
@@ -260,23 +269,34 @@ Private Sub PlanExtras(ByVal extras As Collection, ByVal h As Object, ByVal ix A
         mXFormat(i) = CStr(f("Format"))
         src = UCase$(CStr(f("Source")))
         Select Case src
-            Case modPD_Config.SRC_PRE: mXKind(i) = 3: mXFrom(i) = C_PRE
-            Case modPD_Config.SRC_POST: mXKind(i) = 3: mXFrom(i) = C_POST
-            Case modPD_Config.SRC_CCYCLASS: mXKind(i) = 3: mXFrom(i) = C_CCYCLASS
-            Case modPD_Config.SRC_FACTOR: mXKind(i) = 3: mXFrom(i) = C_FACTOR
-            Case Else
-                Select Case CStr(f("Kind"))
-                    Case "Number": mXKind(i) = 1
-                    Case "Date": mXKind(i) = 2
-                    Case Else: mXKind(i) = 0
-                End Select
-                mXSrc(i) = At(h, src)
-                If mXSrc(i) = 0 Then
-                    mMissing = mMissing & IIf(Len(mMissing) > 0, ", ", "") & mXName(i) & " (" & src & ")"
-                Else
-                    ix("X" & i) = mXSrc(i)
-                End If
+            Case modPD_Config.SRC_PRE: mXFrom(i) = C_PRE
+            Case modPD_Config.SRC_POST: mXFrom(i) = C_POST
+            Case modPD_Config.SRC_ABS_PRE: mXFrom(i) = C_PRE: mXAbs(i) = True
+            Case modPD_Config.SRC_ABS_POST: mXFrom(i) = C_POST: mXAbs(i) = True
+            Case modPD_Config.SRC_CCYCLASS: mXFrom(i) = C_CCYCLASS
+            Case modPD_Config.SRC_FACTOR: mXFrom(i) = C_FACTOR
         End Select
+        If CStr(f("Kind")) = "Group" Then
+            mXBy(i) = CStr(f("By"))
+            mXStep(i) = SafeNum(f("Size"))
+            If mXBy(i) = "step" Then mXKind(i) = 6 Else mXKind(i) = 5
+        ElseIf mXFrom(i) > 0 Then
+            If mXAbs(i) Then mXKind(i) = 4 Else mXKind(i) = 3
+        Else
+            Select Case CStr(f("Kind"))
+                Case "Number": mXKind(i) = 1
+                Case "Date": mXKind(i) = 2
+                Case Else: mXKind(i) = 0
+            End Select
+        End If
+        If mXFrom(i) = 0 Then
+            mXSrc(i) = At(h, src)
+            If mXSrc(i) = 0 Then
+                mMissing = mMissing & IIf(Len(mMissing) > 0, ", ", "") & mXName(i) & " (" & src & ")"
+            Else
+                ix("X" & i) = mXSrc(i)
+            End If
+        End If
     Next i
 End Sub
 
@@ -553,18 +573,35 @@ Private Function EmitBlock(ByRef buf As Variant, ByVal n As Long, ByVal ix As Ob
 End Function
 
 ' The extra fields of one row. Text keeps its blank label, a number stays a
-' number, a date becomes a date whatever shape it arrived in.
+' number, a date becomes a date whatever shape it arrived in, and a group
+' becomes the period or the step it falls in.
 Private Sub EmitExtras(ByRef buf As Variant, ByVal i As Long, ByRef out() As Variant, ByVal k As Long)
     Dim x As Long, v As Variant, t As String
     For x = 1 To mXCount
         Select Case mXKind(x)
             Case 3
                 out(k, C_COLS + x) = out(k, mXFrom(x))
+            Case 4
+                v = out(k, mXFrom(x))
+                If IsNumeric(v) And Not IsEmpty(v) Then out(k, C_COLS + x) = Abs(CDbl(v)) Else out(k, C_COLS + x) = Empty
             Case 1
                 If mXSrc(x) > 0 Then v = buf(i, mXSrc(x)) Else v = Empty
                 If IsNumeric(v) And Not IsEmpty(v) Then out(k, C_COLS + x) = CDbl(v) Else out(k, C_COLS + x) = Empty
             Case 2
                 If mXSrc(x) > 0 Then out(k, C_COLS + x) = DateValueOf(buf(i, mXSrc(x))) Else out(k, C_COLS + x) = Empty
+            Case 5, 6
+                If mXFrom(x) > 0 Then
+                    v = out(k, mXFrom(x))
+                ElseIf mXSrc(x) > 0 Then
+                    v = buf(i, mXSrc(x))
+                Else
+                    v = Empty
+                End If
+                If mXKind(x) = 5 Then
+                    out(k, C_COLS + x) = PeriodOf(DateValueOf(v), mXBy(x), mXBlank(x))
+                Else
+                    out(k, C_COLS + x) = StepOf(v, mXStep(x), mXAbs(x), mXBlank(x))
+                End If
             Case Else
                 If mXSrc(x) > 0 Then t = Txt(buf, i, mXSrc(x)) Else t = ""
                 If Len(t) = 0 Then
@@ -575,6 +612,36 @@ Private Sub EmitExtras(ByRef buf As Variant, ByVal i As Long, ByRef out() As Var
         End Select
     Next x
 End Sub
+
+' A date as the period it falls in: the year as a number, the quarter as
+' "2026 Q1", the month and the day as dates - so each sorts in time order.
+Public Function PeriodOf(ByVal d As Variant, ByVal per As String, ByVal blank As String) As Variant
+    Dim dt As Date
+    PeriodOf = blank
+    If IsEmpty(d) Then Exit Function
+    If Not IsNumeric(d) Then Exit Function
+    If CDbl(d) < 1 Then Exit Function
+    dt = CDate(CDbl(d))
+    Select Case per
+        Case "year": PeriodOf = CLng(Year(dt))
+        Case "quarter": PeriodOf = CStr(Year(dt)) & " Q" & CStr((Month(dt) - 1) \ 3 + 1)
+        Case "month": PeriodOf = CDbl(DateSerial(Year(dt), Month(dt), 1))
+        Case Else: PeriodOf = CDbl(DateSerial(Year(dt), Month(dt), Day(dt)))
+    End Select
+End Function
+
+' A number as the step it falls in, named by where the step starts:
+' 1,234,567 by 1000000 is 1,000,000.
+Public Function StepOf(ByVal v As Variant, ByVal size As Double, ByVal unsigned As Boolean, _
+                       ByVal blank As String) As Variant
+    Dim x As Double
+    StepOf = blank
+    If IsEmpty(v) Or size <= 0 Then Exit Function
+    If Not IsNumeric(v) Then Exit Function
+    x = CDbl(v)
+    If unsigned Then x = Abs(x)
+    StepOf = Int(x / size) * size
+End Function
 
 Private Function DateValueOf(ByVal v As Variant) As Variant
     On Error Resume Next
@@ -674,7 +741,14 @@ Private Sub WriteStageHeader(ByVal ws As Worksheet)
         Select Case mXKind(c)
             Case 0: ws.Columns(C_COLS + c).NumberFormat = "@"
             Case 2: ws.Columns(C_COLS + c).NumberFormat = IIf(Len(mXFormat(c)) > 0, mXFormat(c), "d mmm yyyy")
-            Case 1: If Len(mXFormat(c)) > 0 Then ws.Columns(C_COLS + c).NumberFormat = mXFormat(c)
+            Case 1, 4, 6: If Len(mXFormat(c)) > 0 Then ws.Columns(C_COLS + c).NumberFormat = mXFormat(c)
+            Case 5
+                Select Case mXBy(c)
+                    Case "year": ws.Columns(C_COLS + c).NumberFormat = "0"
+                    Case "quarter": ws.Columns(C_COLS + c).NumberFormat = "@"
+                    Case "month": ws.Columns(C_COLS + c).NumberFormat = "mmm yyyy"
+                    Case Else: ws.Columns(C_COLS + c).NumberFormat = "d mmm yyyy"
+                End Select
         End Select
     Next c
     ' The factor column is written as text - "100%", "50%" - and the column has

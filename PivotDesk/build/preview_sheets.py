@@ -572,16 +572,38 @@ def _args(text, consts):
     return out
 
 
+def recipe_heads():
+    """RecipeHeads(), RecipeWidths() and the bands over them, read from the VBA."""
+    import re
+    src = re.sub(r" _\n\s*", " ", _vba("modPD_Config"))
+    heads = re.findall(r'"([^"]*)"', re.search(r"RecipeHeads = Array\((.*?)\)\s*\n", src).group(1))
+    widths = [int(w) for w in re.search(r"RecipeWidths = Array\(([^)]*)\)", src).group(1).split(",")]
+    k = {n: int(v) for n, v in re.findall(r"(?:Private|Public) Const (K_\w+) As Long = (\d+)", src)}
+    groups = [(k[a], k[b], label) for a, b, label in
+              re.findall(r'Band ws, (K_\w+), (K_\w+), "([^"]+)"', src)]
+    return heads, widths, groups
+
+
 def default_recipes():
+    """The rows WriteDefaultRecipes writes - Rec ws, r, "Heading=value", ... -
+    laid out under the sheet's headings."""
     import re
     src = _vba("modPD_Config")
-    body = src[src.index("Private Sub WriteDefaultRecipes"):src.index("Private Sub Recipe(")]
+    body = src[src.index("Private Sub WriteDefaultRecipes"):src.index("Private Sub Rec(")]
     body = re.sub(r" _\n\s*", " ", body)
     consts = _consts()
+    heads, _, _ = recipe_heads()
     rows = []
-    for m in re.finditer(r"^\s*Recipe ws, r(?: \+ \d)?, (.*)$", body, re.M):
-        rows.append(_args(m.group(1), consts))
+    for m in re.finditer(r"^\s*Rec ws, r(?: \+ \d)?, (.*)$", body, re.M):
+        d = {}
+        for kv in _args(m.group(1), consts):
+            key, _, val = kv.partition("=")
+            d[key.lower()] = val
+        rows.append([d.get(h.lower(), "") for h in heads])
     return rows
+
+
+CONFIG_W = 3900
 
 
 def default_fields():
@@ -607,41 +629,44 @@ def band_row(widths, groups):
 
 
 def config_sheet():
-    heads = ["On", "Pivot", "Frameworks", "One sheet per", "Rows", "Columns", "Values", "Show only / hide",
-             "Slicers", "Layout", "Subtotals", "Grand totals", "Repeat labels", "Sort", "Widths",
-             "Number format", "Tab", "Max sheets", "Description", "Check", "What to fix"]
-    widths = [7, 20, 16, 20, 36, 14, 38, 30, 26, 10, 11, 14, 9, 16, 24, 16, 9, 9, 40, 10, 60]
-    groups = [(1, 4, "WHICH PIVOT"), (5, 9, "WHAT IT SHOWS"), (10, 16, "HOW IT LOOKS"), (17, 19, "THE SHEET"),
-              (20, 21, "CHECK")]
+    heads, widths, groups = recipe_heads()
+    ncol = len(heads)
     rows = []
     for r in default_recipes():
         on = r[0] == "Yes"
-        rows.append(r + (["OK", ""] if on else ["Off", ""]))
-    rows += [[""] * 21 for _ in range(4)]
-    t = table(heads, widths, rows, verdict_col=19, muted_cols=(18, 20), semi_cols=(1,),
+        rows.append(r[:ncol - 2] + (["OK", ""] if on else ["Off", ""]))
+    rows += [[""] * ncol for _ in range(4)]
+    n_on = sum(1 for r in rows if r[0] == "Yes")
+    t = table(heads, widths, rows, verdict_col=ncol - 2, muted_cols=(ncol - 3, ncol - 1), semi_cols=(1,),
               pre_rows=band_row(widths, groups))
     body = (chrome("reports", "Pivot config", "What every framework workbook is built from. One row is one pivot, or "
                    "one sheet per value of a field. Edit a row or add one; Check says whether it will build. Select "
-                   "any cell for how to fill it.", "4 pivot(s) switched on, every one ready to build.", "OK",
+                   "any cell for how to fill it.", "%d pivot(s) switched on, every one ready to build." % n_on, "OK",
                    ["Add a pivot", "Check", "Restore defaults", "Use the 1.0 layout"], tab="Pivots",
                    overline="REPORTS &nbsp;&#183;&nbsp; PIVOTS", status_w=1400) + t)
-    return page("Pivot config", body, 2700)
+    return page("Pivot config", body, CONFIG_W)
+
+
+LABELS = {"Line": "Drop codes + title case", "Subline": "Drop codes + title case",
+          "COA name": "Drop codes + title case", "Counterparty": "Title case", "Sector": "Title case",
+          "Report class": "Title case", "Cashflow element": "Title case", "Product": "Title case"}
 
 
 def fields_sheet():
-    fh = ["Field", "Source column", "Kind", "Blank shows as", "Width", "Number format", "Note"]
-    fw = [26, 42, 10, 20, 8, 22, 64]
-    frows = [r[:7] for r in default_fields()]
-    t = table(fh, fw, frows, mono_cols=(1,), muted_cols=(6,), semi_cols=(0,))
+    fh = ["Field", "Source column", "Kind", "Labels", "Blank shows as", "Width", "Number format", "Note"]
+    fw = [26, 42, 11, 22, 20, 8, 22, 64]
+    frows = [r[:3] + [LABELS.get(r[0], "As is")] + r[3:7] for r in default_fields()]
+    t = table(fh, fw, frows, mono_cols=(1,), muted_cols=(7,), semi_cols=(0,))
     body = (chrome("reports", "Pivot fields", "Every column a pivot or a chart may name. The first thirteen are "
                    "built in; add any column of an output under a name of your own, and use that name anywhere.",
                    "%d fields. Built-in fields cannot be renamed; any other row can be changed, and new ones added "
                    "at the bottom." % len(frows), "Idle", ["Check"], tab="Fields",
                    overline="REPORTS &nbsp;&#183;&nbsp; FIELDS", status_w=1400) + t)
-    return page("Pivot fields", body, 1500)
+    return page("Pivot fields", body, 1600)
 
 
 if __name__ == "__main__" and os.environ.get("CONFIG_ONLY"):
-    assets.render(config_sheet(), os.path.join(OUT, "sheet-pivot-config.png"), 2700, 520, scale=1, transparent=False)
-    assets.render(fields_sheet(), os.path.join(OUT, "sheet-pivot-fields.png"), 1500, 1340, scale=1, transparent=False)
+    assets.render(config_sheet(), os.path.join(OUT, "sheet-pivot-config.png"), CONFIG_W, 600, scale=1,
+                  transparent=False)
+    assets.render(fields_sheet(), os.path.join(OUT, "sheet-pivot-fields.png"), 1600, 1440, scale=1, transparent=False)
     print("config previews")

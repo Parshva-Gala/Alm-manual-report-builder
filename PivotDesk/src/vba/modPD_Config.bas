@@ -26,28 +26,38 @@ Option Explicit
 ' ============================================================================
 
 ' --- the recipe table -------------------------------------------------------
-Private Const K_ON As Long = 1
-Private Const K_NAME As Long = 2
-Private Const K_FW As Long = 3
-Private Const K_SPLIT As Long = 4
-Private Const K_ROWS As Long = 5
-Private Const K_COLS As Long = 6
-Private Const K_VALUES As Long = 7
-Private Const K_FILTERS As Long = 8
-Private Const K_SLICERS As Long = 9
-Private Const K_LAYOUT As Long = 10
-Private Const K_SUBTOT As Long = 11
-Private Const K_GRAND As Long = 12
-Private Const K_REPEAT As Long = 13
-Private Const K_SORT As Long = 14
-Private Const K_WIDTHS As Long = 15
-Private Const K_FORMAT As Long = 16
-Private Const K_TAB As Long = 17
-Private Const K_MAX As Long = 18
-Private Const K_DESC As Long = 19
-Private Const K_CHECK As Long = 20
-Private Const K_WHY As Long = 21
-Private Const K_LAST As Long = 21
+Public Const K_ON As Long = 1
+Public Const K_NAME As Long = 2
+Public Const K_FW As Long = 3
+Public Const K_SPLIT As Long = 4
+Public Const K_ROWS As Long = 5
+Public Const K_COLS As Long = 6
+Public Const K_VALUES As Long = 7
+Public Const K_FILTERS As Long = 8
+Public Const K_VFILTER As Long = 9
+Public Const K_GROUP As Long = 10
+Public Const K_SLICERS As Long = 11
+Public Const K_LAYOUT As Long = 12
+Public Const K_SUBTOT As Long = 13
+Public Const K_SUBAT As Long = 14
+Public Const K_GRAND As Long = 15
+Public Const K_TOTAL As Long = 16
+Public Const K_REPEAT As Long = 17
+Public Const K_BLANKLN As Long = 18
+Public Const K_VALIN As Long = 19
+Public Const K_EXPAND As Long = 20
+Public Const K_SORT As Long = 21
+Public Const K_UNITS As Long = 22
+Public Const K_FORMAT As Long = 23
+Public Const K_HILITE As Long = 24
+Public Const K_WIDTHS As Long = 25
+Public Const K_TILES As Long = 26
+Public Const K_TAB As Long = 27
+Public Const K_MAX As Long = 28
+Public Const K_DESC As Long = 29
+Public Const K_CHECK As Long = 30
+Public Const K_WHY As Long = 31
+Public Const K_LAST As Long = 31
 
 ' Rows dressed for recipes. More can be added below; they are read to the
 ' last row in use.
@@ -75,6 +85,9 @@ Public Const SRC_PRE As String = "=PRE"
 Public Const SRC_POST As String = "=POST"
 Public Const SRC_CCYCLASS As String = "=CCYCLASS"
 Public Const SRC_FACTOR As String = "=FACTOR"
+' The amounts without their sign: what is at stake either way.
+Public Const SRC_ABS_PRE As String = "=|PRE|"
+Public Const SRC_ABS_POST As String = "=|POST|"
 
 Public Const MAX_SHEETS_DEFAULT As Long = 120
 
@@ -107,7 +120,7 @@ End Function
 ' Dresses both sheets and, when they are new or asked to, fills them with the
 ' defaults. An existing configuration is never overwritten by a restyle.
 Public Sub BuildConfigSheet(Optional ByVal withDefaults As Boolean = False)
-    Dim ws As Worksheet, fresh As Boolean, ev As Boolean
+    Dim ws As Worksheet, fresh As Boolean, ev As Boolean, old As Collection
     ' Writing a few hundred cells here must not run the live check on each.
     ev = Application.EnableEvents
     Application.EnableEvents = False
@@ -115,7 +128,10 @@ Public Sub BuildConfigSheet(Optional ByVal withDefaults As Boolean = False)
     Set ws = GetSheet(SH_CONFIG)
     fresh = ws Is Nothing
     Set ws = EnsureSheet(SH_CONFIG)
-    If fresh Or withDefaults Then
+    If Not fresh And Not withDefaults Then
+        If Not HeadersMatch(ws, RecipeHeads()) Then Set old = Remember(ws)
+    End If
+    If fresh Or withDefaults Or Not old Is Nothing Then
         ws.Cells.Clear
         ws.Cells.Validation.Delete
     End If
@@ -125,11 +141,8 @@ Public Sub BuildConfigSheet(Optional ByVal withDefaults As Boolean = False)
         "Edit a row or add one; Check says whether it will build. Select any cell for how to fill it.", _
         "REPORTS  " & ChrW(183) & "  PIVOTS"
     Groups ws
-    modPD_Theme.Head ws, Array("On", "Pivot", "Frameworks", "One sheet per", "Rows", "Columns", "Values", _
-                               "Show only / hide", "Slicers", "Layout", "Subtotals", "Grand totals", _
-                               "Repeat labels", "Sort", "Widths", "Number format", "Tab", "Max sheets", _
-                               "Description", "Check", "What to fix"), _
-                        Array(7, 20, 16, 20, 36, 14, 38, 30, 26, 10, 11, 14, 9, 16, 24, 16, 9, 9, 40, 10, 60)
+    modPD_Theme.Head ws, RecipeHeads(), RecipeWidths()
+    If Not old Is Nothing Then PutBack ws, old, RecipeHeads()
 
     If fresh Or withDefaults Or Len(SafeText(ws.Cells(modPD_Theme.R_FIRST, K_NAME).Value2)) = 0 Then
         WriteDefaultRecipes ws
@@ -188,12 +201,25 @@ End Function
 ' twenty-column table is only navigable when it says where you are.
 Private Sub Groups(ByVal ws As Worksheet)
     ws.Rows(R_GROUPS).RowHeight = 20
-    Band ws, 1, 4, "WHICH PIVOT"
-    Band ws, 5, 9, "WHAT IT SHOWS"
-    Band ws, 10, 16, "HOW IT LOOKS"
-    Band ws, 17, 19, "THE SHEET"
-    Band ws, 20, 21, "CHECK"
+    Band ws, K_ON, K_SPLIT, "WHICH PIVOT"
+    Band ws, K_ROWS, K_SLICERS, "WHAT IT SHOWS"
+    Band ws, K_LAYOUT, K_TILES, "HOW IT LOOKS"
+    Band ws, K_TAB, K_DESC, "THE SHEET"
+    Band ws, K_CHECK, K_WHY, "CHECK"
 End Sub
+
+Public Function RecipeHeads() As Variant
+    RecipeHeads = Array("On", "Pivot", "Frameworks", "One sheet per", "Rows", "Columns", "Values", _
+                        "Show only / hide", "Top / value filter", "Group", "Slicers", "Layout", "Subtotals", _
+                        "Subtotals at", "Grand totals", "Total label", "Repeat labels", "Blank line", "Values in", _
+                        "Expand to", "Sort", "Units", "Number format", "Highlight", "Widths", "Tiles", "Tab", _
+                        "Max sheets", "Description", "Check", "What to fix")
+End Function
+
+Private Function RecipeWidths() As Variant
+    RecipeWidths = Array(7, 22, 16, 20, 34, 14, 46, 30, 26, 24, 24, 10, 12, 11, 13, 11, 9, 9, 10, 12, 16, _
+                         10, 16, 12, 24, 7, 9, 9, 40, 10, 60)
+End Function
 
 Private Sub Band(ByVal ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, ByVal label As String)
     On Error Resume Next
@@ -250,7 +276,7 @@ Private Sub DressFields(ByVal ws As Worksheet)
 End Sub
 
 ' The last recipe row in use, and never fewer than the rows dressed for them.
-Private Function RecipeLastRow(ByVal ws As Worksheet) As Long
+Public Function RecipeLastRow(ByVal ws As Worksheet) As Long
     Dim a As Long, b As Long
     a = ws.Cells(ws.Rows.count, K_NAME).End(xlUp).Row
     b = ws.Cells(ws.Rows.count, K_ROWS).End(xlUp).Row
@@ -260,6 +286,7 @@ Private Function RecipeLastRow(ByVal ws As Worksheet) As Long
 End Function
 
 ' The cell-by-cell help: select a cell, and Excel shows what goes in it.
+' Each is kept under 255 characters - Excel's own limit on an input message.
 Private Sub Hints(ByVal ws As Worksheet)
     Dim r1 As Long, r2 As Long
     r1 = modPD_Theme.R_FIRST
@@ -273,24 +300,49 @@ Private Sub Hints(ByVal ws As Worksheet)
     Hint ws, r1, r2, K_ROWS, "Rows", "Fields down the side, in order, separated by commas - e.g. Type, Line, " & _
          "Subline, COA name. Names come from the Pivot fields sheet."
     Hint ws, r1, r2, K_COLS, "Columns", "Fields across the top, separated by commas - e.g. LCY / FCY, or Bucket."
-    Hint ws, r1, r2, K_VALUES, "Values", "One or more, separated by ; - field, then sum / count / average / " & _
-         "max / min / %row / %col / %total, then as and a caption. e.g. Pre factor amount sum as Pre-factor"
+    Hint ws, r1, r2, K_VALUES, "Values", "Separated by ; - field, how, as caption. How: sum count average max " & _
+         "min, then %row %col %total %parent running %running rank diff %diff index. " & _
+         "e.g. Gross pre-factor %running in Counterparty as Cumulative"
     Hint ws, r1, r2, K_FILTERS, "Show only / hide", "Separated by ; - Field = a | b shows only a and b; " & _
-         "Field <> a hides a. e.g. Bucket <> (no bucket). A field not in rows or columns becomes a report filter."
+         "Field <> a hides a; Field contains, does not contain, begins with or ends with some text. " & _
+         "A field not in rows or columns becomes a report filter."
+    Hint ws, r1, r2, K_VFILTER, "Top / value filter", "Top 25 by Exposure, Bottom 10 by Net, Top 5% by " & _
+         "Exposure, Exposure > 1m, Exposure between 1m and 5m. By names a value caption. It filters the first " & _
+         "row field; name another in front: Top 10 Counterparty by Exposure."
+    Hint ws, r1, r2, K_GROUP, "Group", "A date by year, quarter, month or day; a number by a step. " & _
+         "e.g. Maturity date by year; Interest rate by 0.5. The field must be in Rows or Columns."
     Hint ws, r1, r2, K_SLICERS, "Slicers", "Fields to put slicers on, separated by commas. Not added on " & _
          "One-sheet-per pivots: one slicer would filter every one of those sheets at once."
     ListRule ws, r1, r2, K_LAYOUT, "Tabular,Outline,Compact", "Layout", _
          "Tabular: one column per row field. Outline: nested with headers. Compact: all row fields in one column."
     Hint ws, r1, r2, K_SUBTOT, "Subtotals", "None, All, or the row fields to subtotal, separated by commas."
+    ListRule ws, r1, r2, K_SUBAT, "Top,Bottom", "Subtotals at", _
+         "Above or below each group. Outline and Compact only - Tabular always totals below. Blank: Excel's choice."
     ListRule ws, r1, r2, K_GRAND, "Both,Bottom row,Right column,None", "Grand totals", _
          "Bottom row totals each column; Right column totals each row."
+    Hint ws, r1, r2, K_TOTAL, "Total label", "What the grand totals are called. Blank: Total."
     ListRule ws, r1, r2, K_REPEAT, "Yes,No", "Repeat labels", _
          "Yes repeats a row label on every line it covers - easier to filter and copy out."
+    ListRule ws, r1, r2, K_BLANKLN, "Yes,No", "Blank line", _
+         "Yes leaves a blank line after each group of the outer row fields."
+    ListRule ws, r1, r2, K_VALIN, "Columns,Rows", "Values in", _
+         "With two or more values: side by side in columns (the default), or stacked under the row labels."
+    Hint ws, r1, r2, K_EXPAND, "Expand to", "Optional. A row field to fold the table to: the fields below it " & _
+         "start closed, with +/- to open them. e.g. Line."
     Hint ws, r1, r2, K_SORT, "Sort", "Blank keeps the data's order. label asc / label desc sorts by the names; " & _
          "a value caption then asc / desc sorts by it - e.g. Pre-factor desc."
+    ListRule ws, r1, r2, K_UNITS, "As is,Thousands,Millions,Billions", "Units", _
+         "Shows the figures in thousands, millions or billions, and says so over the title. Filters and totals " & _
+         "still use the full amounts."
+    Hint ws, r1, r2, K_FORMAT, "Number format", "Blank: the desk's own, in the Units chosen. Or any Excel " & _
+         "number format, e.g. #,##0.00 - it wins over Units."
+    ListRule ws, r1, r2, K_HILITE, "None,Data bars,Heatmap,Negatives,Top 10", "Highlight", _
+         "Marks the plain values. Add on and a caption for one value only - Data bars on Exposure. Top takes any " & _
+         "number - Top 5.", False
     Hint ws, r1, r2, K_WIDTHS, "Widths", "Column widths, separated by ; - field=width, and values=width for " & _
-         "the figures. e.g. COA name=44; values=16. Unset fields use the FIELDS list."
-    Hint ws, r1, r2, K_FORMAT, "Number format", "Blank uses the desk's own: #,##0;[Red](#,##0);-"
+         "the figures. e.g. COA name=44; values=16. Unset fields fit their longest label."
+    ListRule ws, r1, r2, K_TILES, "Yes,No", "Tiles", _
+         "Yes puts each plain value's live total in a tile above the pivot."
     ListRule ws, r1, r2, K_TAB, "Auto,Emerald,Deep,Slate,Black", "Tab", _
          "Tab colour. Auto: overviews emerald, LCY sheets deep green, FCY sheets slate."
     Hint ws, r1, r2, K_MAX, "Max sheets", "For One sheet per: the most sheets to make. Blank means " & _
@@ -306,9 +358,11 @@ Private Sub FieldHints(ByVal ws As Worksheet)
     Hint ws, r1, r2, G_NAME, "Field", "The name recipes use. The first thirteen are built in and " & _
          "cannot be renamed."
     Hint ws, r1, r2, G_SOURCE, "Source column", "The column header in the output, e.g. " & _
-         "COUNTERPARTY_NAME. Case and spacing do not matter."
-    ListRule ws, r1, r2, G_KIND, "Text,Number,Date", "Kind", _
-         "Text is grouped by; Number can be summed; Date is grouped as a date."
+         "COUNTERPARTY_NAME. Case and spacing do not matter. For a Calculated field, a formula over other " & _
+         "fields' names in single quotes."
+    ListRule ws, r1, r2, G_KIND, "Text,Number,Date,Calculated", "Kind", _
+         "Text is grouped by; Number can be summed; Date is grouped as a date. Calculated: the source is a " & _
+         "formula over other fields, worked out by the pivot - e.g. ='Pre factor amount' - 'Post factor amount'."
     ListRule ws, r1, r2, G_LABELS, "As is,Drop codes,Drop codes + title case,Title case", "Labels", _
          "How the values read in a pivot. Drop codes turns 1.07.00.MBGL.1360.LOANS TO CUSTOMERS into LOANS TO " & _
          "CUSTOMERS; title case makes it Loans to Customers. Blank: this field's default."
@@ -332,8 +386,11 @@ Private Sub Hint(ByVal ws As Worksheet, ByVal r1 As Long, ByVal r2 As Long, ByVa
     Err.Clear
 End Sub
 
+' A dropdown. Strict refuses anything else; not strict offers the list and
+' takes what is typed - "Data bars on Share".
 Private Sub ListRule(ByVal ws As Worksheet, ByVal r1 As Long, ByVal r2 As Long, ByVal c As Long, _
-                     ByVal items As String, ByVal title As String, ByVal msg As String)
+                     ByVal items As String, ByVal title As String, ByVal msg As String, _
+                     Optional ByVal strict As Boolean = True)
     On Error Resume Next
     With ws.Range(ws.Cells(r1, c), ws.Cells(r2, c)).Validation
         .Delete
@@ -345,7 +402,7 @@ Private Sub ListRule(ByVal ws As Worksheet, ByVal r1 As Long, ByVal r2 As Long, 
         .ErrorTitle = TOOL_NAME
         .ErrorMessage = "Choose one of: " & Replace(items, ",", ", ")
         .ShowInput = True
-        .ShowError = True
+        .ShowError = strict
     End With
     Err.Clear
 End Sub
@@ -357,46 +414,83 @@ Private Sub WriteDefaultRecipes(ByVal ws As Worksheet)
     Dim r As Long
     r = modPD_Theme.R_FIRST
     ws.Range(ws.Cells(r, 1), ws.Cells(RecipeLastRow(ws), K_LAST)).ClearContents
-    Recipe ws, r, "Yes", "{fw} Output", "All", "", "Rule order, Rule category, Rule name, Factor", "LCY / FCY", _
-        "Pre factor amount sum as Pre-factor; Post factor amount sum as Post-factor", "Bucket <> (no bucket)", _
-        "Rule category, LCY / FCY, Bucket", "Tabular", "None", "Both", "No", "", "", "", "Emerald", "", _
-        "Every rule, in the order the engine evaluates them, against what it read and what it kept."
-    Recipe ws, r + 1, "Yes", "Balance sheet", "All", "", "Type, Line, Subline, COA name", "LCY / FCY", _
-        "Pre factor amount sum as Pre-factor", "Bucket <> (no bucket)", "Type, LCY / FCY, Rule category", _
-        "Tabular", "None", "Both", "No", "", "", "", "Emerald", "", _
-        "The same balances as the balance sheet reads them, down to the COA. Pre-factor only."
-    Recipe ws, r + 2, "Yes", "{split}", "LCR, NSFR", "Rule name, LCY / FCY", "Type, Line, Subline, COA name", _
-        "Bucket", "Pre factor amount sum as Pre-factor", "Bucket <> (no bucket)", "", "Tabular", "None", "Both", _
-        "No", "", "", "", "Auto", CStr(MAX_SHEETS_DEFAULT), _
-        "One rule, one currency side - balances across the maturity buckets."
-    Recipe ws, r + 3, "Yes", "{split}", "Maturity ladder", "Currency", "Rule name, Type, Line, Subline, COA name", _
-        "Bucket", "Pre factor amount sum as Pre-factor", "Bucket <> (no bucket)", "", "Tabular", "None", "Both", _
-        "No", "", "", "", "Auto", CStr(MAX_SHEETS_DEFAULT), _
-        "Every rule for one currency, across the maturity buckets."
-    ' A worked example that is off: what a recipe of your own looks like.
-    Recipe ws, r + 4, "No", "{fw} by counterparty", "All", "", "Counterparty, Product", "Bucket", _
-        "Pre factor amount sum as Pre-factor; Pre factor amount %col as Share", "Bucket <> (no bucket)", _
-        "Product", "Tabular", "Counterparty", "Both", "Yes", "Pre-factor desc", "Counterparty=34; values=15", _
-        "", "Emerald", "", "An example of your own: switch it On to build it."
-    ' A few more worth having, ready to switch on.
-    Recipe ws, r + 5, "No", "{fw} maturity profile", "All", "", "Product, Cashflow element", "Bucket", _
-        "Pre factor amount sum as Pre-factor; Post factor amount sum as Post-factor", "Bucket <> (no bucket)", _
-        "Product", "Tabular", "Product", "Both", "No", "Pre-factor desc", "Product=22; Cashflow element=24", _
-        "", "Emerald", "", "What each product contributes to each bucket, before and after the factors."
-    Recipe ws, r + 6, "No", "{fw} top counterparties", "All", "", "Counterparty", "LCY / FCY", _
-        "Pre factor amount sum as Pre-factor; Pre factor amount %total as Share", "", "", "Tabular", "None", _
-        "Both", "No", "Pre-factor desc", "Counterparty=40; values=15", "", "Emerald", "", _
-        "Counterparties by size, with each one's share of the whole book."
-    Recipe ws, r + 7, "No", "{split}", "All", "Product", "Type, Line, COA name", "Bucket", _
-        "Pre factor amount sum as Pre-factor", "Bucket <> (no bucket)", "", "Tabular", "None", "Both", "No", _
-        "", "", "", "Deep", "20", "One sheet per product: its balances across the maturity buckets."
+    Rec ws, r, "On=Yes", "Pivot={fw} Output", "Frameworks=All", _
+        "Rows=Rule order, Rule category, Rule name, Factor", "Columns=LCY / FCY", _
+        "Values=Pre factor amount sum as Pre-factor; Post factor amount sum as Post-factor", _
+        "Show only / hide=Bucket <> (no bucket)", "Slicers=Rule category, LCY / FCY, Bucket", "Layout=Tabular", _
+        "Subtotals=None", "Grand totals=Both", "Tiles=Yes", "Tab=Emerald", _
+        "Description=Every rule, in the order the engine evaluates them, against what it read and what it kept."
+    Rec ws, r + 1, "On=Yes", "Pivot=Balance sheet", "Frameworks=All", "Rows=Type, Line, Subline, COA name", _
+        "Columns=LCY / FCY", "Values=Pre factor amount sum as Pre-factor", "Show only / hide=Bucket <> (no bucket)", _
+        "Slicers=Type, LCY / FCY, Rule category", "Layout=Tabular", "Subtotals=Type", "Grand totals=Both", _
+        "Tiles=Yes", "Tab=Emerald", _
+        "Description=The same balances as the balance sheet reads them, down to the COA. Pre-factor only."
+    Rec ws, r + 2, "On=Yes", "Pivot={split}", "Frameworks=LCR, NSFR", "One sheet per=Rule name, LCY / FCY", _
+        "Rows=Type, Line, Subline, COA name", "Columns=Bucket", "Values=Pre factor amount sum as Pre-factor", _
+        "Show only / hide=Bucket <> (no bucket)", "Layout=Tabular", "Subtotals=None", "Grand totals=Both", _
+        "Tiles=Yes", "Tab=Auto", "Max sheets=" & MAX_SHEETS_DEFAULT, _
+        "Description=One rule, one currency side - balances across the maturity buckets."
+    ' The ladder is one workbook per currency (Workbooks), so inside each the
+    ' sheets are one per rule, as for LCR and NSFR.
+    Rec ws, r + 3, "On=Yes", "Pivot={split}", "Frameworks=Maturity ladder", "One sheet per=Rule name", _
+        "Rows=Type, Line, Subline, COA name", "Columns=Bucket", "Values=Pre factor amount sum as Pre-factor", _
+        "Show only / hide=Bucket <> (no bucket)", "Layout=Tabular", "Subtotals=None", "Grand totals=Both", _
+        "Tiles=Yes", "Tab=Auto", "Max sheets=" & MAX_SHEETS_DEFAULT, _
+        "Description=One rule - its balances across the maturity buckets."
+    Rec ws, r + 4, "On=Yes", "Pivot={fw} top counterparties", "Frameworks=All", "Rows=Counterparty", _
+        "Columns=LCY / FCY", _
+        "Values=Gross pre-factor sum as Exposure; Gross pre-factor %total as Share; " & _
+               "Gross pre-factor %running in Counterparty as Cumulative", _
+        "Top / value filter=Top 25 by Exposure", "Layout=Tabular", "Grand totals=Both", "Values in=Columns", _
+        "Sort=Exposure desc", "Units=Millions", "Highlight=Data bars", "Widths=Counterparty=40", "Tiles=Yes", _
+        "Tab=Emerald", "Description=The 25 largest counterparties by exposure, local and foreign - each one's " & _
+        "share of the 25, and the running share down the list."
+    ' Ready to switch on.
+    Rec ws, r + 5, "On=No", "Pivot={fw} counterparty heatmap", "Frameworks=All", "Rows=Counterparty", _
+        "Columns=Bucket", "Values=Gross pre-factor sum as Exposure", "Show only / hide=Bucket <> (no bucket)", _
+        "Top / value filter=Top 30 by Exposure", "Layout=Tabular", "Grand totals=Both", "Sort=Exposure desc", _
+        "Units=Millions", "Highlight=Heatmap", "Widths=Counterparty=40", "Tab=Emerald", _
+        "Description=Where the 30 largest counterparties fall across the maturity buckets."
+    Rec ws, r + 6, "On=No", "Pivot={fw} product concentration", "Frameworks=All", "Rows=Product, Counterparty", _
+        "Values=Gross pre-factor sum as Exposure; Gross pre-factor %parent as Share of product", _
+        "Top / value filter=Top 10 Counterparty by Exposure", "Layout=Tabular", "Subtotals=Product", _
+        "Subtotals at=Bottom", "Grand totals=Bottom row", "Blank line=Yes", "Sort=Exposure desc", _
+        "Units=Millions", "Highlight=Data bars", "Tab=Deep", _
+        "Description=Each product's ten largest counterparties and their share of the product."
+    Rec ws, r + 7, "On=No", "Pivot={fw} maturity by year", "Frameworks=All", "Rows=Maturity date", _
+        "Columns=LCY / FCY", "Group=Maturity date by year", _
+        "Values=Pre factor amount sum as Pre-factor; Pre factor amount running in Maturity date as Cumulative", _
+        "Layout=Tabular", "Grand totals=Bottom row", "Units=Millions", "Tab=Deep", _
+        "Description=Balances by the year they mature, with the running total."
+    Rec ws, r + 8, "On=No", "Pivot={fw} rule ranking", "Frameworks=All", "Rows=Rule name", _
+        "Values=Gross pre-factor sum as Exposure; Gross pre-factor rank as Rank; Pre factor amount sum as Net", _
+        "Top / value filter=Top 15 by Exposure", "Layout=Tabular", "Grand totals=Bottom row", _
+        "Sort=Exposure desc", "Units=Millions", "Highlight=Data bars", "Widths=Rule name=60", "Tab=Emerald", _
+        "Description=The fifteen rules that carry the most, ranked, gross and net."
+    Rec ws, r + 9, "On=No", "Pivot={split}", "Frameworks=All", "One sheet per=Product", _
+        "Rows=Type, Line, COA name", "Columns=Bucket", "Values=Pre factor amount sum as Pre-factor", _
+        "Show only / hide=Bucket <> (no bucket)", "Layout=Tabular", "Subtotals=Type", "Grand totals=Both", _
+        "Tab=Deep", "Max sheets=20", "Description=One sheet per product: its balances across the maturity buckets."
 End Sub
 
-Private Sub Recipe(ByVal ws As Worksheet, ByVal r As Long, ParamArray v() As Variant)
-    Dim i As Long
-    For i = 0 To UBound(v)
-        ws.Cells(r, i + 1).NumberFormat = "@"
-        ws.Cells(r, i + 1).Value2 = CStr(v(i))
+' A recipe row written by heading - Rec ws, r, "On=Yes", "Pivot={fw} Output", ...
+' A heading not named stays blank, so a new column never shifts a default,
+' and the build checks every heading named here is one the sheet has.
+Private Sub Rec(ByVal ws As Worksheet, ByVal r As Long, ParamArray kv() As Variant)
+    Dim heads As Variant, i As Long, c As Long, p As Long, k As String
+    heads = RecipeHeads()
+    ws.Range(ws.Cells(r, 1), ws.Cells(r, K_LAST)).NumberFormat = "@"
+    For i = 0 To UBound(kv)
+        p = InStr(CStr(kv(i)), "=")
+        If p > 1 Then
+            k = Left$(CStr(kv(i)), p - 1)
+            For c = 0 To UBound(heads)
+                If StrComp(CStr(heads(c)), k, vbTextCompare) = 0 Then
+                    ws.Cells(r, c + 1).Value2 = Mid$(CStr(kv(i)), p + 1)
+                    Exit For
+                End If
+            Next c
+        End If
     Next i
 End Sub
 
@@ -561,6 +655,13 @@ Private Function DefaultFields() As Collection
     c.Add Array(H_BUCKET, F_BUCKET, "Text", "(no bucket)", "14", "", "Built in.")
     c.Add Array(H_PRE, SRC_PRE, "Number", "", "14", NUM_FMT, "Built in. Native-currency pre-factor if the file has it, else LCY.")
     c.Add Array(H_POST, SRC_POST, "Number", "", "14", NUM_FMT, "Built in. The post-factor pair of the same.")
+    ' Computed while staging: the amounts without their sign - how much is at
+    ' stake either way - which is what a ranking or a share should be read on.
+    c.Add Array("Gross pre-factor", SRC_ABS_PRE, "Number", "", "14", NUM_FMT, "The pre-factor amount without its sign. Rank and share on this.")
+    c.Add Array("Gross post-factor", SRC_ABS_POST, "Number", "", "14", NUM_FMT, "The post-factor amount without its sign.")
+    ' Worked out by the pivot from the sums, whatever the rows add up to.
+    c.Add Array("Haircut", "='" & H_PRE & "' - '" & H_POST & "'", "Calculated", "", "14", NUM_FMT, "Calculated: pre-factor less post-factor - what the factors took off.")
+    c.Add Array("Effective factor", "=IF('" & H_PRE & "'=0,0,'" & H_POST & "'/'" & H_PRE & "')", "Calculated", "", "10", "0.0%", "Calculated: post over pre for whatever the row adds up - the factor actually applied.")
     c.Add Array("COA code", "COA_CODE", "Text", "(no COA code)", "18", "", "")
     c.Add Array("Account", "ACCOUNT_NUMBER", "Text", "(no account)", "24", "", "")
     c.Add Array("Counterparty", "COUNTERPARTY_NAME", "Text", "(no counterparty)", "30", "", "")
@@ -644,6 +745,7 @@ Private Sub AddField(ByVal d As Object, ByVal nm As String, ByVal src As String,
     Select Case LCase$(kind)
         Case "number": f("Kind") = "Number"
         Case "date": f("Kind") = "Date"
+        Case "calculated": f("Kind") = "Calculated"
         Case Else: f("Kind") = "Text"
     End Select
     f("Blank") = blank
@@ -663,426 +765,8 @@ Private Function BuiltinNames() As Object
     Set BuiltinNames = d
 End Function
 
-' Fields named by the recipes that 1.0 did not stage - what the stager has to
-' add for this build.
-Public Function ExtraFields(ByVal recipes As Collection) As Collection
-    Dim out As Collection, seen As Object, fl As Object, rc As Object, nm As Variant
-    Set out = New Collection
-    Set seen = NewMap()
-    Set fl = Fields()
-    For Each rc In recipes
-        For Each nm In FieldNamesOf(rc)
-            If fl.Exists(CStr(nm)) Then
-                If Not CBool(fl(CStr(nm))("Builtin")) And Not seen.Exists(CStr(nm)) Then
-                    seen(CStr(nm)) = True
-                    out.Add fl(CStr(nm))
-                End If
-            End If
-        Next nm
-    Next rc
-    Set ExtraFields = out
-End Function
-
-Private Function FieldNamesOf(ByVal rc As Object) As Collection
-    Dim c As Collection, x As Variant, v As Object
-    Set c = New Collection
-    For Each x In rc("Split"): c.Add x: Next x
-    For Each x In rc("Rows"): c.Add x: Next x
-    For Each x In rc("Cols"): c.Add x: Next x
-    For Each x In rc("Slicers"): c.Add x: Next x
-    For Each v In rc("Values"): c.Add v("Field"): Next v
-    For Each v In rc("Filters"): c.Add v("Field"): Next v
-    Set FieldNamesOf = c
-End Function
-
-' Every row of the table, parsed and checked. Rows that are off are parsed
-' too, so Check can say what is wrong with them before anyone switches them on.
-Public Function AllRecipes() As Collection
-    Dim ws As Worksheet, out As Collection, r As Long, lastR As Long, fl As Object
-    Dim seenNames As Object, rc As Object
-    Set out = New Collection
-    Set AllRecipes = out
-    Set ws = ConfigSheet()
-    If ws Is Nothing Then Exit Function
-    Set fl = Fields()
-    Set seenNames = NewMap()
-    lastR = RecipeLastRow(ws)
-    For r = modPD_Theme.R_FIRST To lastR
-        If Len(SafeText(ws.Cells(r, K_NAME).Value2)) > 0 Or Len(SafeText(ws.Cells(r, K_ROWS).Value2)) > 0 Then
-            Set rc = ParseRow(ws, r, fl)
-            If CBool(rc("On")) And Len(rc("Problem")) = 0 Then
-                If seenNames.Exists(rc("Name") & "|" & rc("Frameworks")) Then
-                    rc("Problem") = "Another row that is on has the same pivot name and frameworks."
-                Else
-                    seenNames(rc("Name") & "|" & rc("Frameworks")) = True
-                End If
-            End If
-            out.Add rc
-        End If
-    Next r
-End Function
-
-' The recipes a build of this framework will use: on, and for it.
-Public Function RecipesFor(ByVal fw As String) As Collection
-    Dim out As Collection, rc As Object
-    Set out = New Collection
-    For Each rc In AllRecipes()
-        If CBool(rc("On")) And ForFramework(rc, fw) Then out.Add rc
-    Next rc
-    Set RecipesFor = out
-End Function
-
-Private Function ForFramework(ByVal rc As Object, ByVal fw As String) As Boolean
-    Dim t As Variant
-    For Each t In SplitList(CStr(rc("Frameworks")), ",")
-        Select Case NormFw(CStr(t))
-            Case "ALL": ForFramework = True: Exit Function
-            Case UCase$(fw): ForFramework = True: Exit Function
-        End Select
-    Next t
-End Function
-
-Private Function NormFw(ByVal s As String) As String
-    Select Case UCase$(Replace(Replace(Trim$(s), " ", ""), "_", ""))
-        Case "ALL", "": NormFw = "ALL"
-        Case "LCR": NormFw = FW_LCR
-        Case "NSFR": NormFw = FW_NSFR
-        Case "MATURITYLADDER", "LADDER", "ML": NormFw = FW_ML
-        Case Else: NormFw = "?" & s
-    End Select
-End Function
-
-Private Function ParseRow(ByVal ws As Worksheet, ByVal r As Long, ByVal fl As Object) As Object
-    Dim rc As Object, s As String, prob As String, x As Variant, subs As Object
-    Set rc = NewMap()
-    Set ParseRow = rc
-    rc("Row") = r
-    rc("On") = (StrComp(Cell(ws, r, K_ON), "No", vbTextCompare) <> 0 And Len(Cell(ws, r, K_ON)) > 0)
-    rc("Name") = Cell(ws, r, K_NAME)
-    rc("Frameworks") = IIf(Len(Cell(ws, r, K_FW)) = 0, "All", Cell(ws, r, K_FW))
-    Set rc("Split") = SplitList(Cell(ws, r, K_SPLIT), ",")
-    Set rc("Rows") = SplitList(Cell(ws, r, K_ROWS), ",")
-    Set rc("Cols") = SplitList(Cell(ws, r, K_COLS), ",")
-    Set rc("Slicers") = SplitList(Cell(ws, r, K_SLICERS), ",")
-    Set rc("Values") = ParseValues(Cell(ws, r, K_VALUES), fl, prob)
-    If Len(prob) = 0 Then Set rc("Filters") = ParseFilters(Cell(ws, r, K_FILTERS), prob) Else Set rc("Filters") = New Collection
-    rc("Desc") = Cell(ws, r, K_DESC)
-    rc("Format") = Cell(ws, r, K_FORMAT)
-    If Len(rc("Format")) = 0 Then rc("Format") = NUM_FMT
-
-    Select Case LCase$(Cell(ws, r, K_LAYOUT))
-        Case "", "tabular": rc("Layout") = 1          ' xlTabularRow
-        Case "outline": rc("Layout") = 2              ' xlOutlineRow
-        Case "compact": rc("Layout") = 0              ' xlCompactRow
-        Case Else: If Len(prob) = 0 Then prob = "Layout must be Tabular, Outline or Compact."
-    End Select
-
-    s = LCase$(Cell(ws, r, K_SUBTOT))
-    Set subs = NewMap()
-    Set rc("SubFields") = subs
-    rc("SubAll") = False
-    If s = "all" Then
-        rc("SubAll") = True
-    ElseIf s <> "" And s <> "none" Then
-        For Each x In SplitList(Cell(ws, r, K_SUBTOT), ",")
-            subs(CStr(x)) = True
-        Next x
-    End If
-
-    Select Case LCase$(Cell(ws, r, K_GRAND))
-        Case "", "both": rc("ColGrand") = True: rc("RowGrand") = True
-        Case "bottom row": rc("ColGrand") = True: rc("RowGrand") = False
-        Case "right column": rc("ColGrand") = False: rc("RowGrand") = True
-        Case "none": rc("ColGrand") = False: rc("RowGrand") = False
-        Case Else
-            rc("ColGrand") = True: rc("RowGrand") = True
-            If Len(prob) = 0 Then prob = "Grand totals must be Both, Bottom row, Right column or None."
-    End Select
-    rc("Repeat") = (StrComp(Cell(ws, r, K_REPEAT), "Yes", vbTextCompare) = 0)
-
-    ParseSort Cell(ws, r, K_SORT), rc
-    Set rc("Widths") = ParseWidths(Cell(ws, r, K_WIDTHS), rc, prob)
-    rc("Tab") = Cell(ws, r, K_TAB)
-    s = Cell(ws, r, K_MAX)
-    If Len(s) = 0 Then
-        rc("Max") = MAX_SHEETS_DEFAULT
-    ElseIf IsNumeric(s) Then
-        rc("Max") = CLng(Val(s))
-        If CLng(rc("Max")) < 1 Or CLng(rc("Max")) > 250 Then
-            If Len(prob) = 0 Then prob = "Max sheets must be between 1 and 250."
-        End If
-    Else
-        rc("Max") = MAX_SHEETS_DEFAULT
-        If Len(prob) = 0 Then prob = "Max sheets must be a number."
-    End If
-
-    If Len(prob) = 0 Then prob = Validate(rc, fl)
-    rc("Problem") = prob
-End Function
-
 Private Function Cell(ByVal ws As Worksheet, ByVal r As Long, ByVal c As Long) As String
     Cell = SafeText(ws.Cells(r, c).Value2)
-End Function
-
-Public Function SplitList(ByVal s As String, ByVal sep As String) As Collection
-    Dim c As Collection, p As Variant
-    Set c = New Collection
-    If Len(Trim$(s)) > 0 Then
-        For Each p In Split(s, sep)
-            If Len(Trim$(CStr(p))) > 0 Then c.Add Trim$(CStr(p))
-        Next p
-    End If
-    Set SplitList = c
-End Function
-
-' "Pre factor amount sum as Pre-factor; Pre factor amount %col as Share"
-Private Function ParseValues(ByVal s As String, ByVal fl As Object, ByRef prob As String) As Collection
-    Dim out As Collection, it As Variant, item As String, cap As String, agg As String, p As Long
-    Dim v As Object, seenCap As Object, low As String
-    Set out = New Collection
-    Set ParseValues = out
-    Set seenCap = NewMap()
-    For Each it In SplitList(s, ";")
-        item = CStr(it)
-        cap = ""
-        agg = "sum"
-        low = LCase$(item)
-        p = InStr(1, low, " as ")
-        If p > 0 Then
-            cap = Trim$(Mid$(item, p + 4))
-            item = Trim$(Left$(item, p - 1))
-        End If
-        p = InStrRev(item, " ")
-        If p > 0 Then
-            If IsAgg(Mid$(item, p + 1)) Then
-                agg = LCase$(Mid$(item, p + 1))
-                item = Trim$(Left$(item, p - 1))
-            End If
-        ElseIf IsAgg(item) Then
-            prob = "A value is missing its field: " & Chr$(34) & CStr(it) & Chr$(34) & "."
-        End If
-        Set v = NewMap()
-        v("Field") = item
-        v("Agg") = agg
-        If Len(cap) = 0 Then cap = AggWord(agg) & " of " & item
-        ' Excel refuses a data field caption that equals a field name - the
-        ' refusal surfaces three calls later as a pivot with no data. A
-        ' trailing space is a different name to Excel and the same to a reader.
-        If fl.Exists(cap) Then cap = cap & " "
-        Do While seenCap.Exists(cap)
-            cap = cap & " "
-        Loop
-        seenCap(cap) = True
-        v("Caption") = cap
-        out.Add v
-    Next it
-End Function
-
-Private Function IsAgg(ByVal w As String) As Boolean
-    Select Case LCase$(Trim$(w))
-        Case "sum", "count", "average", "avg", "mean", "max", "min", "%row", "%col", "%column", "%total"
-            IsAgg = True
-    End Select
-End Function
-
-Private Function AggWord(ByVal agg As String) As String
-    Select Case agg
-        Case "count": AggWord = "Count"
-        Case "average", "avg", "mean": AggWord = "Average"
-        Case "max": AggWord = "Max"
-        Case "min": AggWord = "Min"
-        Case "%row": AggWord = "% of row"
-        Case "%col", "%column": AggWord = "% of column"
-        Case "%total": AggWord = "% of total"
-        Case Else: AggWord = "Sum"
-    End Select
-End Function
-
-' "Bucket <> (no bucket); LCY / FCY = LCY"
-Private Function ParseFilters(ByVal s As String, ByRef prob As String) As Collection
-    Dim out As Collection, it As Variant, item As String, p As Long, f As Object, incl As Boolean, rest As String
-    Set out = New Collection
-    Set ParseFilters = out
-    For Each it In SplitList(s, ";")
-        item = CStr(it)
-        p = InStr(item, "<>")
-        If p > 0 Then
-            incl = False
-            rest = Mid$(item, p + 2)
-        Else
-            p = InStr(item, "=")
-            If p = 0 Then
-                prob = "A show-only / hide rule needs = or <> : " & Chr$(34) & item & Chr$(34) & "."
-                Exit Function
-            End If
-            incl = True
-            rest = Mid$(item, p + 1)
-        End If
-        Set f = NewMap()
-        f("Field") = Trim$(Left$(item, p - 1))
-        f("Include") = incl
-        Set f("Items") = SplitList(rest, "|")
-        If f("Items").count = 0 Then
-            prob = "A show-only / hide rule names no items: " & Chr$(34) & item & Chr$(34) & "."
-            Exit Function
-        End If
-        out.Add f
-    Next it
-End Function
-
-Private Sub ParseSort(ByVal s As String, ByVal rc As Object)
-    Dim p As Long, dirWord As String
-    rc("SortBy") = ""
-    rc("SortDesc") = True
-    s = Trim$(s)
-    If Len(s) = 0 Or LCase$(s) = "none" Then Exit Sub
-    p = InStrRev(s, " ")
-    If p > 0 Then
-        dirWord = LCase$(Mid$(s, p + 1))
-        If dirWord = "asc" Or dirWord = "desc" Then
-            rc("SortDesc") = (dirWord = "desc")
-            s = Trim$(Left$(s, p - 1))
-        End If
-    End If
-    If LCase$(s) = "label" Then
-        rc("SortBy") = "label"
-        If dirWord <> "desc" Then rc("SortDesc") = False
-    Else
-        rc("SortBy") = s
-    End If
-End Sub
-
-Private Function ParseWidths(ByVal s As String, ByVal rc As Object, ByRef prob As String) As Object
-    Dim d As Object, it As Variant, p As Long, nm As String, w As String
-    Set d = NewMap()
-    Set ParseWidths = d
-    rc("ValueWidth") = 14
-    For Each it In SplitList(s, ";")
-        p = InStr(CStr(it), "=")
-        If p = 0 Then
-            If Len(prob) = 0 Then prob = "Widths are field=width, separated by ; - " & Chr$(34) & CStr(it) & Chr$(34) & "."
-        Else
-            nm = Trim$(Left$(CStr(it), p - 1))
-            w = Trim$(Mid$(CStr(it), p + 1))
-            If Not IsNumeric(w) Then
-                If Len(prob) = 0 Then prob = "A width must be a number: " & Chr$(34) & CStr(it) & Chr$(34) & "."
-            ElseIf LCase$(nm) = "values" Then
-                rc("ValueWidth") = CDbl(Val(w))
-            Else
-                d(nm) = CDbl(Val(w))
-            End If
-        End If
-    Next it
-End Function
-
-' Everything that would stop Excel building the pivot, or make it build the
-' wrong one, said in words that point at the cell to change.
-Private Function Validate(ByVal rc As Object, ByVal fl As Object) As String
-    Dim place As Object, x As Variant, v As Object, t As Variant, nm As String, caps As Object
-    If Len(rc("Name")) = 0 Then Validate = "Give the pivot a name - it becomes the sheet's name.": Exit Function
-    ' measured with the longest framework label, which {fw} can become
-    If Len(Replace(Replace(rc("Name"), "{fw}", "Maturity Ladder"), "{split}", "")) > 31 Then
-        Validate = "The pivot name is longer than a sheet name can be (31 characters).": Exit Function
-    End If
-    For Each t In SplitList(CStr(rc("Frameworks")), ",")
-        If Left$(NormFw(CStr(t)), 1) = "?" Then
-            Validate = "Frameworks: " & Chr$(34) & CStr(t) & Chr$(34) & " is not All, LCR, NSFR or Maturity ladder."
-            Exit Function
-        End If
-    Next t
-    If rc("Values").count = 0 Then Validate = "Add at least one value - a pivot with none is empty.": Exit Function
-    If rc("Rows").count = 0 And rc("Cols").count = 0 Then
-        Validate = "Put at least one field in Rows or Columns.": Exit Function
-    End If
-    If rc("Split").count > 2 Then Validate = "One sheet per takes one or two fields.": Exit Function
-    If rc("Split").count > 0 And InStr(1, rc("Name"), "{split}", vbTextCompare) = 0 Then
-        Validate = "With One sheet per, name the pivot {split} so each sheet can take its value.": Exit Function
-    End If
-
-    ' every field named, known
-    For Each x In FieldNamesOf(rc)
-        If Not fl.Exists(CStr(x)) Then
-            Validate = Chr$(34) & CStr(x) & Chr$(34) & " is not on the Pivot fields sheet - check the spelling, " & _
-                       "or add it there."
-            Exit Function
-        End If
-    Next x
-    For Each x In rc("Split")
-        If fl(CStr(x))("Kind") <> "Text" Then
-            Validate = "One sheet per takes text fields - " & Chr$(34) & CStr(x) & Chr$(34) & " is " & _
-                       LCase$(fl(CStr(x))("Kind")) & "."
-            Exit Function
-        End If
-    Next x
-    For Each x In rc("Widths").keys
-        If Not fl.Exists(CStr(x)) Then
-            Validate = "Widths: " & Chr$(34) & CStr(x) & Chr$(34) & " is not a field.": Exit Function
-        End If
-    Next x
-    For Each x In rc("SubFields").keys
-        If Not InCollection(rc("Rows"), CStr(x)) Then
-            Validate = "Subtotals: " & Chr$(34) & CStr(x) & Chr$(34) & " is not one of the Rows.": Exit Function
-        End If
-    Next x
-
-    ' a field can sit in one place only
-    Set place = NewMap()
-    For Each x In rc("Split")
-        If Not Claim(place, CStr(x), "One sheet per") Then Validate = Twice(place, CStr(x), "One sheet per"): Exit Function
-    Next x
-    For Each x In rc("Rows")
-        If Not Claim(place, CStr(x), "Rows") Then Validate = Twice(place, CStr(x), "Rows"): Exit Function
-    Next x
-    For Each x In rc("Cols")
-        If Not Claim(place, CStr(x), "Columns") Then Validate = Twice(place, CStr(x), "Columns"): Exit Function
-    Next x
-    For Each v In rc("Filters")
-        If place.Exists(v("Field")) Then
-            If place(v("Field")) = "One sheet per" Then
-                Validate = Chr$(34) & v("Field") & Chr$(34) & " is already one sheet per value; it cannot be " & _
-                           "filtered as well."
-                Exit Function
-            End If
-        End If
-    Next v
-
-    ' values: numbers can be summed, anything can be counted
-    Set caps = NewMap()
-    For Each v In rc("Values")
-        caps(Trim$(v("Caption"))) = True
-        If fl(v("Field"))("Kind") = "Text" And v("Agg") <> "count" Then
-            Validate = Chr$(34) & v("Field") & Chr$(34) & " is text, so it can only be counted - write " & _
-                       v("Field") & " count."
-            Exit Function
-        End If
-    Next v
-    If rc("SortBy") <> "" And rc("SortBy") <> "label" Then
-        If Not caps.Exists(rc("SortBy")) Then
-            Validate = "Sort: " & Chr$(34) & rc("SortBy") & Chr$(34) & " is not one of the value captions, or label."
-            Exit Function
-        End If
-    End If
-    Select Case LCase$(CStr(rc("Tab")))
-        Case "", "auto", "emerald", "deep", "slate", "black"
-        Case Else: Validate = "Tab must be Auto, Emerald, Deep, Slate or Black.": Exit Function
-    End Select
-End Function
-
-Private Function Claim(ByVal place As Object, ByVal nm As String, ByVal where As String) As Boolean
-    If place.Exists(nm) Then Exit Function
-    place(nm) = where
-    Claim = True
-End Function
-
-Private Function Twice(ByVal place As Object, ByVal nm As String, ByVal where As String) As String
-    Twice = Chr$(34) & nm & Chr$(34) & " is in " & place(nm) & " and in " & where & " - a field goes in one place."
-End Function
-
-Public Function InCollection(ByVal c As Collection, ByVal s As String) As Boolean
-    Dim x As Variant
-    For Each x In c
-        If StrComp(CStr(x), s, vbTextCompare) = 0 Then InCollection = True: Exit Function
-    Next x
 End Function
 
 ' ===================== Check ================================================
@@ -1097,7 +781,7 @@ Public Function CheckAll(Optional ByVal quiet As Boolean = False) As Long
     On Error Resume Next
     lastR = RecipeLastRow(ws)
     ws.Range(ws.Cells(modPD_Theme.R_FIRST, K_CHECK), ws.Cells(lastR, K_WHY)).ClearContents
-    For Each rc In AllRecipes()
+    For Each rc In modPD_Recipe.AllRecipes()
         r = CLng(rc("Row"))
         If Not CBool(rc("On")) Then
             ws.Cells(r, K_CHECK).Value2 = "Off"
@@ -1157,9 +841,10 @@ Public Sub PD_ConfigAdd()
     Next r
     ev = Application.EnableEvents
     Application.EnableEvents = False
-    Recipe ws, r, "No", "{fw} new pivot " & (r - modPD_Theme.R_FIRST + 1), "All", "", "Type, Line", "Bucket", _
-           "Pre factor amount sum as Pre-factor", "Bucket <> (no bucket)", "", "Tabular", "None", "Both", "No", _
-           "", "", "", "Auto", "", "A new pivot. Change any cell, then set On to Yes."
+    Rec ws, r, "On=No", "Pivot={fw} new pivot " & (r - modPD_Theme.R_FIRST + 1), "Frameworks=All", _
+        "Rows=Type, Line", "Columns=Bucket", "Values=Pre factor amount sum as Pre-factor", _
+        "Show only / hide=Bucket <> (no bucket)", "Layout=Tabular", "Subtotals=None", "Grand totals=Both", _
+        "Tiles=Yes", "Tab=Auto", "Description=A new pivot. Change any cell, then set On to Yes."
     If r > lastR Then
         DressRecipes ws
         Hints ws
@@ -1188,7 +873,7 @@ Public Sub LiveCheck(ByVal sh As Object, ByVal target As Range)
         r = target.Row
         If r < modPD_Theme.R_FIRST Or target.Column > K_DESC Then Exit Sub
         mDirty = True
-        For Each rc In AllRecipes()
+        For Each rc In modPD_Recipe.AllRecipes()
             If CLng(rc("Row")) = r Then
                 If Not CBool(rc("On")) Then
                     msg = "Row " & r & " is off"
@@ -1205,7 +890,7 @@ Public Sub LiveCheck(ByVal sh As Object, ByVal target As Range)
     ElseIf StrComp(sh.Name, SH_FIELDS, vbTextCompare) = 0 Then
         If target.Row < modPD_Theme.R_FIRST Then Exit Sub
         mDirty = True
-        For Each rc In AllRecipes()
+        For Each rc In modPD_Recipe.AllRecipes()
             If CBool(rc("On")) Then
                 nOn = nOn + 1
                 If Len(rc("Problem")) > 0 Then nBad = nBad + 1

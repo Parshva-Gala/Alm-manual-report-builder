@@ -25,7 +25,7 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
     t0 = Timer
     fromConfig = (modPD_Config.Engine() = "recipes")
     If fromConfig Then
-        Set recipes = modPD_Config.RecipesFor(fw)
+        Set recipes = modPD_Recipe.RecipesFor(fw)
         If recipes.count = 0 Then
             errOut = "no pivot on the Pivot config sheet is switched on for " & FwLabel(fw)
             Exit Function
@@ -39,7 +39,7 @@ Public Function BuildFramework(ByVal fw As String, ByVal outFolder As String, By
     modPD_Pivot.ResetPivots
     Step_ FwLabel(fw) & " - staging the output"
     If fromConfig Then
-        Set lo = modPD_Stage.StageFramework(fw, wb, errOut, modPD_Config.ExtraFields(recipes), Signatures(recipes))
+        Set lo = modPD_Stage.StageFramework(fw, wb, errOut, modPD_Recipe.ExtraFields(recipes), Signatures(recipes))
     Else
         Set lo = modPD_Stage.StageFramework(fw, wb, errOut)
     End If
