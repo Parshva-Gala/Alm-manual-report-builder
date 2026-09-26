@@ -44,7 +44,7 @@ import desk  # noqa: E402
 import ribbon  # noqa: E402
 import vbalint  # noqa: E402
 import vbaproj  # noqa: E402
-from design_tokens import EM, CANVAS, GRID_COL_PT, GRID_ROW_PT  # noqa: E402
+from design_tokens import EM, CANVAS, TX_1, GRID_COL_PT, GRID_ROW_PT  # noqa: E402
 from shapes import to_drawingml  # noqa: E402
 
 SEED = os.path.join(ROOT, "src", "seed", "PivotDesk_v1.xlsm")
@@ -163,7 +163,24 @@ def add_canvas_style(styles: str):
     n_xf = int(m.group(1))
     xf = '<xf numFmtId="0" fontId="0" fillId="%d" borderId="0" xfId="0" applyFill="1"/>' % n_fills
     styles = styles.replace(m.group(0), '<cellXfs count="%d">%s%s</cellXfs>' % (n_xf + 1, m.group(2), xf))
+    styles = dark_normal(styles, n_fills)
     return styles, n_xf
+
+
+def dark_normal(styles: str, canvas_fill: int) -> str:
+    """The Normal style on the dark canvas with near-white type, so every sheet
+    starts in the Desk's room before a macro has run. (modPD_Theme.DarkNormal
+    says the same again on first open.) The font itself is left alone: the
+    Desk's columns are measured in Normal-font characters."""
+    m = re.search(r"<fonts[^>]*>\s*<font>(.*?)</font>", styles, re.S)
+    first = m.group(1)
+    styles = styles.replace("<font>" + first + "</font>",
+                            "<font>" + re.sub(r"<color [^/]*/>", '<color rgb="FF%s"/>' % TX_1, first) + "</font>", 1)
+    styles = re.sub(r'(<cellStyleXfs[^>]*>\s*<xf numFmtId="0" fontId="0") fillId="0"',
+                    r'\1 fillId="%d" applyFill="1"' % canvas_fill, styles, count=1)
+    styles = re.sub(r'(<cellXfs[^>]*>\s*<xf numFmtId="0" fontId="0") fillId="0"',
+                    r'\1 fillId="%d" applyFill="1"' % canvas_fill, styles, count=1)
+    return styles
 
 
 def brand_theme(theme: str) -> str:
@@ -183,9 +200,13 @@ def brand_theme(theme: str) -> str:
 def settings_sheet(old: str) -> str:
     head = re.search(r"^(.*?<sheetData>)", old, re.S).group(1)
     tail = re.search(r"(</sheetData>.*)$", old, re.S).group(1)
-    head = re.sub(r"<dimension ref=\"[^\"]*\"/>", '<dimension ref="A1:B1"/>', head)
+    head = re.sub(r"<dimension ref=\"[^\"]*\"/>", '<dimension ref="A1:B2"/>', head)
+    import brand
     rows = ('<row r="1"><c r="A1" t="inlineStr"><is><t>Key</t></is></c>'
-            '<c r="B1" t="inlineStr"><is><t>Value</t></is></c></row>')
+            '<c r="B1" t="inlineStr"><is><t>Value</t></is></c></row>'
+            # the Avati mark, for the macros to place on sheets and in built workbooks
+            '<row r="2"><c r="A2" t="inlineStr"><is><t>logo_b64</t></is></c>'
+            '<c r="B2" t="inlineStr"><is><t>%s</t></is></c></row>' % brand.small_base64())
     return head + rows + tail
 
 
@@ -406,6 +427,10 @@ def check_palette(sources):
         "C_OK_TX": T.OK_TX, "C_OK_BG": T.OK_LT, "C_WARN_TX": T.WARN_TX, "C_WARN_BG": T.WARN_LT,
         "C_BAD_TX": T.BAD_TX, "C_BAD_BG": T.BAD_LT, "C_IDLE_TX": T.IDLE_TX, "C_IDLE_BG": T.IDLE_LT,
         "C_OK_DK": T.OK, "C_WARN_DK": T.WARN, "C_BAD_DK": T.BAD, "C_IDLE_DK": T.IDLE,
+        "C_SHEET": T.CANVAS, "C_ROW": T.SURFACE, "C_ROW_ALT": T.SURFACE_2, "C_LINE": T.HAIR,
+        "C_LINE_2": T.HAIR_2, "C_BAR_WELL": T.BAR_WELL, "C_TEXT": T.TX_1, "C_TEXT_2": T.TX_2, "C_TEXT_3": T.TX_3,
+        "C_LINK": T.EM[300], "C_TOTAL": T.EM[950], "C_OK_BG_DK": T.OK_BG, "C_WARN_BG_DK": T.WARN_BG,
+        "C_BAD_BG_DK": T.BAD_BG, "C_IDLE_BG_DK": T.IDLE_BG, "C_AVATI": T.AVATI_BLUE,
     }
     problems = []
     theme = sources.get("modPD_Theme", "")

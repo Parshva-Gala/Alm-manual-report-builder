@@ -19,6 +19,7 @@ SURFACE_2 = "111F19"      # raised inside a card (chips, tiles)
 SURFACE_3 = "16271F"      # pressed / selected surface
 HAIR = "1A2922"           # hairlines on dark
 HAIR_2 = "243A31"         # stronger borders on dark
+BAR_WELL = "0B1310"       # the well a group of pills sits in (nav, tabs)
 
 # --- emerald, the one accent -----------------------------------------------
 EM = {
@@ -53,6 +54,11 @@ OK_TX, OK_LT = "0B6B47", "DDF5EA"
 WARN_TX, WARN_LT = "8A5A00", "FFF1CF"
 BAD_TX, BAD_LT = "B42318", "FDE5E2"
 IDLE_TX, IDLE_LT = "5E6F67", "EDF2EF"
+
+# --- Avati ------------------------------------------------------------------
+# The mark itself is a picture (build/brand.py); this is its middle blue, for
+# the word when the picture cannot be placed.
+AVATI_BLUE = "1C8CCB"
 
 # --- type -------------------------------------------------------------------
 # Segoe UI ships with every Windows since Vista; nothing here depends on a

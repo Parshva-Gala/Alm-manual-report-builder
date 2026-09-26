@@ -24,16 +24,22 @@ ROOT = os.path.dirname(HERE)
 OUT = os.path.join(ROOT, "preview")
 SAMPLE = os.environ.get("LCR_SAMPLE", "")
 
-C = dict(INK="000000", TX1="F2F7F4", TX2="A9BDB3", SOFT="C2EBDA", BRAND="009060", DEEP="006141",
-         E900="003323", E950="001D14", PAPER="FFFFFF", MIST="F4F7F5", HAIR="E2E9E5", MUTED="5F7068",
-         BODY="18241F", OK_TX="0B6B47", OK_BG="DDF5EA", WARN_TX="8A5A00", WARN_BG="FFF1CF",
-         BAD_TX="B42318", BAD_BG="FDE5E2", IDLE_TX="5E6F67", IDLE_BG="EDF2EF", TINT="E6F6EF", M300="4FC79C")
-LEVEL = {"OK": ("OK_TX", "OK_BG"), "LOADED": ("OK_TX", "OK_BG"), "BREAK": ("BAD_TX", "BAD_BG"),
-         "MISSING": ("BAD_TX", "BAD_BG"), "CHECK": ("WARN_TX", "WARN_BG"), "EMPTY": ("IDLE_TX", "IDLE_BG"),
-         "IDLE": ("IDLE_TX", "IDLE_BG")}
+C = dict(INK="000000", CANVAS="060B09", ROW="0C1512", ROW_ALT="111F19", LINE="1A2922", LINE2="243A31",
+         WELL="0B1310", TX1="F2F7F4", TX2="A9BDB3", TX3="7E9388", TX4="4A5E55", SOFT="C2EBDA", BRAND="009060",
+         DEEP="006141", E900="003323", E950="001D14", M300="4FC79C", M200="8FDBBE",
+         OK="2FC48D", OK_BG="0D2A20", WARN="F2B544", WARN_BG="2A2310", BAD="FF6B5E", BAD_BG="2E1614",
+         IDLE="7E9388", IDLE_BG="121D19",
+         # the light canvas, still used by the built-workbook previews until they move over
+         PAPER="FFFFFF", MIST="F4F7F5", HAIR="E2E9E5", MUTED="5F7068", BODY="18241F", OK_TX="0B6B47",
+         TINT="E6F6EF")
+LEVEL = {"OK": ("OK", "OK_BG"), "LOADED": ("OK", "OK_BG"), "BREAK": ("BAD", "BAD_BG"),
+         "MISSING": ("BAD", "BAD_BG"), "CHECK": ("WARN", "WARN_BG"), "EMPTY": ("IDLE", "IDLE_BG"),
+         "IDLE": ("IDLE", "IDLE_BG"), "OFF": ("IDLE", "IDLE_BG")}
 
 PX_PER_CHAR = 8          # Segoe UI 9.5 on a 7 px Calibri grid, near enough
 PT = 4 / 3
+LOGO = os.path.join(ROOT, "design", "brand", "avati-logo.png")
+LOGO_RATIO = 785 / 205
 
 
 def colw(chars):
@@ -45,90 +51,130 @@ def lv(word):
     return C[fg], C[bg]
 
 
+def px(pt):
+    return round(pt * PT, 1)
+
+
 def page(title, body, width):
     return ('<!doctype html><html><head><meta charset="utf-8"><title>%s</title><style>'
-            'html,body{margin:0;background:#fff;font-family:Selawik;color:#%s}'
-            '.wrap{width:%dpx;overflow:hidden;background:#fff}'
+            'html,body{margin:0;background:#%s;font-family:Selawik;color:#%s}'
+            '.wrap{width:%dpx;overflow:hidden;background:#%s}'
             'table{border-collapse:collapse;table-layout:fixed}'
             'td{padding:0 0 0 9px;white-space:nowrap;overflow:hidden;text-overflow:clip;font-size:%.1fpx}'
-            '.bar td{background:#000}'
-            '.pill{display:inline-block;padding:0 12px;border-radius:12px;line-height:22px;font-family:"Selawik Semibold";font-size:11.3px}'
-            '.nav{height:45px;background:#000;display:flex;align-items:center;gap:5px;padding-left:16px;position:relative}'
-            '.nb{height:29px;border-radius:15px;display:flex;align-items:center;padding:0 14px;font-family:"Selawik Semibold";font-size:11.3px;color:#%s}'
-            '.nb.cur{background:#%s;box-shadow:inset 0 0 0 1px #%s;color:#%s}'
-            '.nb.act{background:#%s;box-shadow:inset 0 0 0 1px #%s;color:#%s}'
-            '.div{width:1px;height:19px;background:#1A2922;margin:0 8px}'
-            '.wm{font-family:"Selawik Semibold";font-size:14.7px;color:#%s;margin-right:6px}.wm b{font-weight:normal;color:#%s}'
+            '.pill{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;'
+            'font-family:"Selawik Semibold";font-size:11.3px;box-sizing:border-box;white-space:nowrap}'
             '</style></head><body><div class="wrap">%s</div></body></html>' % (
-                title, C["BODY"], width, 9.5 * PT, C["TX2"], C["E900"], C["DEEP"], C["TX1"], C["E950"], C["DEEP"],
-                C["SOFT"], C["TX1"], C["M300"], body))
+                title, C["CANVAS"], C["TX1"], width, C["CANVAS"], 9.5 * PT, body))
 
 
-def nav(current, actions):
-    items = [("Desk", "desk"), ("Files", "files"), ("Pivot config", "config"), ("Reconciliation", "recon"),
-             ("Activity", "log")]
-    h = ['<div class="nav"><span class="wm">Pivot<b>Desk</b></span><span class="div"></span>']
-    for label, key in items:
-        h.append('<span class="nb%s">%s</span>' % (" cur" if key == current else "", label))
-    h.append('<span class="div"></span>')
+NAV = [("Desk", "desk", 52), ("Files", "files", 52), ("Reports", "reports", 70),
+       ("Reconciliation", "recon", 102), ("Activity", "log", 66)]
+TABS = [("Pivots", "Pivot config"), ("Charts", "Chart config"), ("Workbooks", "Workbooks"),
+        ("Fields", "Pivot fields"), ("Gallery", "Report gallery")]
+
+
+def app_bar(section):
+    """modPD_Theme.Rail: the mark, ALM DESK over the bank, and the nav pills."""
+    lw = 16 * LOGO_RATIO
+    nav = "".join(
+        "<span class='pill' style='width:%.1fpx;height:%.1fpx;margin-right:%.1fpx;%s'>%s</span>" % (
+            px(w), px(22), px(2),
+            ("background:#%s;box-shadow:inset 0 0 0 1px #%s;color:#%s" % (C["E900"], C["DEEP"], C["TX1"])
+             if key == section else "color:#%s" % C["TX2"]), label)
+        for label, key, w in NAV)
+    return ("<div style='height:%.1fpx;background:#000;border-bottom:1px solid #%s;display:flex;align-items:center;"
+            "position:relative'>"
+            "<img src='file://%s' style='position:absolute;left:%.1fpx;height:%.1fpx'>"
+            "<div style='position:absolute;left:%.1fpx;width:1px;height:%.1fpx;background:#%s'></div>"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+            "letter-spacing:1.6px;color:#%s'>ALM DESK</div>"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+            "letter-spacing:1.4px;color:#%s'>MIDBANK &nbsp;&#183;&nbsp; CAIRO</div>"
+            "<div style='position:absolute;left:%.1fpx;height:%.1fpx;border-radius:999px;background:#%s;"
+            "box-shadow:inset 0 0 0 1px #%s;display:flex;align-items:center;padding:0 %.1fpx'>%s</div></div>") % (
+        px(44), C["DEEP"], LOGO, px(16), px(16), px(16 + lw + 10), px(16), C["LINE2"],
+        px(16 + lw + 22), px(10), px(7.5), C["TX1"], px(16 + lw + 22), px(23), px(6), C["TX3"],
+        px(16 + lw + 22 + 104), px(26), C["WELL"], C["LINE"], px(3), nav)
+
+
+def toolbar(actions, tab=None):
+    """Row 4: the Reports tabs, a hairline, then what this sheet can do."""
+    h = []
+    if tab:
+        tabs = "".join(
+            "<span class='pill' style='width:%.1fpx;height:%.1fpx;margin-right:%.1fpx;%s'>%s</span>" % (
+                px(74), px(22), px(2),
+                ("background:#%s;box-shadow:inset 0 0 0 1px #%s;color:#%s" % (C["E900"], C["DEEP"], C["TX1"])
+                 if label == tab else "color:#%s" % C["TX2"]), label) for label, _ in TABS)
+        h.append("<div style='height:%.1fpx;border-radius:999px;background:#%s;box-shadow:inset 0 0 0 1px #%s;"
+                 "display:flex;align-items:center;padding:0 %.1fpx;margin-right:%.1fpx'>%s</div>"
+                 "<div style='width:1px;height:%.1fpx;background:#%s;margin-right:%.1fpx'></div>" % (
+                     px(26), C["WELL"], C["LINE"], px(3), px(10), tabs, px(16), C["LINE2"], px(12)))
     for a in actions:
-        h.append('<span class="nb act">%s</span>' % a)
-    h.append("</div>")
-    return "".join(h)
+        h.append("<span class='pill' style='height:%.1fpx;padding:0 %.1fpx;margin-right:%.1fpx;background:#%s;"
+                 "box-shadow:inset 0 0 0 1px #%s;color:#%s'>%s</span>" % (
+                     px(24), px(14), px(6), C["E950"], C["DEEP"], C["SOFT"], html.escape(a)))
+    return "<div style='height:%.1fpx;display:flex;align-items:center;padding-left:%.1fpx'>%s</div>" % (
+        px(34), px(14), "".join(h))
 
 
-def masthead(title, about, status, level, ncols_px, statuswidth_px):
+def chrome(section, title, about, status, level, actions, tab=None, overline=None, status_w=1040, band_row=None):
+    """Rows 1 to 6 of every tool sheet: modPD_Theme.Dress, Rail, Toolbar and SetStatus."""
+    overline = overline or "ALM DESK &nbsp;&#183;&nbsp; MIDBANK CAIRO"
     fg, bg = lv(level)
-    return (
-        '<div style="background:#000;height:40px;border-left:4px solid #%s;display:flex;align-items:flex-end;'
-        'padding-left:12px;font-family:\'Selawik Semibold\';font-size:%.1fpx;color:#%s">%s</div>'
-        '<div style="background:#000;height:28px;border-left:4px solid #%s;border-bottom:3px solid #%s;padding-left:12px;'
-        'font-size:%.1fpx;color:#%s">%s</div>'
-        '<div style="height:13px"></div>'
-        '<div style="width:%dpx;height:35px;background:#%s;border-left:4px solid #%s;display:flex;align-items:center;'
-        'padding-left:12px;font-family:\'Selawik Semibold\';font-size:%.1fpx;color:#%s">&#9679;&nbsp;&nbsp;%s</div>'
-        '<div style="height:13px"></div>' % (
-            C["BRAND"], 17 * PT, C["TX1"], html.escape(title), C["BRAND"], C["BRAND"], 9 * PT, C["TX2"],
-            html.escape(about), statuswidth_px, bg, fg, 9.5 * PT, fg, html.escape(status)))
+    title_html = ("<div style='height:%.1fpx;display:flex;flex-direction:column;justify-content:flex-end;"
+                  "padding:0 0 %.1fpx %.1fpx;box-sizing:border-box'>"
+                  "<div style='font-family:\"Selawik Semibold\";font-size:%.1fpx;letter-spacing:1.4px;color:#%s'>%s</div>"
+                  "<div style='font-family:\"Selawik Light\";font-size:%.1fpx;color:#%s;line-height:1.1'>%s</div></div>"
+                  "<div style='height:%.1fpx;padding-left:%.1fpx;font-size:%.1fpx;color:#%s'>%s</div>") % (
+        px(44), px(1), px(14), px(7.5), C["M300"], overline, px(19), C["TX1"], html.escape(title),
+        px(20), px(14), px(9), C["TX2"], html.escape(about))
+    status_html = ("<div style='width:%dpx;height:%.1fpx;background:#%s;border-left:4px solid #%s;display:flex;"
+                   "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Selawik Semibold\";"
+                   "font-size:%.1fpx;color:#%s'>&#9679;&nbsp;&nbsp;%s</div>") % (
+        status_w, px(26), bg, fg, px(9), fg, html.escape(status))
+    spacer = band_row if band_row is not None else "<div style='height:%.1fpx'></div>" % px(8)
+    return app_bar(section) + title_html + toolbar(actions, tab) + status_html + spacer
 
 
 def table(headers, widths, rows, verdict_col=None, mono_cols=(), muted_cols=(), right_cols=(), semi_cols=(),
-          bars_col=None, band=True):
+          bars_col=None, band=True, pre_rows=""):
+    """modPD_Theme.Head and DressTable, dark."""
     cols = "".join('<col style="width:%dpx">' % colw(w) for w in widths)
-    h = ['<table>%s<tr style="height:35px;background:#000">' % cols]
+    h = ['<table>%s%s<tr style="height:%.1fpx;background:#000">' % (cols, pre_rows, px(28))]
     for t in headers:
-        h.append('<td style="font-family:\'Selawik Semibold\';font-size:%.1fpx;color:#%s;border-bottom:2px solid #%s">%s</td>'
-                 % (8.5 * PT, C["SOFT"], C["BRAND"], html.escape(t)))
+        h.append('<td style="font-family:\'Selawik Semibold\';font-size:%.1fpx;color:#%s;border-bottom:3px solid #%s;'
+                 'border-right:1px solid #%s">%s</td>' % (px(8.5), C["SOFT"], C["BRAND"], C["LINE"], html.escape(t)))
     h.append("</tr>")
     maxbar = max((abs(r[bars_col]) for r in rows if bars_col is not None and isinstance(r[bars_col], (int, float))),
                  default=1) or 1
     for i, r in enumerate(rows):
-        bgc = C["MIST"] if (band and i % 2 == 1) else C["PAPER"]
-        h.append('<tr style="height:28px;background:#%s">' % bgc)
+        bgc = C["ROW_ALT"] if (band and i % 2 == 1) else C["ROW"]
+        h.append('<tr style="height:%.1fpx;background:#%s">' % (px(22), bgc))
         for j, v in enumerate(r):
-            st = ["border-bottom:1px solid #%s" % C["HAIR"]]
+            st = ["border-bottom:1px solid #%s" % C["LINE"]]
             txt = v
-            if isinstance(v, (int, float)):
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
                 txt = "-" if v == 0 else ("(%s)" % format(abs(v), ",.0f") if v < 0 else format(v, ",.0f"))
                 st.append("text-align:right;padding-right:9px")
                 if v < 0:
-                    st.append("color:#C00000")
-            if j == verdict_col:
+                    st.append("color:#FF0000")
+            if j == verdict_col and str(v):
                 fg, bg = lv(str(v))
-                st = ["border-bottom:1px solid #%s" % C["HAIR"], "text-align:center", "background:#%s" % bg,
-                      "color:#%s" % fg, "font-family:'Selawik Semibold'", "font-size:%.1fpx" % (8.5 * PT)]
+                st = ["border-bottom:1px solid #%s" % C["LINE"], "text-align:center", "background:#%s" % bg,
+                      "color:#%s" % fg, "font-family:'Selawik Semibold'", "font-size:%.1fpx" % px(8.5)]
                 txt = "&#9679;&nbsp;&nbsp;" + html.escape(str(v))
             else:
                 txt = html.escape(str(txt))
             if j in mono_cols:
-                st.append("font-family:'DejaVu Sans Mono';font-size:11px;color:#%s" % C["MUTED"])
+                st.append("font-family:'DejaVu Sans Mono';font-size:11px;color:#%s" % C["TX3"])
             if j in muted_cols:
-                st.append("color:#%s" % C["MUTED"])
+                st.append("color:#%s" % C["TX3"])
             if j in semi_cols:
                 st.append("font-family:'Selawik Semibold'")
             if j == bars_col and isinstance(v, (int, float)) and v:
                 w = abs(v) / maxbar * 100
-                st.append("background:linear-gradient(90deg, rgba(244,162,154,.85) %.1f%%, transparent %.1f%%)" % (w, w))
+                st.append("background:linear-gradient(90deg, rgba(244,162,154,.55) %.1f%%, transparent %.1f%%)" % (w, w))
             h.append('<td style="%s">%s</td>' % (";".join(st), txt))
         h.append("</tr>")
     h.append("</table>")
@@ -149,10 +195,10 @@ def files_sheet():
          "The file is no longer at that path."],
     ]
     w = sum(colw(x) for x in widths)
-    body = (nav("files", ["Scan a folder", "Pick files", "Use a file for this row", "Clear this row"]) +
-            masthead("Files", "Every file is identified by the columns it carries, not by its name. Add them from "
-                     "the Desk, or click a row here and press \"Use a file for this row\" to place one by hand.",
-                     "4 of 5 file(s) loaded.  Ready to build pivots.", "OK", w, 1040) +
+    body = (chrome("files", "Files", "Every file is identified by the columns it carries, not by its name. Add them "
+                   "from the Desk, or click a row here and press \"Use a file for this row\" to place one by hand.",
+                   "4 of 5 file(s) loaded.  Ready to build pivots.", "OK",
+                   ["Scan a folder", "Pick files", "Use a file for this row", "Clear this row"]) +
             table(["What", "Status", "File", "Sheet", "Header row", "Rows", "As of", "Amount field", "Note"], widths,
                   rows, verdict_col=1, muted_cols=(2, 8), semi_cols=(0,)))
     return page("Files", body, 1500)
@@ -172,11 +218,11 @@ def recon_sheet():
         ["Control 3", "NSFR", "MBGL.3180", 5_100_220.0, 1_880_000.0, 3_220_220.0, "Check",
          "Both sides carry this key and the amounts differ."],
     ]
-    body = (nav("recon", ["Reconcile now"]) +
-            masthead("Reconciliation", "Each loaded output against control report 3 (the ledger, by COA) and control "
-                     "report 6 (the reporting balance, by account).",
-                     "1 of 2 comparison(s) broke, the largest involving 1,204,331,902 LCY.   Scope is on Activity for "
-                     "each - read it before treating a difference as an error.   (12.4s)", "Break", 0, 1300) +
+    body = (chrome("recon", "Reconciliation", "Each loaded output against control report 3 (the ledger, by COA) and "
+                   "control report 6 (the reporting balance, by account).",
+                   "1 of 2 comparison(s) broke, the largest involving 1,204,331,902 LCY.   Scope is on Activity for "
+                   "each - read it before treating a difference as an error.   (12.4s)", "Break", ["Reconcile now"],
+                   status_w=1300) +
             table(["Control", "Framework", "Key", "Output", "Control", "Difference", "Verdict", "What it means"],
                   widths, rows, verdict_col=6, mono_cols=(2,), muted_cols=(7,), bars_col=5))
     return page("Reconciliation", body, 1500)
@@ -196,10 +242,9 @@ def log_sheet():
         ["26 Sep  14:02:58", "OK", "Load", "Placed as OUTPUT LCR. an ALM output for LCR, from its own framework "
          "column.", "LCR_Output_30Nov.xlsx"],
     ]
-    body = (nav("log", ["Clear activity"]) +
-            masthead("Activity", "What the desk did and why, newest first. A file that was not recognised says here "
-                     "what was missing.", "The newest entry is at the top. The Desk shows the latest three.", "Idle",
-                     0, 1300) +
+    body = (chrome("log", "Activity", "What the desk did and why, newest first. A file that was not recognised says "
+                   "here what was missing.", "The newest entry is at the top. The Desk shows the latest four.", "Idle",
+                   ["Clear activity"], status_w=1300) +
             table(["When", "Level", "Stage", "What happened", "Which file"], widths, rows, verdict_col=1,
                   mono_cols=(0,), muted_cols=(4,), semi_cols=(2,), band=False))
     return page("Activity", body, 1500)
@@ -469,11 +514,11 @@ def main():
     jobs = [("sheet-files", files_sheet(), 1500, 560), ("sheet-recon", recon_sheet(), 1500, 470),
             ("sheet-activity", log_sheet(), 1500, 520)]
     local = "Egyptian Pound"
-    if SAMPLE and os.path.exists(SAMPLE):
+    if SAMPLE and os.path.exists(SAMPLE) and os.environ.get("BUILT"):
         pv, local = pivot_sheet()
         jobs.append(("built-balance-sheet", pv, 1500, 880))
     built = "Built by Avati 3.0 on 26 Sep 2026 14:05   -   data as of 30 Nov 2025"
-    if SAMPLE and os.path.exists(SAMPLE):
+    if SAMPLE and os.path.exists(SAMPLE) and os.environ.get("BUILT"):
         made = [("LCR Output", "Rule-level output"), ("Balance sheet", "Balance sheet"),
                 ("Deposits from all instituti LCY", "Deposits from all institutions for operational purposes ... - LCY"),
                 ("TOther cash outflows due wi LCY", "TOther cash outflows due within 30 days - LCY")]
@@ -483,7 +528,8 @@ def main():
             ("Egyptian Pound", "Every rule and line across the buckets - Egyptian Pound"),
             ("US Dollar", "Every rule and line across the buckets - US Dollar"),
             ("Euro", "Every rule and line across the buckets - Euro")]
-    jobs.append(("built-start-here-ladder", guide_sheet(ladder_facts(), made, "Maturity Ladder  -  MIDBANK  Cairo",
+    if os.environ.get("BUILT"):
+      jobs.append(("built-start-here-ladder", guide_sheet(ladder_facts(), made, "Maturity Ladder  -  MIDBANK  Cairo",
                                                         built.replace("14:05", "14:06")), 1500, 1100))
     for name, html_, w, h in jobs:
         path = os.path.join(OUT, name + ".png")
@@ -571,6 +617,17 @@ def default_fields():
     return out
 
 
+def band_row(widths, groups):
+    """Pivot config's row 6: which run of columns is for what."""
+    cols = "".join('<col style="width:%dpx">' % colw(w) for w in widths)
+    g = "<tr style='height:%.1fpx'>" % px(20)
+    for c1, c2, label in groups:
+        g += ("<td colspan=%d style='background:#%s;color:#%s;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+              "letter-spacing:.8px;border-left:3px solid #%s'>%s</td>") % (c2 - c1 + 1, C["E950"], C["M300"], px(7.5),
+                                                                          C["BRAND"], label)
+    return g + "</tr>"
+
+
 def config_sheet():
     heads = ["On", "Pivot", "Frameworks", "One sheet per", "Rows", "Columns", "Values", "Show only / hide",
              "Slicers", "Layout", "Subtotals", "Grand totals", "Repeat labels", "Sort", "Widths",
@@ -583,22 +640,13 @@ def config_sheet():
         on = r[0] == "Yes"
         rows.append(r + (["OK", ""] if on else ["Off", ""]))
     rows += [[""] * 21 for _ in range(4)]
-    cols = "".join('<col style="width:%dpx">' % colw(w) for w in widths)
-    g = "<tr style='height:27px'>"
-    for c1, c2, label in groups:
-        g += ("<td colspan=%d style='background:#%s;color:#%s;font-family:\"Selawik Semibold\";font-size:10px;"
-              "letter-spacing:.6px;border-left:3px solid #%s'>%s</td>") % (c2 - c1 + 1, C["E950"], C["M300"],
-                                                                        C["BRAND"], label)
-    g += "</tr>"
-    t = table(heads, widths, rows, verdict_col=19, muted_cols=(18, 20), semi_cols=(1,))
-    t = t.replace("<table>" + cols, "<table>" + cols + g, 1)
-    t = t.replace("&#9679;&nbsp;&nbsp;</td>", "</td>")
-    body = (nav("config", ["Add a pivot", "Check", "Fields", "Restore defaults", "Use the 1.0 layout"]) +
-            masthead("Pivot config", "What every framework workbook is built from. One row is one pivot, or one "
-                     "sheet per value of a field. Edit a row or add one below; Check says whether it will build. "
-                     "Select any cell for how to fill it.", "4 pivot(s) switched on, every one ready to build.",
-                     "OK", 0, 1400).rsplit('<div style="height:13px"></div>', 1)[0] +
-            "<div style='height:13px'></div>" + t)
+    t = table(heads, widths, rows, verdict_col=19, muted_cols=(18, 20), semi_cols=(1,),
+              pre_rows=band_row(widths, groups))
+    body = (chrome("reports", "Pivot config", "What every framework workbook is built from. One row is one pivot, or "
+                   "one sheet per value of a field. Edit a row or add one; Check says whether it will build. Select "
+                   "any cell for how to fill it.", "4 pivot(s) switched on, every one ready to build.", "OK",
+                   ["Add a pivot", "Check", "Restore defaults", "Use the 1.0 layout"], tab="Pivots",
+                   overline="REPORTS &nbsp;&#183;&nbsp; PIVOTS", status_w=1400) + t)
     return page("Pivot config", body, 2700)
 
 
@@ -607,11 +655,11 @@ def fields_sheet():
     fw = [26, 42, 10, 20, 8, 22, 64]
     frows = [r[:7] for r in default_fields()]
     t = table(fh, fw, frows, mono_cols=(1,), muted_cols=(6,), semi_cols=(0,))
-    body = (nav("config", ["Back to recipes", "Check"]) +
-            masthead("Pivot fields", "Every column the recipes on Pivot config may name. The first thirteen are "
-                     "built in; add any column of an output under a name of your own, and use that name in a recipe.",
-                     "%d fields. Built-in fields cannot be renamed; any other row can be changed, and new ones added "
-                     "at the bottom." % len(frows), "Idle", 0, 1400) + t)
+    body = (chrome("reports", "Pivot fields", "Every column a pivot or a chart may name. The first thirteen are "
+                   "built in; add any column of an output under a name of your own, and use that name anywhere.",
+                   "%d fields. Built-in fields cannot be renamed; any other row can be changed, and new ones added "
+                   "at the bottom." % len(frows), "Idle", ["Check"], tab="Fields",
+                   overline="REPORTS &nbsp;&#183;&nbsp; FIELDS", status_w=1400) + t)
     return page("Pivot fields", body, 1500)
 
 

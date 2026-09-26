@@ -12,10 +12,10 @@ Option Explicit
 '    emerald   #009060   the rule under the masthead, the active tab, the accent
 '    white     #FFFFFF   the canvas the numbers sit on
 '
-'  DARK CHROME, LIGHT DATA. The chrome is black and unbroken so every sheet
-'  reads as the bank's and as one application; the data area stays white
-'  because a balance is what the sheet is for and nobody reads one off a dark
-'  field. The Desk is the one dark room - it holds no balances.
+'  ONE ROOM. Since 3.0 every sheet is the Desk's: the dark canvas, the black
+'  bar, emerald for what can be acted on. Figures are set in near-white on
+'  near-black rows at AA contrast or better (docs/CONTRAST.md), and every
+'  sheet prints in black and white.
 '
 '  The values here mirror build/design_tokens.py, which draws the Desk. The
 '  build checks the two agree, so the sheets and the Desk cannot drift.
@@ -45,6 +45,9 @@ Public Const UI_FONT As String = "Segoe UI"
 Public Const UI_SEMI As String = "Segoe UI Semibold"
 Public Const UI_LIGHT As String = "Segoe UI Light"
 Public Const UI_MONO As String = "Consolas"
+
+' The Avati mark, width over height (build/brand.py trims it to 785 x 205).
+Public Const LOGO_RATIO As Double = 3.829
 
 ' ===================== the palette ==========================================
 
@@ -165,6 +168,57 @@ Public Function C_IDLE_DK() As Long
     C_IDLE_DK = HX("7E9388")
 End Function
 
+' --- the sheets, dark since 3.0: the Desk's room on every sheet ---
+Public Function C_SHEET() As Long
+    C_SHEET = HX("060B09")            ' the canvas behind everything
+End Function
+Public Function C_ROW() As Long
+    C_ROW = HX("0C1512")              ' a table row
+End Function
+Public Function C_ROW_ALT() As Long
+    C_ROW_ALT = HX("111F19")          ' every other row
+End Function
+Public Function C_LINE() As Long
+    C_LINE = HX("1A2922")             ' the hairline between rows
+End Function
+Public Function C_LINE_2() As Long
+    C_LINE_2 = HX("243A31")           ' a stronger edge
+End Function
+Public Function C_BAR_WELL() As Long
+    C_BAR_WELL = HX("0B1310")         ' the well a group of pills sits in
+End Function
+Public Function C_TEXT() As Long
+    C_TEXT = HX("F2F7F4")
+End Function
+Public Function C_TEXT_2() As Long
+    C_TEXT_2 = HX("A9BDB3")
+End Function
+Public Function C_TEXT_3() As Long
+    C_TEXT_3 = HX("7E9388")
+End Function
+Public Function C_LINK() As Long
+    C_LINK = HX("4FC79C")             ' links and the small line over a title
+End Function
+Public Function C_TOTAL() As Long
+    C_TOTAL = HX("001D14")            ' total rows
+End Function
+Public Function C_OK_BG_DK() As Long
+    C_OK_BG_DK = HX("0D2A20")
+End Function
+Public Function C_WARN_BG_DK() As Long
+    C_WARN_BG_DK = HX("2A2310")
+End Function
+Public Function C_BAD_BG_DK() As Long
+    C_BAD_BG_DK = HX("2E1614")
+End Function
+Public Function C_IDLE_BG_DK() As Long
+    C_IDLE_BG_DK = HX("121D19")
+End Function
+' The Avati mark's blue, for the word when the picture cannot be placed.
+Public Function C_AVATI() As Long
+    C_AVATI = HX("1C8CCB")
+End Function
+
 ' A leading dot on a status cell, drawn by the number format so the cell's
 ' VALUE stays the plain word ("Loaded", "Break") that other code reads back.
 Public Function DotFormat() As String
@@ -172,61 +226,126 @@ Public Function DotFormat() As String
 End Function
 
 ' ===================== dressing a sheet =====================================
+'
+' Every sheet, the tool's and the ones it builds, is the Desk's room: the
+' dark canvas, a black app bar with the Avati mark, the title set light and
+' large with a small emerald line over it, then the sheet's own tools, its
+' status, and its table on dark rows. Rows 1 to 7 are the chrome and stay
+' frozen; the table starts at row 8.
+'
+'   1  app bar          4  toolbar (sub-tabs and actions)
+'   2  title             5  status
+'   3  what it is for    6  spacer (Pivot config: the column bands)
+'                        7  table header
 
-Public Sub Dress(ByVal ws As Worksheet, ByVal title As String, ByVal about As String)
-    Dim band As Range
+Public Sub Dress(ByVal ws As Worksheet, ByVal title As String, ByVal about As String, _
+                 Optional ByVal overline As String = "")
     On Error Resume Next
     With ws.Cells
         .Font.Name = UI_FONT
         .Font.Size = 9.5
-        .Font.Color = C_BODY
-        .Interior.Color = C_PAPER
+        .Font.Color = C_TEXT
+        .Interior.Color = C_SHEET
     End With
-
-    ' The chrome: the app bar and the masthead as one black block, the title
-    ' reversed out of it, an emerald rule underneath and an emerald bar down
-    ' its leading edge - the logo's mark sits to the left of the word, and the
-    ' sheet repeats that shape rather than borrowing a generic accent stripe.
-    Set band = ws.Range(ws.Cells(R_BAR, 1), ws.Cells(R_ABOUT, DRESS_COLS))
-    band.Interior.Color = C_INK
-    band.Borders(xlInsideHorizontal).LineStyle = xlNone
-
-    With ws.Cells(R_TITLE, 1)
-        .Value2 = title
-        .Font.Name = UI_SEMI
-        .Font.Size = 17
-        .Font.Color = C_TX1
-        .IndentLevel = 1
-        .VerticalAlignment = xlBottom
-        .WrapText = False
+    With ws.Range(ws.Cells(R_BAR, 1), ws.Cells(R_BAR, DRESS_COLS))
+        .Interior.Color = C_INK
+        .Borders(xlEdgeBottom).LineStyle = xlContinuous
+        .Borders(xlEdgeBottom).Color = C_BRAND_DEEP
+        .Borders(xlEdgeBottom).Weight = xlThin
     End With
-    With ws.Cells(R_ABOUT, 1)
-        .Value2 = about
-        .Font.Name = UI_FONT
-        .Font.Size = 9
-        .Font.Color = C_TX2
-        .IndentLevel = 1
-        .VerticalAlignment = xlTop
-        .WrapText = False
-    End With
-    With ws.Range(ws.Cells(R_ABOUT, 1), ws.Cells(R_ABOUT, DRESS_COLS)).Borders(xlEdgeBottom)
-        .LineStyle = xlContinuous
-        .Color = C_BRAND
-        .Weight = xlThick
-    End With
-    With ws.Range(ws.Cells(R_TITLE, 1), ws.Cells(R_ABOUT, 1)).Borders(xlEdgeLeft)
-        .LineStyle = xlContinuous
-        .Color = C_BRAND
-        .Weight = xlThick
-    End With
-
-    ws.Rows(R_BAR).RowHeight = 34
-    ws.Rows(R_TITLE).RowHeight = 30
-    ws.Rows(R_ABOUT).RowHeight = 21
-    ws.Rows(4).RowHeight = 10
-    ws.Rows(6).RowHeight = 10
+    ws.Rows(R_BAR).RowHeight = 44
+    ws.Rows(R_TITLE).RowHeight = 44
+    ws.Rows(R_ABOUT).RowHeight = 20
+    ws.Rows(4).RowHeight = 34
+    ws.Rows(6).RowHeight = 8
+    If Len(overline) = 0 Then overline = "ALM DESK  " & ChrW(183) & "  " & UCase$(BANK_NAME)
+    TitleBlock ws, overline, title, about
     ws.Tab.Color = C_INK
     ws.DisplayPageBreaks = False
+    Err.Clear
+End Sub
+
+' Every cell of a workbook starts on the dark canvas in near-white type, and
+' links are emerald without an underline. Used for this workbook and for every
+' workbook a build writes.
+Public Sub DarkNormal(ByVal wb As Workbook)
+    On Error Resume Next
+    With wb.Styles("Normal")
+        .IncludePatterns = True
+        .Interior.Color = C_SHEET
+        .Font.Color = C_TEXT
+    End With
+    With wb.Styles("Hyperlink")
+        .Font.Color = C_LINK
+        .Font.Underline = xlUnderlineStyleNone
+    End With
+    With wb.Styles("Followed Hyperlink")
+        .Font.Color = C_LINK
+        .Font.Underline = xlUnderlineStyleNone
+    End With
+    Err.Clear
+End Sub
+
+' The title as the Desk sets its hero: a small line in emerald capitals, the
+' title under it in Segoe UI Light, what the sheet is for beneath. Shapes, not
+' cells, so the title never wraps in whatever width column A happens to be.
+Public Sub TitleBlock(ByVal ws As Worksheet, ByVal overline As String, ByVal title As String, _
+                      ByVal about As String)
+    Dim sh As Shape, t As Double
+    On Error Resume Next
+    ClearButtons ws, "pdt_"
+    t = ws.Rows(R_TITLE).Top
+    Set sh = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, 14, t + 5, 1100, 38)
+    If Not sh Is Nothing Then
+        sh.Name = "pdt_title"
+        Plain sh
+        With sh.TextFrame2
+            .VerticalAnchor = msoAnchorBottom
+            .TextRange.Text = overline & vbCr & title
+            With .TextRange.Paragraphs(1).Font
+                .Name = UI_SEMI
+                .Size = 7.5
+                .Spacing = 1.4
+                .Fill.ForeColor.RGB = C_LINK
+            End With
+            With .TextRange.Paragraphs(2).Font
+                .Name = UI_LIGHT
+                .Size = 19
+                .Spacing = 0
+                .Fill.ForeColor.RGB = C_TEXT
+            End With
+        End With
+        sh.AlternativeText = title
+    End If
+    Set sh = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, 14, ws.Rows(R_ABOUT).Top + 1, 1100, 18)
+    If Not sh Is Nothing Then
+        sh.Name = "pdt_about"
+        Plain sh
+        With sh.TextFrame2
+            .VerticalAnchor = msoAnchorTop
+            .TextRange.Text = IIf(Len(about) > 0, about, " ")
+            .TextRange.Font.Name = UI_FONT
+            .TextRange.Font.Size = 9
+            .TextRange.Font.Fill.ForeColor.RGB = C_TEXT_2
+        End With
+    End If
+    Err.Clear
+End Sub
+
+' A shape that is only its text: no fill, no outline, no margins, not
+' moved or sized by the cells under it, and never selectable by accident.
+Public Sub Plain(ByVal sh As Shape)
+    On Error Resume Next
+    sh.Fill.visible = msoFalse
+    sh.Line.visible = msoFalse
+    sh.Shadow.visible = msoFalse
+    sh.Placement = xlFreeFloating
+    With sh.TextFrame2
+        .MarginLeft = 0: .MarginRight = 0: .MarginTop = 0: .MarginBottom = 0
+        .WordWrap = msoFalse
+        .AutoSize = msoAutoSizeNone
+    End With
+    sh.Locked = True
     Err.Clear
 End Sub
 
@@ -250,12 +369,15 @@ Public Sub Head(ByVal ws As Worksheet, ByRef headings As Variant, ByRef widths A
         .Borders(xlEdgeBottom).LineStyle = xlContinuous
         .Borders(xlEdgeBottom).Color = C_BRAND
         .Borders(xlEdgeBottom).Weight = xlMedium
+        .Borders(xlInsideVertical).LineStyle = xlContinuous
+        .Borders(xlInsideVertical).Color = C_LINE
+        .Borders(xlInsideVertical).Weight = xlThin
     End With
-    ws.Rows(hdrRow).RowHeight = 26
+    ws.Rows(hdrRow).RowHeight = 28
     Err.Clear
 End Sub
 
-' The sentence under the masthead: a tinted field, a thick accent down the
+' The sentence under the toolbar: a tinted band, a thick accent down its
 ' leading edge, a dot, and the words - so a status is never colour alone.
 Public Sub SetStatus(ByVal ws As Worksheet, ByVal msg As String, ByVal level As String)
     On Error Resume Next
@@ -269,7 +391,7 @@ Public Sub SetStatus(ByVal ws As Worksheet, ByVal msg As String, ByVal level As 
         .Value2 = msg
         .NumberFormat = DotFormat()
         .Font.Name = UI_SEMI
-        .Font.Size = 9.5
+        .Font.Size = 9
         .Font.Color = LevelTx(level)
         .IndentLevel = 1
         .VerticalAlignment = xlCenter
@@ -279,25 +401,20 @@ Public Sub SetStatus(ByVal ws As Worksheet, ByVal msg As String, ByVal level As 
     Err.Clear
 End Sub
 
+' Verdict colours. Every sheet is dark since 3.0, so these are the Desk's.
 Public Function LevelTx(ByVal level As String) As Long
-    Select Case UCase$(level)
-        Case "OK", "READY", "AGREES", "LOADED": LevelTx = C_OK_TX
-        Case "BREAK", "BAD", "MISSING", "FAILED": LevelTx = C_BAD_TX
-        Case "CHECK", "WARN", "PARTIAL": LevelTx = C_WARN_TX
-        Case Else: LevelTx = C_IDLE_TX
-    End Select
+    LevelTx = LevelDark(level)
 End Function
 
 Public Function LevelBg(ByVal level As String) As Long
     Select Case UCase$(level)
-        Case "OK", "READY", "AGREES", "LOADED": LevelBg = C_OK_BG
-        Case "BREAK", "BAD", "MISSING", "FAILED": LevelBg = C_BAD_BG
-        Case "CHECK", "WARN", "PARTIAL": LevelBg = C_WARN_BG
-        Case Else: LevelBg = C_IDLE_BG
+        Case "OK", "READY", "AGREES", "LOADED": LevelBg = C_OK_BG_DK
+        Case "BREAK", "BAD", "MISSING", "FAILED": LevelBg = C_BAD_BG_DK
+        Case "CHECK", "WARN", "PARTIAL", "FORCED": LevelBg = C_WARN_BG_DK
+        Case Else: LevelBg = C_IDLE_BG_DK
     End Select
 End Function
 
-' The same verdicts on the dark Desk.
 Public Function LevelDark(ByVal level As String) As Long
     Select Case UCase$(level)
         Case "OK", "READY", "AGREES", "LOADED": LevelDark = C_OK_DK
@@ -316,8 +433,12 @@ Public Sub PaintVerdict(ByVal cell As Range)
     cell.VerticalAlignment = xlCenter
     cell.Font.Name = UI_SEMI
     cell.Font.Size = 8.5
-    cell.Font.Color = LevelTx(v)
-    cell.Interior.Color = LevelBg(v)
+    If Len(v) = 0 Then
+        cell.Font.Color = C_TEXT_3
+    Else
+        cell.Font.Color = LevelTx(v)
+        cell.Interior.Color = LevelBg(v)
+    End If
     cell.NumberFormat = DotFormat()
     Err.Clear
 End Sub
@@ -330,10 +451,9 @@ Public Sub PaintVerdictColumn(ByVal ws As Worksheet, ByVal col As Long, ByVal La
     Next r
 End Sub
 
-' Hairlines, quiet banding, one row height and a filter - applied once per
-' sheet at the end rather than per row, which is the difference between a
-' second and a minute. The verdict column is repainted last so the banding
-' cannot wash its colour out.
+' Dark rows, a hairline between them, one row height and a filter - applied
+' once per sheet at the end rather than per row. The verdict column is
+' repainted last so the banding cannot wash its colour out.
 Public Sub DressTable(ByVal ws As Worksheet, ByVal lastCol As Long, ByVal LastRow As Long, _
                       Optional ByVal verdictCol As Long = 0, Optional ByVal firstRow As Long = 0)
     Dim rng As Range, r As Long
@@ -341,26 +461,26 @@ Public Sub DressTable(ByVal ws As Worksheet, ByVal lastCol As Long, ByVal LastRo
     If firstRow = 0 Then firstRow = R_FIRST
     If LastRow < firstRow Then Exit Sub
     Set rng = ws.Range(ws.Cells(firstRow, 1), ws.Cells(LastRow, lastCol))
-    rng.Interior.Color = C_PAPER
+    rng.Interior.Color = C_ROW
     For r = firstRow + 1 To LastRow Step 2
-        ws.Range(ws.Cells(r, 1), ws.Cells(r, lastCol)).Interior.Color = C_MIST
+        ws.Range(ws.Cells(r, 1), ws.Cells(r, lastCol)).Interior.Color = C_ROW_ALT
     Next r
     With rng.Borders(xlInsideHorizontal)
         .LineStyle = xlContinuous
-        .Color = C_HAIR
+        .Color = C_LINE
         .Weight = xlThin
     End With
     With rng.Borders(xlEdgeBottom)
         .LineStyle = xlContinuous
-        .Color = C_HAIR
+        .Color = C_LINE_2
         .Weight = xlThin
     End With
     rng.VerticalAlignment = xlCenter
     rng.IndentLevel = 1
     rng.Font.Name = UI_FONT
     rng.Font.Size = 9.5
-    rng.Font.Color = C_BODY
-    ws.Range(ws.Rows(firstRow), ws.Rows(LastRow)).RowHeight = 21
+    rng.Font.Color = C_TEXT
+    ws.Range(ws.Rows(firstRow), ws.Rows(LastRow)).RowHeight = 22
     If verdictCol > 0 Then PaintVerdictColumn ws, verdictCol, LastRow
     ' AutoFilter on a range TOGGLES. Applied on every refresh it switched the
     ' filter off every other time; now it is only ever turned on.
@@ -373,35 +493,36 @@ End Sub
 Public Sub DressLogRow(ByVal ws As Worksheet, ByVal r As Long)
     On Error Resume Next
     With ws.Range(ws.Cells(r, 1), ws.Cells(r, 5))
-        .Interior.Color = C_PAPER
+        .Interior.Color = C_ROW
         .Font.Name = UI_FONT
         .Font.Size = 9.5
-        .Font.Color = C_BODY
+        .Font.Color = C_TEXT
         .Font.Bold = False
         .VerticalAlignment = xlCenter
         .IndentLevel = 1
         .WrapText = False
         .Borders(xlEdgeBottom).LineStyle = xlContinuous
-        .Borders(xlEdgeBottom).Color = C_HAIR
+        .Borders(xlEdgeBottom).Color = C_LINE
         .Borders(xlEdgeBottom).Weight = xlThin
     End With
     With ws.Cells(r, 1)
         .Font.Name = UI_MONO
         .Font.Size = 9
-        .Font.Color = C_MUTED
+        .Font.Color = C_TEXT_3
     End With
     With ws.Cells(r, 3)
         .Font.Name = UI_SEMI
-        .Font.Color = C_BODY
+        .Font.Color = C_TEXT
     End With
-    ws.Cells(r, 5).Font.Color = C_MUTED
-    ws.Rows(r).RowHeight = 21
+    ws.Cells(r, 5).Font.Color = C_TEXT_3
+    ws.Rows(r).RowHeight = 22
     PaintVerdict ws.Cells(r, 2)
     Err.Clear
 End Sub
 
 ' Print so it can be handed to someone: landscape, one page wide, the header
-' row on every page, and a footer that says what and when.
+' row on every page, a footer that says what and when - and in black and
+' white, so the dark screen does not become a page of toner.
 Public Sub PrintReady(ByVal ws As Worksheet, ByVal lastCol As Long)
     On Error Resume Next
     Application.PrintCommunication = False
@@ -410,9 +531,11 @@ Public Sub PrintReady(ByVal ws As Worksheet, ByVal lastCol As Long)
         .Zoom = False
         .FitToPagesWide = 1
         .FitToPagesTall = False
+        .BlackAndWhite = True
         .PrintTitleRows = ws.Rows(R_HDR).Address
-        .PrintArea = ws.Range(ws.Cells(R_TITLE, 1), ws.Cells(ws.Rows.count, lastCol)).Address
-        .LeftFooter = "&8" & TOOL_NAME & " " & TOOL_VERSION & "  " & ChrW(183) & "  &A"
+        .PrintArea = ws.Range(ws.Cells(R_STATUS, 1), ws.Cells(ws.Rows.count, lastCol)).Address
+        .CenterHeader = "&""Segoe UI Semibold,Regular""&11" & ws.Name
+        .LeftFooter = "&8" & TOOL_NAME & " ALM Desk " & TOOL_VERSION & "  " & ChrW(183) & "  " & BANK_NAME
         .RightFooter = "&8Page &P of &N  " & ChrW(183) & "  &D"
         .CenterFooter = ""
     End With
@@ -420,18 +543,70 @@ Public Sub PrintReady(ByVal ws As Worksheet, ByVal lastCol As Long)
     Err.Clear
 End Sub
 
-' ===================== the app bar ==========================================
+' ===================== the logo =============================================
+'
+' A macro cannot read the images packed inside its own workbook, so the build
+' leaves the Avati mark on the settings sheet as base64. The first time it is
+' wanted it is written to the temp folder once, and placed from there - on
+' every sheet's bar here, and in every workbook a build writes.
+Public Function LogoFile() As String
+    Dim f As String, b64 As String, doc As Object, node As Object, bytes() As Byte, fh As Integer
+    On Error GoTo Nope
+    f = Environ$("TEMP") & "\avati-logo-" & Replace(TOOL_VERSION, ".", "-") & ".png"
+    If Len(Dir$(f)) > 0 Then LogoFile = f: Exit Function
+    b64 = SettingGet("logo_b64")
+    If Len(b64) = 0 Then Exit Function
+    Set doc = CreateObject("MSXML2.DOMDocument")
+    Set node = doc.createElement("b64")
+    node.DataType = "bin.base64"
+    node.Text = b64
+    bytes = node.nodeTypedValue
+    fh = FreeFile
+    Open f For Binary Access Write As #fh
+    Put #fh, , bytes
+    Close #fh
+    LogoFile = f
+    Exit Function
+Nope:
+    LogoFile = ""
+End Function
+
+' The mark at (x, y), this many points tall. If the picture cannot be had,
+' the word AVATI in the mark's blue stands in, so no bar is ever left bare.
+Public Function PlaceLogo(ByVal ws As Worksheet, ByVal nm As String, ByVal x As Double, ByVal y As Double, _
+                          ByVal h As Double) As Shape
+    Dim f As String, sh As Shape
+    On Error Resume Next
+    f = LogoFile()
+    If Len(f) > 0 Then Set sh = ws.Shapes.AddPicture(f, msoFalse, msoTrue, x, y, h * LOGO_RATIO, h)
+    If sh Is Nothing Then
+        Set sh = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, x, y - 2, h * LOGO_RATIO + 8, h + 4)
+        If sh Is Nothing Then Exit Function
+        Plain sh
+        With sh.TextFrame2.TextRange
+            .Text = "AVATI"
+            .Font.Name = UI_SEMI
+            .Font.Size = h * 0.95
+            .Font.Bold = msoTrue
+            .Font.Fill.ForeColor.RGB = C_AVATI
+        End With
+    End If
+    sh.Name = nm
+    sh.Placement = xlFreeFloating
+    sh.AlternativeText = "Avati"
+    Set PlaceLogo = sh
+    Err.Clear
+End Function
+
+' ===================== the app bar and the toolbar ==========================
 '
 ' Excel shapes have no hover state, so what a shape CAN do it does well: a
-' filled pill for the sheet you are on, quiet text for the others, and an
-' emerald-tinted button for each thing this sheet can do.
+' pill group for where you can go with the sheet you are on filled in, and a
+' toolbar under the title for what this sheet can do. The Desk is designed
+' in the build and carries its own.
 
-' Clears only the family it is asked for.
-'
-' It used to clear every "pd_" shape, and the rail is laid down AFTER the desk's
-' cards - so installing the rail deleted the three card buttons that are the
-' whole point of the Desk sheet. The rail owns "pdr_", the Desk's own design
-' owns "pdx_", and neither can now remove the other.
+' Clears only the family it is asked for: the bar and toolbar own "pdr_", the
+' title block "pdt_", the Desk's own design "pdx_", and none can remove another.
 Public Sub ClearButtons(ByVal ws As Worksheet, ByVal prefix As String)
     Dim i As Long, sh As Shape
     On Error Resume Next
@@ -442,36 +617,33 @@ Public Sub ClearButtons(ByVal ws As Worksheet, ByVal prefix As String)
     Err.Clear
 End Sub
 
-' kind: 0 quiet (another sheet), 1 action (emerald), 2 current (this sheet)
-Public Function Button(ByVal ws As Worksheet, ByVal caption As String, ByVal proc As String, _
-                       ByVal x As Double, ByVal w As Double, Optional ByVal kind As Long = 0) As Double
-    Dim sh As Shape, yTop As Double
+' A rounded pill. kind: 0 quiet (another sheet), 1 action (emerald), 2 current
+' (this sheet), 3 container (the group behind a set of pills).
+Public Function Pill(ByVal ws As Worksheet, ByVal nm As String, ByVal caption As String, ByVal proc As String, _
+                     ByVal x As Double, ByVal y As Double, ByVal w As Double, ByVal h As Double, _
+                     ByVal kind As Long) As Shape
+    Dim sh As Shape
     On Error Resume Next
-    yTop = (ws.Rows(R_BAR).Height - 22) / 2
-    If yTop < 2 Then yTop = 2
-    Set sh = ws.Shapes.AddShape(msoShapeRoundedRectangle, x, yTop, w, 22)
-    If sh Is Nothing Then Button = x: Exit Function
-    sh.Name = "pdr_" & CLng(x) & "_" & CLng(Rnd * 100000)
+    Set sh = ws.Shapes.AddShape(msoShapeRoundedRectangle, x, y, w, h)
+    If sh Is Nothing Then Exit Function
+    sh.Name = nm
     sh.Placement = xlFreeFloating
     sh.Adjustments(1) = 0.5
     sh.Shadow.visible = msoFalse
+    sh.Line.Weight = 0.75
     Select Case kind
         Case 1
             sh.Fill.ForeColor.RGB = C_BRAND_950
-            sh.Fill.Transparency = 0
-            sh.Line.visible = msoTrue
             sh.Line.ForeColor.RGB = C_BRAND_DEEP
-            sh.Line.Weight = 0.75
         Case 2
             sh.Fill.ForeColor.RGB = C_BRAND_900
-            sh.Fill.Transparency = 0
-            sh.Line.visible = msoTrue
             sh.Line.ForeColor.RGB = C_BRAND_DEEP
-            sh.Line.Weight = 0.75
+        Case 3
+            sh.Fill.ForeColor.RGB = C_BAR_WELL
+            sh.Line.ForeColor.RGB = C_LINE
         Case Else
             ' Invisible but still there: a fully transparent fill keeps the
-            ' whole pill clickable, where no fill at all would leave only the
-            ' letters to hit.
+            ' whole pill clickable, where no fill would leave only the letters.
             sh.Fill.ForeColor.RGB = C_INK
             sh.Fill.Transparency = 1
             sh.Line.visible = msoFalse
@@ -481,110 +653,180 @@ Public Function Button(ByVal ws As Worksheet, ByVal caption As String, ByVal pro
         .VerticalAnchor = msoAnchorMiddle
         .WordWrap = msoFalse
         .TextRange.ParagraphFormat.Alignment = msoAlignCenter
-        .TextRange.Text = caption
+        .TextRange.Text = IIf(Len(caption) > 0, caption, " ")
         .TextRange.Font.Size = 8.5
         .TextRange.Font.Bold = msoFalse
         .TextRange.Font.Name = UI_SEMI
         Select Case kind
             Case 1: .TextRange.Font.Fill.ForeColor.RGB = C_BRAND_SOFT
-            Case 2: .TextRange.Font.Fill.ForeColor.RGB = C_TX1
-            Case Else: .TextRange.Font.Fill.ForeColor.RGB = C_TX2
+            Case 2: .TextRange.Font.Fill.ForeColor.RGB = C_TEXT
+            Case Else: .TextRange.Font.Fill.ForeColor.RGB = C_TEXT_2
         End Select
     End With
-    sh.AlternativeText = caption
+    sh.AlternativeText = IIf(Len(caption) > 0, caption, nm)
     If Len(proc) > 0 Then sh.OnAction = proc
+    Set Pill = sh
     Err.Clear
+End Function
+
+' Kept for the older calls: a pill on the app bar, returning where the next goes.
+Public Function Button(ByVal ws As Worksheet, ByVal caption As String, ByVal proc As String, _
+                       ByVal x As Double, ByVal w As Double, Optional ByVal kind As Long = 0) As Double
+    Pill ws, "pdr_" & CLng(x) & "_" & CLng(Rnd * 100000), caption, proc, x, (ws.Rows(R_BAR).Height - 22) / 2, w, 22, kind
     Button = x + w + 4
 End Function
 
-' A hairline separating where-to-go from what-to-do.
-Public Function Divider(ByVal ws As Worksheet, ByVal x As Double) As Double
-    Dim sh As Shape, yTop As Double
+' A hairline separating one group from the next.
+Public Function Divider(ByVal ws As Worksheet, ByVal x As Double, Optional ByVal row As Long = 0) As Double
+    Dim sh As Shape, top As Double, h As Double
     On Error Resume Next
-    yTop = (ws.Rows(R_BAR).Height - 14) / 2
-    Set sh = ws.Shapes.AddShape(msoShapeRectangle, x + 6, yTop, 0.75, 14)
+    If row = 0 Then row = R_BAR
+    h = 16
+    top = ws.Rows(row).Top + (ws.Rows(row).Height - h) / 2
+    Set sh = ws.Shapes.AddShape(msoShapeRectangle, x + 6, top, 0.75, h)
     If Not sh Is Nothing Then
-        sh.Name = "pdr_div_" & CLng(x)
+        sh.Name = "pdr_div_" & row & "_" & CLng(x)
         sh.Placement = xlFreeFloating
         sh.Line.visible = msoFalse
-        sh.Fill.ForeColor.RGB = C_HAIR_DARK
+        sh.Fill.ForeColor.RGB = C_LINE_2
         sh.Shadow.visible = msoFalse
     End If
     Err.Clear
-    Divider = x + 16
+    Divider = x + 18
 End Function
 
-' The wordmark at the head of the bar: "Pivot" in white, "Desk" in emerald.
-Private Function Wordmark(ByVal ws As Worksheet, ByVal x As Double) As Double
-    Dim sh As Shape, yTop As Double
+Private Function BarText(ByVal ws As Worksheet, ByVal nm As String, ByVal txt As String, ByVal x As Double, _
+                       ByVal y As Double, ByVal size As Single, ByVal clr As Long, ByVal font As String, _
+                       Optional ByVal spacing As Single = 0) As Shape
+    Dim sh As Shape
     On Error Resume Next
-    yTop = (ws.Rows(R_BAR).Height - 22) / 2
-    Set sh = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, x, yTop, 74, 22)
-    If sh Is Nothing Then Wordmark = x: Exit Function
-    sh.Name = "pdr_mark"
-    sh.Placement = xlFreeFloating
-    sh.Fill.visible = msoFalse
-    sh.Line.visible = msoFalse
-    With sh.TextFrame2
-        .MarginTop = 0: .MarginBottom = 0: .MarginLeft = 0: .MarginRight = 0
-        .VerticalAnchor = msoAnchorMiddle
-        .WordWrap = msoFalse
-        .TextRange.Text = TOOL_NAME
-        .TextRange.Font.Name = UI_SEMI
-        .TextRange.Font.Size = 11
-        .TextRange.Font.Fill.ForeColor.RGB = C_TX1
-        .TextRange.Characters(6, 4).Font.Fill.ForeColor.RGB = HX("4FC79C")
+    Set sh = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, x, y, 200, size + 5)
+    If sh Is Nothing Then Exit Function
+    sh.Name = nm
+    Plain sh
+    With sh.TextFrame2.TextRange
+        .Text = txt
+        .Font.Name = font
+        .Font.Size = size
+        .Font.Spacing = spacing
+        .Font.Fill.ForeColor.RGB = clr
     End With
-    sh.OnAction = "PD_GoHome"
-    sh.AlternativeText = TOOL_NAME
+    Set BarText = sh
     Err.Clear
-    Wordmark = x + 78
 End Function
 
-' The bar every desk sheet carries. Where you are does not change how you
-' get out, and what the sheet can do sits right beside it.
+' The bar every sheet carries: the Avati mark, what this is, and where you
+' can go - the same on every sheet, with the one you are on filled in.
 Public Sub Rail(ByVal ws As Worksheet)
-    Dim x As Double
+    Dim x As Double, y As Double, items As Variant, it As Variant, cur As String, w As Double
     On Error Resume Next
-    ' The Desk is designed, not drawn: it carries its own bar.
     If StrComp(ws.Name, SH_HOME, vbTextCompare) = 0 Then Exit Sub
     ClearButtons ws, "pdr_"
-    x = 12
-    x = Wordmark(ws, x)
-    x = Divider(ws, x - 8)
-    x = Button(ws, "Desk", "PD_GoHome", x, 50, 0)
-    x = Button(ws, "Files", "PD_GoFiles", x, 50, IIf(ws.Name = SH_SOURCES, 2, 0))
-    x = Button(ws, "Pivot config", "PD_GoConfig", x, 86, IIf(ws.Name = SH_CONFIG Or ws.Name = SH_FIELDS, 2, 0))
-    x = Button(ws, "Reconciliation", "PD_GoRecon", x, 96, IIf(ws.Name = SH_RECON, 2, 0))
-    x = Button(ws, "Activity", "PD_GoLog", x, 64, IIf(ws.Name = SH_LOG, 2, 0))
-    x = Divider(ws, x)
-    Select Case ws.Name
-        Case SH_SOURCES
-            x = Button(ws, "Scan a folder", "PD_LoadFolder", x, 92, 1)
-            x = Button(ws, "Pick files", "PD_LoadFiles", x, 72, 1)
-            x = Button(ws, "Use a file for this row", "PD_UseFileHere", x, 138, 1)
-            x = Button(ws, "Clear this row", "PD_ClearRow", x, 94, 1)
-        Case SH_CONFIG
-            x = Button(ws, "Add a pivot", "PD_ConfigAdd", x, 82, 1)
-            x = Button(ws, "Check", "PD_ConfigCheck", x, 60, 1)
-            x = Button(ws, "Fields", "PD_GoFields", x, 56, 1)
-            x = Button(ws, "Restore defaults", "PD_ConfigDefaults", x, 108, 1)
-            If modPD_Config.Engine() = "recipes" Then
-                x = Button(ws, "Use the 1.0 layout", "PD_ConfigEngine", x, 118, 1)
-            Else
-                x = Button(ws, "Build from this sheet", "PD_ConfigEngine", x, 132, 1)
-            End If
-        Case SH_FIELDS
-            x = Button(ws, "Back to recipes", "PD_GoConfig", x, 104, 1)
-            x = Button(ws, "Check", "PD_ConfigCheck", x, 60, 1)
-        Case SH_RECON
-            x = Button(ws, "Reconcile now", "PD_Reconcile", x, 98, 1)
-        Case SH_LOG
-            x = Button(ws, "Clear activity", "PD_ClearLog", x, 96, 1)
-    End Select
-    ws.Rows(R_BAR).RowHeight = 34
+    ws.Rows(R_BAR).RowHeight = 44
+    PlaceLogo ws, "pdr_logo", 16, (44 - 16) / 2, 16
+    ws.Shapes("pdr_logo").OnAction = "PD_GoHome"
+    x = 16 + 16 * LOGO_RATIO
+    x = Divider(ws, x + 4)
+    BarText ws, "pdr_what", "ALM DESK", x, 11, 7.5, C_TEXT, UI_SEMI, 1.6
+    BarText ws, "pdr_whose", UCase$(Replace(BANK_NAME, "  ", "  " & ChrW(183) & "  ")), x, 24, 6, C_TEXT_3, UI_SEMI, 1.4
+
+    cur = SectionOf(ws.Name)
+    items = Array(Array("Desk", "PD_GoHome", 52, "desk"), Array("Files", "PD_GoFiles", 52, "files"), _
+                  Array("Reports", "PD_GoConfig", 70, "reports"), _
+                  Array("Reconciliation", "PD_GoRecon", 102, "recon"), Array("Activity", "PD_GoLog", 66, "log"))
+    x = x + 104
+    w = 3
+    For Each it In items
+        w = w + CDbl(it(2)) + 2
+    Next it
+    y = (44 - 26) / 2
+    Pill ws, "pdr_nav", "", "", x, y, w + 1, 26, 3
+    x = x + 3
+    For Each it In items
+        Pill ws, "pdr_nav_" & CStr(it(3)), CStr(it(0)), CStr(it(1)), x, y + 2, CDbl(it(2)), 22, _
+             IIf(cur = CStr(it(3)), 2, 0)
+        x = x + CDbl(it(2)) + 2
+    Next it
+    Toolbar ws
     Err.Clear
 End Sub
+
+' Which part of the bar a sheet belongs to.
+Private Function SectionOf(ByVal nm As String) As String
+    Select Case True
+        Case StrComp(nm, SH_SOURCES, vbTextCompare) = 0: SectionOf = "files"
+        Case StrComp(nm, SH_RECON, vbTextCompare) = 0: SectionOf = "recon"
+        Case StrComp(nm, SH_LOG, vbTextCompare) = 0: SectionOf = "log"
+        Case IsReportsSheet(nm): SectionOf = "reports"
+        Case Else: SectionOf = ""
+    End Select
+End Function
+
+Public Function IsReportsSheet(ByVal nm As String) As Boolean
+    Dim s As Variant
+    For Each s In ReportsSheets()
+        If StrComp(nm, CStr(s(0)), vbTextCompare) = 0 Then IsReportsSheet = True: Exit Function
+    Next s
+End Function
+
+' The Reports section: every sheet that shapes what a build makes, as the
+' tabs across its toolbar.
+Public Function ReportsSheets() As Variant
+    ReportsSheets = Array(Array(SH_CONFIG, "Pivots", "PD_GoConfig"), Array(SH_FIELDS, "Fields", "PD_GoFields"))
+End Function
+
+' Row 4: for the Reports sheets, their tabs; then what this sheet can do.
+Public Sub Toolbar(ByVal ws As Worksheet)
+    Dim x As Double, y As Double, tabs As Variant, t As Variant, w As Double, tw As Double
+    On Error Resume Next
+    ws.Rows(4).RowHeight = 34
+    y = ws.Rows(4).Top + (34 - 24) / 2
+    x = 14
+    If IsReportsSheet(ws.Name) Then
+        tabs = ReportsSheets()
+        tw = 3
+        For Each t In tabs
+            tw = tw + 74 + 2
+        Next t
+        Pill ws, "pdr_tabs", "", "", x, y - 1, tw + 1, 26, 3
+        x = x + 3
+        For Each t In tabs
+            Pill ws, "pdr_tab_" & Replace(LCase$(CStr(t(1))), " ", "_"), CStr(t(1)), CStr(t(2)), x, y + 1, 74, 22, _
+                 IIf(StrComp(ws.Name, CStr(t(0)), vbTextCompare) = 0, 2, 0)
+            x = x + 76
+        Next t
+        x = Divider(ws, x + 4, 4)
+    End If
+    Select Case ws.Name
+        Case SH_SOURCES
+            x = Action(ws, "Scan a folder", "PD_LoadFolder", x, y, 96)
+            x = Action(ws, "Pick files", "PD_LoadFiles", x, y, 76)
+            x = Action(ws, "Use a file for this row", "PD_UseFileHere", x, y, 142)
+            x = Action(ws, "Clear this row", "PD_ClearRow", x, y, 98)
+        Case SH_CONFIG
+            x = Action(ws, "Add a pivot", "PD_ConfigAdd", x, y, 84)
+            x = Action(ws, "Check", "PD_ConfigCheck", x, y, 62)
+            x = Action(ws, "Restore defaults", "PD_ConfigDefaults", x, y, 112)
+            If modPD_Config.Engine() = "recipes" Then
+                x = Action(ws, "Use the 1.0 layout", "PD_ConfigEngine", x, y, 122)
+            Else
+                x = Action(ws, "Build from this sheet", "PD_ConfigEngine", x, y, 136)
+            End If
+        Case SH_FIELDS
+            x = Action(ws, "Check", "PD_ConfigCheck", x, y, 62)
+        Case SH_RECON
+            x = Action(ws, "Reconcile now", "PD_Reconcile", x, y, 102)
+        Case SH_LOG
+            x = Action(ws, "Clear activity", "PD_ClearLog", x, y, 100)
+    End Select
+    Err.Clear
+End Sub
+
+Private Function Action(ByVal ws As Worksheet, ByVal caption As String, ByVal proc As String, _
+                        ByVal x As Double, ByVal y As Double, ByVal w As Double) As Double
+    Pill ws, "pdr_act_" & proc, caption, proc, x, y, w, 24, 1
+    Action = x + w + 6
+End Function
 
 Public Sub RailEverywhere()
     Dim ws As Worksheet

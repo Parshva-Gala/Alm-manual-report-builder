@@ -130,10 +130,10 @@ Public Sub RefreshStatuses()
     modPD_Theme.DressTable ws, S_COLS, r - 1, S_STATUS
     With ws.Range(ws.Cells(modPD_Theme.R_FIRST, S_WHAT), ws.Cells(r - 1, S_WHAT)).Font
         .Name = modPD_Theme.UI_SEMI
-        .Color = modPD_Theme.C_BODY
+        .Color = modPD_Theme.C_TEXT
     End With
-    ws.Range(ws.Cells(modPD_Theme.R_FIRST, S_FILE), ws.Cells(r - 1, S_FILE)).Font.Color = modPD_Theme.C_MUTED
-    ws.Range(ws.Cells(modPD_Theme.R_FIRST, S_NOTE), ws.Cells(r - 1, S_NOTE)).Font.Color = modPD_Theme.C_MUTED
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, S_FILE), ws.Cells(r - 1, S_FILE)).Font.Color = modPD_Theme.C_TEXT_3
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, S_NOTE), ws.Cells(r - 1, S_NOTE)).Font.Color = modPD_Theme.C_TEXT_3
     modPD_Theme.SetStatus ws, n & " of " & total & " file(s) loaded." & _
         IIf(AnyFrameworkLoaded(), "  Ready to build pivots.", "  Load at least one framework output to build pivots."), _
         IIf(n = 0, "Idle", IIf(AnyFrameworkLoaded(), "OK", "Check"))

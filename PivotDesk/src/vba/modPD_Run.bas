@@ -7,6 +7,7 @@ Option Explicit
 Public Sub PD_Setup()
     Dim ws As Worksheet
     On Error Resume Next
+    modPD_Theme.DarkNormal ThisWorkbook
     BuildDesk
     modPD_Files.BuildFilesSheet
     modPD_Config.BuildConfigSheet
@@ -31,6 +32,7 @@ Public Sub Restyle()
     On Error Resume Next
     If SettingGet("styled_version") = TOOL_VERSION Then Exit Sub
 
+    modPD_Theme.DarkNormal ThisWorkbook
     modPD_Files.BuildFilesSheet
     modPD_Config.BuildConfigSheet
     modPD_Config.CheckAll True
@@ -113,26 +115,26 @@ Private Sub DressLogBlock(ByVal ws As Worksheet, ByVal lastR As Long)
     On Error Resume Next
     Set rng = ws.Range(ws.Cells(modPD_Theme.R_FIRST, 1), ws.Cells(lastR, 5))
     With rng
-        .Interior.Color = modPD_Theme.C_PAPER
+        .Interior.Color = modPD_Theme.C_ROW
         .Font.Name = modPD_Theme.UI_FONT
         .Font.Size = 9.5
-        .Font.Color = modPD_Theme.C_BODY
+        .Font.Color = modPD_Theme.C_TEXT
         .Font.Bold = False
         .VerticalAlignment = xlCenter
         .IndentLevel = 1
         .WrapText = False
         .Borders(xlInsideHorizontal).LineStyle = xlContinuous
-        .Borders(xlInsideHorizontal).Color = modPD_Theme.C_HAIR
+        .Borders(xlInsideHorizontal).Color = modPD_Theme.C_LINE
         .Borders(xlEdgeBottom).LineStyle = xlContinuous
-        .Borders(xlEdgeBottom).Color = modPD_Theme.C_HAIR
+        .Borders(xlEdgeBottom).Color = modPD_Theme.C_LINE
     End With
     With ws.Range(ws.Cells(modPD_Theme.R_FIRST, 1), ws.Cells(lastR, 1)).Font
         .Name = modPD_Theme.UI_MONO
         .Size = 9
-        .Color = modPD_Theme.C_MUTED
+        .Color = modPD_Theme.C_TEXT_3
     End With
     ws.Range(ws.Cells(modPD_Theme.R_FIRST, 3), ws.Cells(lastR, 3)).Font.Name = modPD_Theme.UI_SEMI
-    ws.Range(ws.Cells(modPD_Theme.R_FIRST, 5), ws.Cells(lastR, 5)).Font.Color = modPD_Theme.C_MUTED
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, 5), ws.Cells(lastR, 5)).Font.Color = modPD_Theme.C_TEXT_3
     ws.Range(ws.Rows(modPD_Theme.R_FIRST), ws.Rows(lastR)).RowHeight = 21
     modPD_Theme.PaintVerdictColumn ws, 2, lastR
     Err.Clear

@@ -305,7 +305,7 @@ Private Sub Finish(ByVal ws As Worksheet, ByVal summaries As Collection, ByVal r
         ws.Range(ws.Cells(modPD_Theme.R_FIRST, N_OUT), ws.Cells(lastR, N_DIFF)).NumberFormat = NUM_FMT
         modPD_Theme.DressTable ws, N_COLS, lastR, N_VERDICT
         ws.Range(ws.Cells(modPD_Theme.R_FIRST, N_KEY), ws.Cells(lastR, N_KEY)).Font.Name = modPD_Theme.UI_MONO
-        ws.Range(ws.Cells(modPD_Theme.R_FIRST, N_NOTE), ws.Cells(lastR, N_NOTE)).Font.Color = modPD_Theme.C_MUTED
+        ws.Range(ws.Cells(modPD_Theme.R_FIRST, N_NOTE), ws.Cells(lastR, N_NOTE)).Font.Color = modPD_Theme.C_TEXT_3
         DiffBars ws.Range(ws.Cells(modPD_Theme.R_FIRST, N_DIFF), ws.Cells(lastR, N_DIFF))
     End If
 

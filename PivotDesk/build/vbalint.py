@@ -33,7 +33,7 @@ erase error exit explicit false for friend function get global gosub goto if imp
 in is let lib like loop me mod new next not nothing null on option optional or
 paramarray preserve private property public redim rem resume return select set static
 step stop sub then to true type until wend while with withevents xor base compare text
-binary module any typeof addressof lset rset open close print write input output append
+binary module any typeof addressof lset rset open close print write input output append put get seek lock unlock
 access read shared lock len line object
 """.split())
 
@@ -83,6 +83,7 @@ msothemecolortext1
 # Constants added in 2.0, each checked against the Excel / Office type
 # library by name and value before it went in.
 REVIEWED_CONSTANTS = {
+    "msoautosizenone": 0,                 # MsoAutoSize
     "xlcolumnstacked": 52,                # XlChartType
     "xllegendpositiontop": -4160,         # XlLegendPosition
     "xlvalue": 2,                         # XlAxisType

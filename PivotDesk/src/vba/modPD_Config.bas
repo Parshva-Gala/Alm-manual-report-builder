@@ -119,7 +119,8 @@ Public Sub BuildConfigSheet(Optional ByVal withDefaults As Boolean = False)
 
     modPD_Theme.Dress ws, "Pivot config", _
         "What every framework workbook is built from. One row is one pivot, or one sheet per value of a field. " & _
-        "Edit a row or add one below; Check says whether it will build. Select any cell for how to fill it."
+        "Edit a row or add one; Check says whether it will build. Select any cell for how to fill it.", _
+        "REPORTS  " & ChrW(183) & "  PIVOTS"
     Groups ws
     modPD_Theme.Head ws, Array("On", "Pivot", "Frameworks", "One sheet per", "Rows", "Columns", "Values", _
                                "Show only / hide", "Slicers", "Layout", "Subtotals", "Grand totals", _
@@ -150,8 +151,9 @@ Public Sub BuildFieldsSheet(Optional ByVal withDefaults As Boolean = False)
         ws.Cells.Validation.Delete
     End If
     modPD_Theme.Dress ws, "Pivot fields", _
-        "Every column the recipes on Pivot config may name. The first thirteen are built in; add any column of " & _
-        "an output under a name of your own, and use that name in a recipe."
+        "Every column a pivot or a chart may name. The first thirteen are built in; add any column of an " & _
+        "output under a name of your own, and use that name anywhere.", _
+        "REPORTS  " & ChrW(183) & "  FIELDS"
     modPD_Theme.Head ws, Array("Field", "Source column", "Kind", "Blank shows as", "Width", "Number format", "Note"), _
                         Array(26, 42, 10, 20, 8, 22, 64)
     If fresh Or withDefaults Or Len(SafeText(ws.Cells(modPD_Theme.R_FIRST, G_NAME).Value2)) = 0 Then
@@ -190,7 +192,7 @@ Private Sub Band(ByVal ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, ByVa
         .Interior.Color = modPD_Theme.C_BRAND_950
         .Font.Name = modPD_Theme.UI_SEMI
         .Font.Size = 7.5
-        .Font.Color = modPD_Theme.HX("4FC79C")
+        .Font.Color = modPD_Theme.C_LINK
         .VerticalAlignment = xlCenter
         .Borders(xlEdgeLeft).LineStyle = xlContinuous
         .Borders(xlEdgeLeft).Color = modPD_Theme.C_BRAND
@@ -213,11 +215,11 @@ Private Sub DressRecipes(ByVal ws As Worksheet)
     rng.WrapText = False
     With ws.Range(ws.Cells(modPD_Theme.R_FIRST, K_NAME), ws.Cells(lastR, K_NAME)).Font
         .Name = modPD_Theme.UI_SEMI
-        .Color = modPD_Theme.C_BODY
+        .Color = modPD_Theme.C_TEXT
     End With
     ws.Range(ws.Cells(modPD_Theme.R_FIRST, K_ON), ws.Cells(lastR, K_ON)).HorizontalAlignment = xlCenter
-    ws.Range(ws.Cells(modPD_Theme.R_FIRST, K_DESC), ws.Cells(lastR, K_DESC)).Font.Color = modPD_Theme.C_MUTED
-    ws.Range(ws.Cells(modPD_Theme.R_FIRST, K_WHY), ws.Cells(lastR, K_WHY)).Font.Color = modPD_Theme.C_MUTED
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, K_DESC), ws.Cells(lastR, K_DESC)).Font.Color = modPD_Theme.C_TEXT_3
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, K_WHY), ws.Cells(lastR, K_WHY)).Font.Color = modPD_Theme.C_TEXT_2
     ' The syntax columns in the mono face: they are read character by character.
     ws.Range(ws.Cells(modPD_Theme.R_FIRST, K_SPLIT), ws.Cells(lastR, K_SLICERS)).Font.Name = modPD_Theme.UI_FONT
     Err.Clear
@@ -234,7 +236,7 @@ Private Sub DressFields(ByVal ws As Worksheet)
         .Name = modPD_Theme.UI_MONO
         .Size = 9
     End With
-    ws.Range(ws.Cells(modPD_Theme.R_FIRST, G_NOTE), ws.Cells(lastR, G_NOTE)).Font.Color = modPD_Theme.C_MUTED
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, G_NOTE), ws.Cells(lastR, G_NOTE)).Font.Color = modPD_Theme.C_TEXT_3
     Err.Clear
 End Sub
 
@@ -976,7 +978,7 @@ Public Function CheckAll(Optional ByVal quiet As Boolean = False) As Long
         If Len(SafeText(ws.Cells(r, K_CHECK).Value2)) > 0 Then
             modPD_Theme.PaintVerdict ws.Cells(r, K_CHECK)
         Else
-            ws.Cells(r, K_CHECK).Interior.Color = IIf((r - modPD_Theme.R_FIRST) Mod 2 = 1, modPD_Theme.C_MIST, modPD_Theme.C_PAPER)
+            ws.Cells(r, K_CHECK).Interior.Color = IIf((r - modPD_Theme.R_FIRST) Mod 2 = 1, modPD_Theme.C_ROW_ALT, modPD_Theme.C_ROW)
             ws.Cells(r, K_CHECK).NumberFormat = "@"
         End If
     Next r
