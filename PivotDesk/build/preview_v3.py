@@ -7,9 +7,9 @@ Previews of what Avati 3.0 adds, drawn with the rules the VBA applies:
   built-start-here       Start here of an LCR build, with the default charts
   built-top-counterparties  the top counterparties pivot of that build
 
-The built-workbook pictures are computed from the LCR sample the bank
-supplied (LCR_SAMPLE), grouped the way the staging pass and the pivots
-group it. They are pictures for review off Windows, not screenshots.
+The built-workbook pictures use deterministic synthetic records by default.
+An explicitly supplied LCR_SAMPLE is grouped the way staging and pivots do.
+These are HTML design mirrors, not Excel runtime screenshots.
 """
 
 from __future__ import annotations
@@ -132,7 +132,8 @@ def workbooks_sheet():
     for m in re.finditer(r"\.Value2 = Array\((.*?)\)\s*$", body_src, re.M):
         vals = _args(m.group(1))
         rows.append(vals + ["OK", ""])
-    t = P.table(heads, widths, rows, verdict_col=len(heads) - 2, muted_cols=(5, 7), semi_cols=(0,))
+    t = P.table(heads, widths, rows, verdict_col=len(heads) - 2, muted_cols=(5, 7), semi_cols=(0,),
+                row_height=40, wrap_cols=(5, 7), edit_cols=(1, 2, 3, 4), mono_cols=(2,))
     body = (P.chrome("reports", "Workbooks", "How many files each framework is built into. Blank: one workbook. Name "
                      "a field, and each of its values gets a workbook of its own - with every sheet Pivot config "
                      "asks for inside it.", "1 framework(s) split into one workbook per value; the rest one "
@@ -152,7 +153,7 @@ def _default_states():
 
 
 def gallery_sheet():
-    card_w, card_h, gap, left0 = 300, 164, 14, 14
+    card_w, card_h, gap, left0 = 344, 164, 16, 28
     tpl = templates()
     states = _default_states()
     out = []
@@ -164,7 +165,7 @@ def gallery_sheet():
         if t["kind"] != kind_prev:
             if kind_prev is not None:
                 y += card_h + gap
-            out.append("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";"
+            out.append("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";"
                        "font-size:%.1fpx;letter-spacing:1.6px;color:#%s'>%s</div>" % (
                            px(left0 + 2), px(y + 12), px(8), C["M300"],
                            "PIVOT REPORTS" if t["kind"] == "pivot" else "CHARTS"))
@@ -186,7 +187,7 @@ def gallery_sheet():
                      "or Chart config, switched on; from there it is a row like any other - change what you like.",
                      "%d pivot reports and %d charts. %d already in the next build." % (npiv, len(tpl) - npiv, n_on),
                      "Idle", [], tab="Gallery", overline="REPORTS &nbsp;&#183;&nbsp; GALLERY") + grid)
-    return P.page("Gallery", body, 1320), px(y + 10) + 250
+    return P.page("Gallery", body, 1500), px(y + 10 + 52 + 124 + 44 + 26 + 8)
 
 
 def card(t, x, y, w, h, state):
@@ -203,22 +204,23 @@ def card(t, x, y, w, h, state):
                       "background:#%s'></div>") % (px(gx), px(gy + 2 + i * 8), px(14), px(4), C["LINE2"],
                                                    px(gx + 18), px(gy + 2 + i * 8), px(bw - 18), px(4),
                                                    "16B07F" if i == 0 else C["DEEP"])
-    cap, kind = {"on": ("Open", 2), "off": ("Switch on", 1)}.get(state, ("Add", 1))
-    btn_bg, btn_line, btn_tx = ((C["E900"], C["DEEP"], C["TX1"]) if kind == 2 else (C["E950"], C["DEEP"], C["SOFT"]))
+    cap, kind = {"on": ("Edit report", 2), "off": ("Switch on", 1)}.get(state, ("Add report", 4))
+    btn_bg, btn_line, btn_tx = ((C["E900"], C["DEEP"], C["TX1"]) if kind == 2 else
+                               ("16B07F", C["BRAND"], C["INK"]) if kind == 4 else (C["E950"], C["DEEP"], C["SOFT"]))
     note = ""
     if state == "on":
-        note = ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+        note = ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
                 "letter-spacing:1px;color:#16B07F'>&#9679;&nbsp;&nbsp;IN THE NEXT BUILD</div>") % (
-            px(x + 112), px(y + h - 29), px(7))
+            px(x + 122), px(y + h - 29), px(7))
     elif state == "off":
-        note = ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+        note = ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
                 "letter-spacing:1px;color:#%s'>ON THE SHEET, SWITCHED OFF</div>") % (
-            px(x + 112), px(y + h - 29), px(7), C["TX3"])
-    return ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:#%s;"
-            "border-radius:9px;box-shadow:inset 0 0 0 1px #%s'></div>%s"
-            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+            px(x + 122), px(y + h - 29), px(7), C["TX2"])
+    return ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:linear-gradient(#0F1B16,#%s);"
+            "border-radius:14px;box-shadow:0 4px 16px #0004,inset 0 0 0 1px #%s'></div>%s"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
             "letter-spacing:1.2px;color:#%s'>%s</div>"
-            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
             "color:#%s'>%s</div>"
             "<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;font-size:%.1fpx;line-height:1.3;"
             "color:#%s'>%s</div>"
@@ -230,7 +232,7 @@ def card(t, x, y, w, h, state):
         px(x + 16), px(y + 30), px(12.5), C["TX1"], html.escape(t["title"]),
         px(x + 16), px(y + 54), px(w - 32), px(9), C["TX2"], html.escape(t["desc"]),
         px(x + 16), px(y + 104), px(w - 32), px(7.5), C["TX3"], html.escape(t["uses"]),
-        px(x + 16), px(y + h - 36), px(86), px(24), btn_bg, btn_line, btn_tx, cap, note)
+        px(x + 16), px(y + h - 36), px(96), px(24), btn_bg, btn_line, btn_tx, cap, note)
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +240,8 @@ def card(t, x, y, w, h, state):
 # ---------------------------------------------------------------------------
 
 def staged():
+    if not SAMPLE:
+        return P.synthetic_rows()
     import openpyxl
     wb = openpyxl.load_workbook(SAMPLE, read_only=True)
     it = wb.worksheets[0].iter_rows(values_only=True)
@@ -254,6 +258,7 @@ def staged():
             cp=labels.tidy(r[ix["COUNTERPARTY_NAME"]], 3) if r[ix["COUNTERPARTY_NAME"]] else "(no counterparty)",
             rule=r[ix["ALM_PORTFOLIO_SEGMENTATION_RULE_NAME"]] or "(no rule)",
             ccy=r[ix["CURRENCY_NAME"]], pre=pre, post=post))
+    wb.close()
     return rows
 
 
@@ -294,10 +299,13 @@ def fmt_units(v, unit, dec=0):
 
 
 def chart_card(w, h, title, inner):
-    return ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:#%s;"
-            "box-shadow:inset 0 0 0 1px #%s;box-sizing:border-box'>"
-            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
-            "color:#%s'>%s</div>%s</div>") % (0, 0, w, h, SURFACE, C["LINE"], 13, 8, px(11), C["TX1"],
+    # The native ChartObject is inset 8pt horizontally and 6pt vertically.
+    inner = (f"<div style='position:absolute;left:{px(8)}px;top:{px(6)}px;transform-origin:0 0;"
+             f"transform:scale({(w-px(16))/w:.6f},{(h-px(12))/h:.6f})'>{inner}</div>")
+    return ("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:linear-gradient(#0F1B16,#%s);"
+            "box-shadow:inset 0 0 0 1px #%s;border-radius:14px;box-sizing:border-box;overflow:hidden'>"
+            "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
+            "color:#%s'>%s</div>%s</div>") % (0, 0, w, h, SURFACE, C["LINE2"], 16, 10, px(12), C["TX1"],
                                             html.escape(title), inner)
 
 
@@ -320,13 +328,13 @@ def doughnut(w, h, title, items, palette):
             am = (a0 + a1) / 2
             rm = (r_out + r_in) / 2
             lbls.append("<text x='%.1f' y='%.1f' fill='#%s' font-size='%.1f' text-anchor='middle' "
-                        "dominant-baseline='middle' font-family='Selawik Semibold'>%d%%</text>" % (
+                        "dominant-baseline='middle' font-family='Segoe UI Semibold'>%d%%</text>" % (
                             cx + rm * math.cos(am), cy + rm * math.sin(am), "000000" if i % len(palette) in (2, 3)
                             else C["TX1"], px(8), round(100 * v / total)))
         a0 = a1
     legend = "".join(
         "<rect x='%.1f' y='%.1f' width='9' height='9' rx='2' fill='#%s'/><text x='%.1f' y='%.1f' fill='#%s' "
-        "font-size='%.1f' dominant-baseline='middle' font-family='Selawik'>%s</text>" % (
+        "font-size='%.1f' dominant-baseline='middle' font-family='Segoe UI'>%s</text>" % (
             w * 0.64, h * 0.34 + i * 20 - 4.5, palette[i % len(palette)], w * 0.64 + 15, h * 0.34 + i * 20,
             C["TX2"], px(8.5), html.escape(name)) for i, (name, _) in enumerate(items))
     svg = "<svg width='%.1f' height='%.1f' style='position:absolute;left:0;top:0'>%s%s%s</svg>" % (
@@ -340,7 +348,7 @@ def hbars(w, h, title, cats, series, palette, legend=None, label_w=None):
     vmax = max(max(s) for s in series)
     unit = auto_units(vmax)
     ticks = nice_ticks(vmax)
-    top_y = 40 if not legend else 58
+    top_y = 44 if not legend else 64
     bottom = 26
     lw = label_w or min(w * 0.42, max(len(c) for c in cats) * 6.3 + 16)
     x0, x1 = lw, w - 64
@@ -352,27 +360,27 @@ def hbars(w, h, title, cats, series, palette, legend=None, label_w=None):
         out.append("<line x1='%.1f' x2='%.1f' y1='%.1f' y2='%.1f' stroke='#%s' stroke-width='1'/>" % (
             x, x, top_y - 4, h - bottom, C["LINE"]))
         out.append("<text x='%.1f' y='%.1f' fill='#%s' font-size='%.1f' text-anchor='middle' "
-                   "font-family='Selawik'>%s</text>" % (x, h - bottom + 15, C["TX3"], px(8.5), fmt_units(t, unit, 0 if all(abs(k / unit[0] - round(k / unit[0])) < 1e-9 for k in ticks) else 1)))
+                   "font-family='Segoe UI'>%s</text>" % (x, h - bottom + 15, C["TX3"], px(8.5), fmt_units(t, unit, 0 if all(abs(k / unit[0] - round(k / unit[0])) < 1e-9 for k in ticks) else 1)))
     for i, c in enumerate(cats):
         yc = top_y + band * (i + 0.5)
         name = c if len(c) <= (lw - 16) / 6.3 else c[:int((lw - 16) / 6.3) - 1] + "…"
         out.append("<text x='%.1f' y='%.1f' fill='#%s' font-size='%.1f' text-anchor='end' dominant-baseline='middle' "
-                   "font-family='Selawik'>%s</text>" % (x0 - 8, yc, C["TX2"], px(8.5), html.escape(name)))
+                   "font-family='Segoe UI'>%s</text>" % (x0 - 8, yc, C["TX2"], px(8.5), html.escape(name)))
         for k, s in enumerate(series):
             y = yc - nser * bar / 2 + k * bar
             bw = (x1 - x0) * s[i] / ticks[-1]
             out.append("<rect x='%.1f' y='%.1f' width='%.1f' height='%.1f' fill='#%s'/>" % (
                 x0, y + 1, max(bw, 1), bar - 2, palette[k % len(palette)]))
             out.append("<text x='%.1f' y='%.1f' fill='#%s' font-size='%.1f' dominant-baseline='middle' "
-                       "font-family='Selawik'>%s</text>" % (x0 + bw + 5, y + bar / 2, C["TX1"], px(8),
+                       "font-family='Segoe UI'>%s</text>" % (x0 + bw + 5, y + bar / 2, C["TX1"], px(8),
                                                           fmt_units(s[i], unit, 2 if unit[1] == "bn" else 1)))
     out.append("<line x1='%.1f' x2='%.1f' y1='%.1f' y2='%.1f' stroke='#%s' stroke-width='1'/>" % (
         x0, x0, top_y - 4, h - bottom, C["LINE2"]))
     if legend:
         lx = 13
         for k, name in enumerate(legend):
-            out.append("<rect x='%.1f' y='34' width='9' height='9' rx='2' fill='#%s'/><text x='%.1f' y='39' fill='#%s' "
-                       "font-size='%.1f' dominant-baseline='middle' font-family='Selawik'>%s</text>" % (
+            out.append("<rect x='%.1f' y='38' width='9' height='9' rx='2' fill='#%s'/><text x='%.1f' y='43' fill='#%s' "
+                       "font-size='%.1f' dominant-baseline='middle' font-family='Segoe UI'>%s</text>" % (
                            lx, palette[k], lx + 14, C["TX2"], px(8.5), name))
             lx += 14 + len(name) * 7 + 18
     svg = "<svg width='%.1f' height='%.1f' style='position:absolute;left:0;top:0'>%s</svg>" % (w, h, "".join(out))
@@ -419,30 +427,39 @@ def start_here(rows):
             ("LCR top counterparties", "The 25 largest counterparties by gross exposure - each one's share of the "
                                        "25 and the running share down the list.")]
     made += [(n[:27] + " LCY", n + "  -  LCY") for n in rule_names]
-    items = [("ROWS STAGED", format(len(rows), ",")), ("PRE-FACTOR", P.compact(gross)),
-             ("POST-FACTOR", P.compact(post)), ("SHEETS", str(len(made))), ("LOCAL CURRENCY", local),
-             ("DATA AS OF", "30 Nov 2025")]
+    items = [("ROWS STAGED", format(len(rows), ",")), ("GROSS PRE-FACTOR", P.compact(gross)),
+             ("GROSS POST-FACTOR", P.compact(post)), ("SHEETS", str(len(made))), ("LOCAL CURRENCY", local),
+             ("DATA AS OF", "30 Jun 2026" if not SAMPLE else "See local sample")]
     tw = (wide / P.PT - 5 * 10) / 6
 
     def section(text):
         return ("<div style='height:%.1fpx;width:%dpx;box-sizing:border-box;border-bottom:1px solid #%s;display:flex;"
-                "align-items:flex-end;padding:0 0 5px 9px;font-family:\"Selawik Semibold\";font-size:%.1fpx;"
-                "letter-spacing:.6px;color:#%s'>%s</div>") % (px(30), P.colw(38) + P.colw(110), C["DEEP"], px(8),
+                "align-items:flex-end;padding:0 0 5px 9px;font-family:\"Segoe UI Semibold\";font-size:%.1fpx;"
+                "letter-spacing:.6px;color:#%s'>%s</div>") % (px(36), P.colw(38) + P.colw(110), C["DEEP"], px(10),
                                                              C["M300"], text)
     status = ("<div style='width:1060px;height:%.1fpx;background:#%s;border-left:4px solid #%s;display:flex;"
-              "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Selawik Semibold\";"
-              "font-size:%.1fpx;color:#%s'>&#9679;&nbsp;&nbsp;%s rows staged into one pivot cache.&nbsp; Every sheet "
-              "below is a live PivotTable over it - drag a field, drop a slicer, drill a total.</div>") % (
+              "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Segoe UI Semibold\";"
+              "font-size:%.1fpx;color:#%s'>&#9679;&nbsp;&nbsp;%s rows staged into one pivot cache.&nbsp; Open a report "
+              "from the index below. Filter a pivot or double-click a total to inspect its records.</div>") % (
         px(26), C["OK_BG"], C["OK"], px(9), C["OK"], format(len(rows), ","))
-    tbl = P.table(["Sheet", "What is on it"], [38, 110], [[a, b] for a, b in made], muted_cols=(1,))
+    tbl = P.table(["Open report", "View and scope"], [38, 110], [[a, b] for a, b in made],
+                  muted_cols=(1,), row_height=32, wrap_cols=(1,))
     tbl = re.sub(r'(<tr style="height:[0-9.]+px;background:#[0-9A-F]+"><td style=")',
-                 r"\1color:#%s;font-family:'Selawik Semibold';" % C["M300"], tbl)
-    built = "Built by Avati ALM Desk 3.0 on 26 Sep 2026, 14:05   ·   data as of 30 Nov 2025"
+                 r"\1color:#%s;font-family:'Segoe UI Semibold';" % C["M300"], tbl)
+    built = "Avati ALM Desk 3.3 · " + P.data_context() + " · HTML design preview"
+    notes = P.table(["Context", "How to read this"], [38, 110], [
+        ["Preview data", P.data_context() + ". Figures are for design review, not a bank report."],
+        ["Amounts", "Pre-factor and post-factor are displayed in reporting LCY. Gross metrics sum absolute values."],
+        ["Local currency", local + " is the currency on the most rows. Check this assumption before using the LCY / FCY split."],
+        ["Factor", "Post-factor divided by pre-factor. These synthetic factors are illustrative, not regulatory calibration." if not SAMPLE
+         else "Post-factor divided by pre-factor, so it agrees with the two amounts beside it."],
+    ], muted_cols=(1,), semi_cols=(0,), row_height=32, wrap_cols=(1,))
     body = (P.book_bar("LCR  ·  MIDBANK CAIRO", back=False, prev_next=False) +
-            P.title_block("START HERE &nbsp;&#183;&nbsp; MIDBANK CAIRO", "LCR", built) +
+            P.title_block("START HERE &nbsp;&#183;&nbsp; MIDBANK CAIRO", "LCR", built, kind="overview") +
             P.tiles(items, fixed_w=tw, h_row=68) + status + "<div style='height:%.1fpx'></div>" % px(12) +
             section("AT A GLANCE &nbsp;&#183;&nbsp; 3 CHARTS") + grid + "<div style='height:%.1fpx'></div>" % px(14) +
-            section("IN THIS BOOK &nbsp;&#183;&nbsp; %d SHEETS" % len(made)) + tbl)
+            section("REPORT INDEX &nbsp;&#183;&nbsp; %d SHEETS" % len(made)) + tbl +
+            "<div style='height:%.1fpx'></div>" % px(14) + section("HOW TO READ THIS") + notes)
     return P.page("Start here", body, 1500)
 
 
@@ -453,7 +470,7 @@ def top_counterparties(rows):
     # FitPivot: the label column as wide as its longest label, capped at 62.
     widths = [min(62, max(len(k) for k, _ in cps)) + 3, 16, 12, 14]
     cols = "".join('<col style="width:%dpx">' % P.colw(w) for w in widths)
-    hd = "font-family:\"Selawik Semibold\";color:#%s;background:#000;border-bottom:3px solid #%s" % (C["SOFT"],
+    hd = "font-family:\"Segoe UI Semibold\";color:#%s;background:#000;border-bottom:3px solid #%s" % (C["SOFT"],
                                                                                                    C["BRAND"])
     head = "<tr style='height:%.1fpx'>%s</tr>" % (px(22), "".join(
         "<td style='%s;%s'>%s</td>" % (hd, "text-align:right;padding-right:9px" if i else "", h)
@@ -471,43 +488,60 @@ def top_counterparties(rows):
              "background:linear-gradient(90deg,#%s %.1f%%,transparent %.1f%%)'>%s</td>"
              "<td style='border-bottom:1px solid #%s;text-align:right;padding-right:9px'>%.1f%%</td>"
              "<td style='border-bottom:1px solid #%s;text-align:right;padding-right:9px'>%.1f%%</td></tr>") % (
-                px(20), bg, C["LINE"], html.escape(name), C["LINE"], "00794F", wbar, wbar,
+                px(22), bg, C["LINE"], html.escape(name), C["LINE"], "00794F", wbar, wbar,
                 "{:,.1f}".format(v / 1e6), C["LINE"], 100 * v / tot, C["LINE"], 100 * run / tot))
-    total_row = ("<tr style='height:%.1fpx;background:#%s'><td style='font-family:\"Selawik Semibold\";"
+    total_row = ("<tr style='height:%.1fpx;background:#%s'><td style='font-family:\"Segoe UI Semibold\";"
                  "border-top:3px solid #%s'>Total</td>%s</tr>") % (
-        px(20), C["E950"], C["BRAND"], "".join(
-            "<td style='text-align:right;padding-right:9px;font-family:\"Selawik Semibold\";border-top:3px solid #%s'>"
+        px(22), C["E950"], C["BRAND"], "".join(
+            "<td style='text-align:right;padding-right:9px;font-family:\"Segoe UI Semibold\";border-top:3px solid #%s'>"
             "%s</td>" % (C["BRAND"], t) for t in ("{:,.1f}".format(tot / 1e6), "100.0%", "")))
     slicer = ("<div style='padding:%.1fpx 0 0 %.1fpx;height:%.1fpx;box-sizing:border-box'>"
               "<div style='width:%.1fpx;height:%.1fpx;background:#%s;box-shadow:inset 0 0 0 1px #%s;border-radius:4px;"
-              "padding:6px 8px;box-sizing:border-box'><div style='color:#%s;font-family:\"Selawik Semibold\";"
+              "padding:6px 8px;box-sizing:border-box'><div style='color:#%s;font-family:\"Segoe UI Semibold\";"
               "font-size:11.5px;margin-bottom:2px'>LCY / FCY</div>%s</div></div>") % (
         px(6), px(14), px(74), px(156), px(62), C["ROW"], C["LINE2"], C["TX1"], "".join(
             "<div style='height:%.1fpx;border-radius:3px;margin:3px 0;padding-left:8px;font-size:11px;"
             "line-height:%.1fpx;background:#%s;color:#%s'>%s</div>" % (px(15), px(15), C["DEEP"], C["TX1"], t)
             for t in ("LCY", "FCY")))
-    body = (P.book_bar("LCR  ·  MIDBANK CAIRO") +
+    body = (P.book_bar("LCR  ·  MIDBANK CAIRO", ordinal="REPORT 3 OF 6") +
             P.title_block("LCR &nbsp;&#183;&nbsp; PIVOT &nbsp;&#183;&nbsp; IN MILLIONS", "LCR top counterparties",
                           "The 25 largest counterparties by gross exposure - each one's share of the 25 and the "
-                          "running share down the list. Slice by LCY / FCY.") +
+                          "running share down the list. Slice by LCY / FCY. " + P.data_context() + ".") +
             P.tiles([("EXPOSURE &nbsp;&#183;&nbsp; TOTAL", P.compact(tot))]) +
             "<div style='height:%.1fpx'></div>" % px(6) + slicer + "<div style='height:%.1fpx'></div>" % px(10) +
             "<table>%s%s%s%s</table>" % (cols, head, "".join(body_rows), total_row))
-    return P.page("LCR top counterparties", body, 1100)
+    return P.page("LCR top counterparties", body, 1500)
+
+
+def standalone_chart(rows):
+    """Own-sheet chart path: NewBookSheet + DrawOnSheet, with the generated report shell."""
+    cps = top([r for r in rows if r["cp"] != "(no counterparty)"], "cp", lambda r: abs(r["pre"]), 10)
+    chart = hbars(px(1064), px(520), "Largest counterparties · gross pre-factor exposure",
+                  [k for k, _ in cps], [[v for _, v in cps]], PALETTES["avati"], label_w=px(240))
+    body = (P.book_bar("LCR · MIDBANK CAIRO", ordinal="REPORT 7 OF 7") +
+            P.title_block("LCR &nbsp;&#183;&nbsp; CHART", "Largest counterparties",
+                          "Top 10 by gross pre-factor exposure, in reporting LCY. " + P.data_context() + ".", kind="chart") +
+            f"<div style='position:relative;margin:{px(8)}px {px(14)}px;height:{px(520)}px'>{chart}</div>")
+    return P.page("Standalone chart", body, 1500)
+
+
+def preview_jobs():
+    """Pure HTML snapshot jobs. Callers may save HTML and use their approved browser."""
+    jobs = [("sheet-chart-config", chart_config_sheet(), 3400, 650),
+            ("sheet-workbooks", workbooks_sheet(), 1700, 560)]
+    g, gh = gallery_sheet()
+    jobs.append(("sheet-gallery", g, 1500, int(gh)))
+    rows = staged()
+    jobs.append(("built-start-here", start_here(rows), 1500, 1770))
+    jobs.append(("built-top-counterparties", top_counterparties(rows), 1500, 1210))
+    jobs.append(("built-standalone-chart", standalone_chart(rows), 1500, 980))
+    return jobs
 
 
 def main():
     out = P.OUT
     os.makedirs(out, exist_ok=True)
-    jobs = [("sheet-chart-config", chart_config_sheet(), 3400, 470),
-            ("sheet-workbooks", workbooks_sheet(), 1700, 380)]
-    g, gh = gallery_sheet()
-    jobs.append(("sheet-gallery", g, 1320, int(gh)))
-    if SAMPLE and os.path.exists(SAMPLE):
-        rows = staged()
-        jobs.append(("built-start-here", start_here(rows), 1500, 1330))
-        jobs.append(("built-top-counterparties", top_counterparties(rows), 1100, 900))
-    for name, page_html, w, h in jobs:
+    for name, page_html, w, h in preview_jobs():
         path = os.path.join(out, name + ".png")
         assets.render(page_html, path, w, h, scale=1.5 if w < 2000 else 1, transparent=False)
         print(path)

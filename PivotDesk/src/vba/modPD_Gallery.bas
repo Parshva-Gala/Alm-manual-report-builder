@@ -11,11 +11,11 @@ Option Explicit
 '  ordinary row, changed like any other.
 ' ============================================================================
 
-Private Const CARD_W As Double = 300
+Private Const CARD_W As Double = 344
 Private Const CARD_H As Double = 164
-Private Const GAP As Double = 14
+Private Const GAP As Double = 16
 Private Const PER_ROW As Long = 3
-Private Const LEFT0 As Double = 14
+Private Const LEFT0 As Double = 28
 Private Const FIRST_ROW As Long = 7
 
 ' key, kind ("pivot" / "chart"), title, what it does, what it uses, the row
@@ -217,6 +217,8 @@ Public Sub PaintCards(ByVal ws As Worksheet)
     Next t
     modPD_Theme.SetStatus ws, nPivot & " pivot reports and " & nChart & " charts. " & _
         IIf(nOn > 0, nOn & " already in the next build.", "None in the next build yet."), "Idle"
+    modPD_Theme.PrintReady ws, 1, r
+    ws.PageSetup.BlackAndWhite = False
     Err.Clear
 End Sub
 
@@ -227,13 +229,11 @@ Private Sub Card(ByVal ws As Worksheet, ByVal t As Variant, ByVal x As Double, B
     Dim sh As Shape, key As String, cap As String, kind As Long
     On Error Resume Next
     key = CStr(t(0))
-    Set sh = ws.Shapes.AddShape(msoShapeRoundedRectangle, x, y, CARD_W, CARD_H)
+    Set sh = modPD_Theme.SurfaceCard(ws, "pdg_card_" & key, x, y, CARD_W, CARD_H)
     sh.Name = "pdg_card_" & key
     sh.Adjustments.Item(1) = 0.06
-    sh.Fill.ForeColor.RGB = modPD_Theme.C_SURFACE
     sh.Line.ForeColor.RGB = IIf(st = "on", modPD_Theme.C_BRAND, modPD_Theme.C_HAIRLINE_2)
     sh.Line.Weight = 0.75
-    sh.Shadow.visible = msoFalse
     sh.Placement = xlFreeFloating
     sh.AlternativeText = CStr(t(2))
     Glyph ws, key, CStr(t(1)), x + CARD_W - 64, y + 16
@@ -244,17 +244,17 @@ Private Sub Card(ByVal ws As Worksheet, ByVal t As Variant, ByVal x As Double, B
     Wrapped ws, "pdg_desc_" & key, CStr(t(3)), x + 16, y + 54, CARD_W - 32, 44, 9, modPD_Theme.C_TEXT_2
     Wrapped ws, "pdg_uses_" & key, CStr(t(4)), x + 16, y + 102, CARD_W - 32, 16, 7.5, modPD_Theme.C_TEXT_3
     Select Case st
-        Case "on": cap = "Open":  kind = 2
+        Case "on": cap = "Edit report": kind = 2
         Case "off": cap = "Switch on": kind = 1
-        Case Else: cap = "Add": kind = 1
+        Case Else: cap = "Add report": kind = 4
     End Select
-    modPD_Theme.Pill ws, "pdg_btn_" & key, cap, "PD_GalleryAdd", x + 16, y + CARD_H - 36, 86, 24, kind
+    modPD_Theme.Pill ws, "pdg_btn_" & key, cap, "PD_GalleryAdd", x + 16, y + CARD_H - 36, 96, 24, kind
     If st = "on" Then
-        modPD_Theme.BarText ws, "pdg_state_" & key, ChrW(9679) & "  IN THE NEXT BUILD", x + 112, y + CARD_H - 29, _
-            7, modPD_Theme.C_BRAND_BRIGHT, modPD_Theme.UI_SEMI, 1
+        modPD_Theme.BarText ws, "pdg_state_" & key, ChrW(9679) & "  IN THE NEXT BUILD", x + 122, y + CARD_H - 29, _
+            7, modPD_Theme.C_LINK, modPD_Theme.UI_SEMI, 0.5
     ElseIf st = "off" Then
-        modPD_Theme.BarText ws, "pdg_state_" & key, "ON THE SHEET, SWITCHED OFF", x + 112, y + CARD_H - 29, _
-            7, modPD_Theme.C_TEXT_3, modPD_Theme.UI_SEMI, 1
+        modPD_Theme.BarText ws, "pdg_state_" & key, "ON THE SHEET, SWITCHED OFF", x + 122, y + CARD_H - 29, _
+            7, modPD_Theme.C_TEXT_2, modPD_Theme.UI_SEMI, 0.3
     End If
     Err.Clear
 End Sub

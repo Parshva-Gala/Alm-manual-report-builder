@@ -844,69 +844,31 @@ Private Sub SortRecipe(ByVal pt As PivotTable, ByVal rc As Object)
     Err.Clear
 End Sub
 
-' Every label column as wide as its longest label, every figure column as wide
-' as its widest figure - a recipe's own Widths win - then the zoom that shows
-' the table on a laptop, the bar frozen at the top, and the cursor on the first
-' figure rather than on the chrome.
+' Measure the formatted pivot after its final font has been applied. A total
+' is not necessarily its largest value: positive and negative balances can
+' cancel, and Cell.Text already contains #### when the column is too narrow.
+' Excel measures every displayed value and header in one native range call.
+' It does not walk cached PivotItems, so a top-25 report stays a 25-row fit.
 Private Sub FitPivot(ByVal ws As Worksheet, ByVal pt As PivotTable, ByVal rc As Object)
-    Dim rng As Range, c As Long, i As Long, nLab As Long, lastCol As Long, total As Double, w As Double
-    Dim compact As Boolean, pf As PivotField, wd As Object, nm As String, t As String
+    Dim rng As Range, nLab As Long, total As Double, compact As Boolean
     On Error Resume Next
     Set rng = pt.TableRange1
     If rng Is Nothing Then Exit Sub
-    If Not rc Is Nothing Then
-        compact = (CLng(rc("Layout")) = 0)
-        Set wd = rc("Widths")
-    End If
+    If Not rc Is Nothing Then compact = (CLng(rc("Layout")) = 0)
     nLab = pt.RowFields.count
     If compact And nLab > 1 Then nLab = 1
-    lastCol = rng.Column + rng.Columns.count - 1
-    For c = rng.Column To lastCol
-        i = c - rng.Column + 1
-        w = 0
-        If i <= nLab And pt.RowFields.count > 0 Then
-            If compact Then
-                For Each pf In pt.RowFields
-                    If LabelChars(pf) + 2 * (pf.Position - 1) > w Then w = LabelChars(pf) + 2 * (pf.Position - 1)
-                Next pf
-                nm = ""
-            Else
-                Set pf = pt.RowFields(i)
-                nm = pf.Name
-                w = LabelChars(pf)
-            End If
-            If Not wd Is Nothing And Len(nm) > 0 Then
-                If wd.Exists(nm) Then
-                    w = CDbl(wd(nm))
-                ElseIf wd.Exists(GroupedFrom(rc, nm)) Then
-                    w = CDbl(wd(GroupedFrom(rc, nm)))
-                End If
-            End If
-            w = w + 3
-            If w > 62 Then w = 62
-            If w < 10 Then w = 10
-        Else
-            ' The widest figure in a column is its total; the header may be wider.
-            t = ws.Cells(rng.Row + rng.Rows.count - 1, c).Text
-            w = Len(t)
-            If Len(ws.Cells(rng.Row, c).Text) > w Then w = Len(ws.Cells(rng.Row, c).Text)
-            If Len(ws.Cells(rng.Row + 1, c).Text) > w Then w = Len(ws.Cells(rng.Row + 1, c).Text)
-            w = w + 4
-            If Not rc Is Nothing Then
-                If CDbl(rc("ValueWidth")) <> 14 Then w = CDbl(rc("ValueWidth"))
-            End If
-            If w < 12 Then w = 12
-            If w > 30 Then w = 30
-        End If
-        ws.Columns(c).ColumnWidth = w
-        total = total + w
-    Next c
+    With pt.TableRange2
+        .Font.Name = modPD_Theme.UI_FONT
+        .Font.Size = 9.5
+        .VerticalAlignment = xlCenter
+    End With
+    total = SizePivotColumns(ws, pt, rc)
     ' Filters and body on even rows, tall enough to read.
-    ws.Range(ws.Rows(FILTER_TOP), ws.Rows(rng.Row + rng.Rows.count + 400)).RowHeight = 20
+    ws.Range(ws.Rows(FILTER_TOP), ws.Rows(rng.Row + rng.Rows.count + 400)).RowHeight = 22
     ws.Rows(rng.Row - 1).RowHeight = 10
     ws.Activate
     ActiveWindow.DisplayGridlines = False
-    ActiveWindow.DisplayHeadings = False
+    ActiveWindow.DisplayHeadings = True
     ActiveWindow.Zoom = ZoomFor(total)
     ActiveWindow.FreezePanes = False
     ActiveWindow.ScrollRow = 1
@@ -917,6 +879,71 @@ Private Sub FitPivot(ByVal ws As Worksheet, ByVal pt As PivotTable, ByVal rc As 
     Err.Clear
 End Sub
 
+' Shared by the build and the tool's Fit report action for an open export.
+' The range is bounded to the rendered pivot including page filters and
+' totals. Shape titles, far-right tile helpers and the backing cache cannot
+' enlarge the columns. Requested widths are floors, never clipping caps.
+Private Function SizePivotColumns(ByVal ws As Worksheet, ByVal pt As PivotTable, ByVal rc As Object) As Double
+    Dim shown As Range, body As Range, wd As Object, pf As PivotField
+    Dim c As Long, i As Long, nLab As Long, lastCol As Long, compact As Boolean
+    Dim measured As Double, wanted As Double, total As Double, nm As String, why As String
+    On Error GoTo CouldNotFit
+    Set shown = pt.TableRange2
+    Set body = pt.TableRange1
+    If shown Is Nothing Or body Is Nothing Then Exit Function
+    nLab = pt.RowFields.count
+    If Not rc Is Nothing Then
+        compact = (CLng(rc("Layout")) = 0)
+        Set wd = rc("Widths")
+    End If
+    If compact And nLab > 1 Then nLab = 1
+    shown.WrapText = False
+    shown.Columns.AutoFit
+    lastCol = shown.Column + shown.Columns.count - 1
+    For c = shown.Column To lastCol
+        i = c - body.Column + 1
+        measured = CDbl(ws.Columns(c).ColumnWidth) + 2
+        wanted = 12
+        If i > 0 And i <= nLab Then
+            wanted = 10
+            If Not compact And Not wd Is Nothing Then
+                Set pf = pt.RowFields(i)
+                nm = pf.Name
+                If wd.Exists(nm) Then
+                    wanted = CDbl(wd(nm)) + 3
+                ElseIf wd.Exists(GroupedFrom(rc, nm)) Then
+                    wanted = CDbl(wd(GroupedFrom(rc, nm))) + 3
+                End If
+            End If
+        ElseIf Not rc Is Nothing Then
+            If CDbl(rc("ValueWidth")) <> 14 Then wanted = CDbl(rc("ValueWidth"))
+        End If
+        If measured < wanted Then measured = wanted
+        ' Excel's own physical limit, not the former 30-character cap.
+        If measured > 255 Then measured = 255
+        ws.Columns(c).ColumnWidth = measured
+        total = total + measured
+    Next c
+    SizePivotColumns = total
+    Exit Function
+CouldNotFit:
+    why = Err.Description
+    Err.Clear
+    LogIt V_CHECK, "Report fit", "Could not fully fit " & ws.Name & " - " & why, ws.Name
+End Function
+
+' Refit an already open report without changing its filters, layout, sort,
+' selected cell, scroll position or zoom. The caller owns view controls.
+' This action lives in the tool; generated .xlsx files need no macros.
+Public Sub FitReportValues(ByVal ws As Worksheet)
+    Dim pt As PivotTable, total As Double
+    If ws Is Nothing Then Exit Sub
+    For Each pt In ws.PivotTables
+        total = SizePivotColumns(ws, pt, Nothing)
+        PrintPivot ws, pt
+    Next pt
+End Sub
+
 ' The field a grouped column was made from - widths are set on the field.
 Private Function GroupedFrom(ByVal rc As Object, ByVal nm As String) As String
     Dim k As Variant
@@ -925,26 +952,6 @@ Private Function GroupedFrom(ByVal rc As Object, ByVal nm As String) As String
         If StrComp(CStr(rc("GroupOf")(k)), nm, vbTextCompare) = 0 Then GroupedFrom = CStr(k)
     Next k
 End Function
-
-' The longest label a row field shows, and its heading, in characters - read
-' from the cells the pivot drew, in one call. Asking each item for its caption
-' is one call per item, and a field can hold fifty thousand with 25 on show.
-Private Function LabelChars(ByVal pf As PivotField) As Double
-    Dim v As Variant, x As Variant, n As Long
-    On Error Resume Next
-    n = Len(pf.caption) + 3                 ' the heading and its filter button
-    v = pf.DataRange.Value2
-    If IsArray(v) Then
-        For Each x In v
-            If Len(CStr(x)) > n Then n = Len(CStr(x))
-        Next x
-    ElseIf Not IsEmpty(v) Then
-        If Len(CStr(v)) > n Then n = Len(CStr(v))
-    End If
-    LabelChars = n
-    Err.Clear
-End Function
-
 
 Private Sub RecipeTab(ByVal ws As Worksheet, ByVal tabWord As String)
     On Error Resume Next
@@ -1178,19 +1185,20 @@ End Sub
 ' while it is set: with a hundred sheets, talking to the printer driver for
 ' each property is the difference between a second and a minute.
 Private Sub PrintPivot(ByVal ws As Worksheet, ByVal pt As PivotTable)
+    Dim report As Range
     On Error Resume Next
+    Set report = pt.TableRange2
+    If report Is Nothing Then Exit Sub
+    ' Only the pivot's own columns are data. Far-right GETPIVOTDATA helpers
+    ' are intentionally outside the print area; the shared shell adds its
+    ' visible shapes without consulting UsedRange.
+    modPD_Theme.PrintReady ws, report.Column + report.Columns.count - 1, report.Row + report.Rows.count - 1
     pt.PrintTitles = True
     Application.PrintCommunication = False
     With ws.PageSetup
-        .Orientation = xlLandscape
-        .Zoom = False
-        .FitToPagesWide = 1
-        .FitToPagesTall = False
-        .BlackAndWhite = True
         .CenterHeader = "&""Segoe UI Semibold,Regular""&11&A"
         .LeftFooter = "&8" & TOOL_NAME & " ALM Desk  " & ChrW(183) & "  &F"
-        .CenterFooter = ""
-        .RightFooter = "&8Page &P of &N"
+        .BlackAndWhite = False
     End With
     Application.PrintCommunication = True
     Err.Clear
@@ -1217,6 +1225,10 @@ Private Sub PivotTiles(ByVal ws As Worksheet, ByVal pt As PivotTable)
             cell.Formula = "=IFERROR(GETPIVOTDATA(""" & Replace(cap, """", """""") & """," & anchor & "),""-"")"
             mag = Abs(SafeNum(pt.GetPivotData(cap).value))
             cell.NumberFormat = CompactFormat(mag, df.Function)
+            ' Linked shape text uses this cell's formatted display. Keep the
+            ' four off-canvas helper columns wide enough for the compact
+            ' figure too; they remain outside the bounded report print area.
+            cell.EntireColumn.ColumnWidth = 32
             cell.HorizontalAlignment = xlLeft
             cell.Font.Color = modPD_Theme.C_SHEET
             modPD_Theme.Tile ws, "pdb_tile" & n, x, ws.Rows(TILE_ROW).Top + 8, 196, 50, _
@@ -1268,6 +1280,9 @@ Public Sub LinkSiblings(ByVal wb As Workbook)
                 ws.Hyperlinks.Add Anchor:=sh, Address:="", SubAddress:="'" & Replace(nm, "'", "''") & "'!A1", _
                                   ScreenTip:=nm
             End If
+            Set sh = modPD_Theme.BarText(ws, "pdb_position", "REPORT " & Format$(i, "00") & " / " & _
+                     Format$(made.count, "00"), 612, 16, 7, modPD_Theme.C_TEXT_2, modPD_Theme.UI_SEMI, 0.8)
+            sh.Width = 150
         End If
     Next i
     Err.Clear
@@ -1366,6 +1381,8 @@ Private Sub Slicers(ByVal ws As Worksheet, ByVal pt As PivotTable, ByRef fields 
             x = x + 162
         End If
     Next i
+    ' Include slicers added after the pivot was first styled.
+    PrintPivot ws, pt
 End Sub
 
 ' The slicer cache for a field, made if this is the first time and reused - with

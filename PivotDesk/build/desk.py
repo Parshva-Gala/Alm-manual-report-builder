@@ -66,7 +66,7 @@ def render_icons():
 # ---------------------------------------------------------------------------
 CARD_FILL = Linear(90, [(0, SURFACE_HI, 1), (1, SURFACE, 1)])
 CARD_LINE = Line(0.75, HAIR_2, 1)
-CARD_SHADOW = Shadow(18, 6, 90, "000000", 0.45)
+CARD_SHADOW = Shadow(14, 4, 90, "000000", 0.30)
 
 
 def text(name, x, y, w, h, paras, anchor="t", wrap=True, macro="", descr="", clip=False, hidden=False):
@@ -209,15 +209,25 @@ def desk(st):
 
     # --- hero -----------------------------------------------------------------
     HX, HY, HW, HH = MARGIN, 68, W - 2 * MARGIN, 152
-    S.append(pic("pdx_hero_art", HX, HY, HW, HH, os.path.join(ASSETS, "hero"), svg=False, descr="hero"))
-    S.append(text("pdx_hero_date", HX + 28, HY + 22, 420, 12, T(st["date"], 7, EM[300], F_SEMI, spc=1.8),
+    S.append(Shape("pdx_hero_art", HX, HY, HW, HH, "roundRect", 14,
+                   fill=Linear(0, [(0, SURFACE_HI, 1), (0.55, EM[950], 1), (1, SURFACE, 1)]),
+                   line=Line(0.75, EM[800], 1), descr="Midbank ALM operations"))
+    S.append(Shape("pdx_hero_accent", HX + 1, HY + 24, 3, HH - 48, "roundRect", 1.5,
+                   fill=Solid(EM[400]), descr="Midbank emerald"))
+    S.append(text("pdx_hero_context", HX + 24, HY + 17, 258, 12,
+                  T("MIDBANK / ALM OPERATIONS", 7, EM[300], F_SEMI, spc=1.2), wrap=False,
+                  descr="Midbank asset and liability management"))
+    S.append(text("pdx_hero_date", HX + 286, HY + 17, 266, 12, T(st["date"], 6.5, TX_3, F_SEMI, align="r"),
                   wrap=False, descr="today"))
-    S.append(text("pdx_hero_greet", HX + 26, HY + 33, 540, 40, T(st["greeting"], 26, TX_1, F_LIGHT),
-                  wrap=False, descr="greeting"))
-    S.append(text("pdx_hero_lede", HX + 28, HY + 74, 520, 32, T(st["lede"], 9.5, TX_2, F_BODY), descr="where the desk stands"))
-    add(button("pdx_cta", HX + 28, HY + 112, 188, st["cta"], "primary", "PD_NextAction", icon("arrow", "ink"),
+    S.append(text("pdx_hero_greet", HX + 23, HY + 32, 544, 39, T(st["greeting"], 27, TX_1, F_SEMI),
+                  wrap=False, descr="current desk priority"))
+    S.append(text("pdx_hero_lede", HX + 24, HY + 75, 532, 30, T(st["lede"], 9, TX_2, F_BODY), descr="where the desk stands"))
+    add(button("pdx_cta", HX + 24, HY + 112, 188, st["cta"], "primary", "PD_NextAction", icon("arrow", "ink"),
                descr="The next thing to do"))
-    add(button("pdx_cta2", HX + 224, HY + 112, 112, st["cta2"], "ghost", "PD_LoadFiles", descr="Pick files"))
+    add(button("pdx_cta2", HX + 220, HY + 112, 104, st["cta2"], "ghost", "PD_LoadFiles", descr="Pick files"))
+    state_fg, state_bg = lv(st.get("hero_level", "IDLE"))
+    S.append(pill("pdx_hero_state", HX + 364, HY + 116, 188, 20, st.get("hero_status", "START WITH SOURCE FILES"),
+                  state_fg, state_bg, size=6.5, border=Line(0.75, state_fg, 0.35), descr="desk readiness"))
 
     # KPI tiles
     tw, tg = 102, 10
@@ -225,32 +235,32 @@ def desk(st):
     kpis = st["kpis"]
     for i, k in enumerate(kpis):
         x = tx0 + i * (tw + tg)
-        y = HY + 20
+        y = HY + 18
         nm = "pdx_kpi_%s" % k["key"]
-        S.append(Shape(nm, x, y, tw, 112, "roundRect", 10, fill=Solid("04100C", 0.78),
-                       line=Line(0.75, EM[300], 0.16), descr=k["label"]))
-        S.append(text(nm + "_label", x + 12, y + 12, tw - 20, 10, T(k["label"], 6.5, TX_2, F_SEMI, spc=1.2),
+        S.append(Shape(nm, x, y, tw, 116, "roundRect", 10, fill=Solid(CANVAS, 0.85),
+                       line=Line(0.75, HAIR_2, 1), descr=k["label"]))
+        S.append(text(nm + "_label", x + 12, y + 12, tw - 20, 10, T(k["label"], 6.5, TX_2, F_SEMI, spc=0.75),
                       wrap=False, descr=k["label"]))
-        S.append(text(nm + "_value", x + 11, y + 22, tw - 20, 36, T(k["value"], 24, k.get("color", TX_1), F_LIGHT),
+        S.append(text(nm + "_value", x + 11, y + 25, tw - 20, 36, T(k["value"], 27, k.get("color", TX_1), F_SEMI),
                       wrap=False, descr=k["label"] + " value"))
-        S.append(text(nm + "_sub", x + 12, y + 60, tw - 22, 24, T(k["sub"], 7, TX_2, F_BODY), descr=k["label"]))
+        S.append(text(nm + "_sub", x + 12, y + 66, tw - 22, 26, T(k["sub"], 7, TX_3, F_BODY), descr=k["label"]))
         n = k["segments"]
         gap = 3
         sw = (tw - 24 - (n - 1) * gap) / n
         for j in range(n):
             on = j < k["filled"]
-            S.append(Shape("%s_seg%d" % (nm, j + 1), x + 12 + j * (sw + gap), y + 96, sw, 4, "roundRect", 2,
+            S.append(Shape("%s_seg%d" % (nm, j + 1), x + 12 + j * (sw + gap), y + 100, sw, 4, "roundRect", 2,
                            fill=Solid(k.get("seg_color", EM[400])) if on else Solid("FFFFFF", 0.10),
                            descr="meter"))
 
     # --- the three cards ------------------------------------------------------------
     cards = [
-        ("1", "01", "Add files", "Point at a folder or pick files. Each is recognised by the columns it "
-         "carries, never its name.", "upload"),
-        ("2", "02", "Build pivots", "Each framework becomes a workbook, or one per currency: every pivot and "
-         "chart set up under Reports, all live.", "pivot"),
-        ("3", "03", "Reconcile", "Outputs against control reports 3 and 6. Scope is settled before any "
-         "difference is called a break.", "balance"),
+        ("1", "01", "Connect source files", "Load framework outputs and independent controls. Files are recognised "
+         "by their columns.", "upload"),
+        ("2", "02", "Build your workbooks", "Choose LCR, NSFR and maturity ladder. Reports defines the live pivots "
+         "and charts in every workbook.", "pivot"),
+        ("3", "03", "Review & reconcile", "Compare outputs with controls 3 and 6. Review checks and coverage "
+         "before interpreting a difference.", "balance"),
     ]
     for (k, num, title, desc, ic), x in zip(cards, CARD_X):
         y = CARD_Y
@@ -261,13 +271,13 @@ def desk(st):
         S.append(pill("pdx_card%s_step" % k, x + 20, y + 20, 28, 15, num, EM[300], EM[950],
                       size=7, border=Line(0.75, EM[800], 1), descr="step " + num))
         S.append(text("pdx_card%s_count" % k, x + 56, y + 20, 200, 15,
-                      T(st["counts"][int(k) - 1], 6.5, TX_3, F_SEMI, spc=1.2), anchor="ctr", wrap=False,
+                      T(st["counts"][int(k) - 1], 6.5, TX_2, F_SEMI, spc=0.55), anchor="ctr", wrap=False,
                       descr="progress"))
         S.append(Shape("pdx_card%s_icon_tile" % k, x + CARD_W - 52, y + 18, 32, 32, "roundRect", 9,
                        fill=Linear(90, [(0, EM[900], 1), (1, EM[950], 1)]), line=Line(0.75, EM[800], 1),
                        descr=title))
         S.append(pic("pdx_card%s_icon" % k, x + CARD_W - 44, y + 26, 16, 16, icon(ic, "em"), descr=title))
-        S.append(text("pdx_card%s_title" % k, x + 20, y + 42, 250, 22, T(title, 14, TX_1, F_SEMI), wrap=False,
+        S.append(text("pdx_card%s_title" % k, x + 20, y + 41, 282, 24, T(title, 15, TX_1, F_SEMI), wrap=False,
                       descr=title))
         S.append(text("pdx_card%s_desc" % k, x + 20, y + 64, 300, 28, T(desc, 8.5, TX_2, F_BODY), descr=desc))
         S.append(Shape("pdx_card%s_rule" % k, x + 20, y + 98, CARD_W - 40, 0.75, fill=Solid(HAIR), descr="rule"))
@@ -406,7 +416,7 @@ def desk(st):
     S.append(pic("pdx_act_art", ax + aw - 256, ay + 18, 240, 78, os.path.join(ASSETS, "lattice-medallion"),
                  svg=False, hidden=bool(acts), descr="pattern"))
     S.append(text("pdx_act_empty", ax + 20, ay + 36, 320, 52,
-                  T("Nothing has happened on this desk yet. Add files and every step is written here, newest first.",
+                  T("Your working history starts here. Loads, builds and reconciliation results appear as you work.",
                     8.5, TX_3, F_BODY), anchor="ctr", hidden=bool(acts), descr="no activity yet"))
 
     # --- recent builds: what was made, ready to open --------------------------
@@ -428,7 +438,7 @@ def desk(st):
         S[-1].hidden = hidden
         S.append(text("pdx_rb%d_name" % (i + 1), gx + 78, ry, 236, 12, T(b["name"] if b else " ", 8.5, TX_1, F_BODY),
                       wrap=False, clip=True, hidden=hidden, descr="workbook"))
-        S.append(text("pdx_rb%d_meta" % (i + 1), gx + 78, ry + 11.5, 236, 10, T(b["meta"] if b else " ", 6.5, TX_3, F_BODY),
+        S.append(text("pdx_rb%d_meta" % (i + 1), gx + 78, ry + 12, 236, 11, T(b["meta"] if b else " ", 6.5, TX_3, F_BODY),
                       wrap=False, clip=True, hidden=hidden, descr="when and how many sheets"))
         S.append(Shape("pdx_rb%d_open" % (i + 1), gx + gw - 20 - 52, ry + 2, 52, 17, "roundRect", 8.5,
                        fill=Solid("FFFFFF", 0.03), line=Line(0.75, HAIR_2, 1),
@@ -441,14 +451,14 @@ def desk(st):
             S.append(Shape("pdx_rb%d_rule" % (i + 1), gx + 20, ry + 22.25, gw - 40, 0.5, fill=Solid(HAIR, 0.8),
                            hidden=i + 1 >= len(builds), descr="rule"))
     S.append(text("pdx_rb_empty", gx + 20, gy + 34, gw - 40, 60,
-                  [T("Nothing built yet.", 8.5, TX_2, F_SEMI),
-                   T("Each workbook you build is listed here, newest first, ready to open.", 8, TX_3, F_BODY)],
+                  [T("Your next deliverable starts above.", 9, TX_2, F_SEMI),
+                   T("Build a framework, then open its workbook here. The latest three builds stay within reach.", 8, TX_3, F_BODY)],
                   anchor="ctr", hidden=bool(builds), descr="nothing built yet"))
 
     # --- footer -------------------------------------------------------------
-    S.append(text("pdx_foot", MARGIN, 642, 700, 12,
-                  T("Avati ALM Desk %s  ·  Every workbook it writes is live PivotTables on one cache — drag a field, "
-                    "add a slicer, double-click a total." % st["version"], 7, TX_3, F_BODY), wrap=False,
+    S.append(text("pdx_foot", MARGIN, 642, 560, 12,
+                  T("Avati ALM Desk %s  ·  MIDBANK  ·  Live pivots, shared caches and traceable builds." % st["version"],
+                    7, TX_3, F_BODY), wrap=False,
                   descr="about"))
     S.append(text("pdx_keys", W - MARGIN - 440, 642, 440, 12,
                   T("F1 Tour  ·  Ctrl+Shift+  D Desk  ·  F Files  ·  P Reports  ·  R Reconciliation  ·  A Activity",
@@ -521,17 +531,17 @@ def desk(st):
 # ---------------------------------------------------------------------------
 TOUR_W, TOUR_H, TOUR_PAD, TOUR_GAP = 300, 144, 6, 14
 TOUR = [
-    (["pdx_hero_greet", "pdx_hero_lede", "pdx_cta", "pdx_cta2"], "The next step, always",
-     "Avati reads the desk and puts the next sensible step on this button. The sentence above it says why."),
+    (["pdx_hero_greet", "pdx_hero_lede", "pdx_cta", "pdx_cta2", "pdx_hero_state"], "Your next action, in context",
+     "The headline and readiness badge follow your files, builds and checks. The bright button takes the next step; the four metrics show the current position."),
     (["pdx_card1"], "Put the files on the desk",
      "Scan a folder or pick files. Each is recognised by its columns, not its name. Click a row to choose "
      "the file for that slot."),
     (["pdx_card2"], "Build what you need",
      "Switch frameworks on or off, then build. Every sheet comes from a row on Pivot config, and every row "
      "can be changed."),
-    (["pdx_card3"], "Breaks before anyone asks",
-     "Reconcile the outputs against control reports 3 and 6. Each cell of the matrix is one control against "
-     "one framework."),
+    (["pdx_card3"], "Review every flagged check",
+     "Compare outputs with controls 3 and 6. The matrix separates breaks from checks needing review. "
+     "Open Reconciliation and Activity for the differences and scope."),
     (["pdx_rb"], "Open what you built",
      "Every workbook a build writes is listed here, newest first. Open one straight from the Desk, or the "
      "whole folder."),
@@ -581,15 +591,17 @@ def tour_place(tx, ty, tw, th):
 # ---------------------------------------------------------------------------
 #  States
 # ---------------------------------------------------------------------------
-def empty_state(today="SATURDAY  ·  26 SEPTEMBER 2026", greeting="Good evening."):
+def empty_state(today="SUNDAY  ·  27 SEPTEMBER 2026", greeting="Your ALM workbench."):
     return {
-        "version": "3.0",
+        "version": "3.3",
         "asof": "NO DATA LOADED",
         "view_label": "Excel view",
         "date": today,
         "greeting": greeting,
-        "lede": "Nothing is on the desk yet. Point Avati at the folder holding your framework outputs "
-                "and control reports 3 and 6 - it works out which file is which.",
+        "lede": "Start with LCR, NSFR and maturity ladder outputs, plus controls 3 and 6. "
+                "Scan their folder or choose individual files.",
+        "hero_status": "START WITH SOURCE FILES",
+        "hero_level": "IDLE",
         "cta": "Scan a folder",
         "cta2": "Pick files",
         "kpis": [
@@ -598,7 +610,7 @@ def empty_state(today="SATURDAY  ·  26 SEPTEMBER 2026", greeting="Good evening.
             {"key": "ctl", "label": "CONTROLS", "value": "0", "sub": "of 2 control reports", "segments": 2, "filled": 0},
             {"key": "recon", "label": "RECONCILIATION", "value": "—", "sub": "not run yet", "segments": 1, "filled": 0},
         ],
-        "counts": ["0 OF 5 IN PLACE", "NOTHING TO BUILD YET", "NEEDS AN OUTPUT AND A CONTROL"],
+        "counts": ["0 OF 5 CONNECTED", "AWAITING FRAMEWORK OUTPUTS", "ADD OUTPUTS + CONTROLS"],
         "slots": [
             {"label": "LCR output", "level": "EMPTY", "meta": "Not added  ·  click to choose", "meta_color": TX_4},
             {"label": "NSFR output", "level": "EMPTY", "meta": "Not added  ·  click to choose", "meta_color": TX_4},
@@ -639,18 +651,21 @@ def showcase_state():
     s = empty_state()
     s.update({
         "asof": "DATA AS OF 30 NOV 2025",
-        "lede": "Four of five files are on the desk and all three frameworks are built. Against control "
-                "report 3, one comparison broke. Control report 6 has moved; add it again to finish.",
-        "cta": "Open the breaks",
+        "greeting": "Bring the desk up to date.",
+        "lede": "Control report 6 is no longer at its saved location. Choose it again, then rerun "
+                "reconciliation against the current inputs.",
+        "hero_status": "SOURCE FILE NEEDS ATTENTION",
+        "hero_level": "WARN",
+        "cta": "Find Control report 6",
         "cta2": "Pick files",
         "kpis": [
             {"key": "files", "label": "FILES", "value": "4", "sub": "of 5 on the desk", "segments": 5, "filled": 4},
             {"key": "fw", "label": "FRAMEWORKS", "value": "3", "sub": "of 3 ready to pivot", "segments": 3, "filled": 3},
             {"key": "ctl", "label": "CONTROLS", "value": "1", "sub": "of 2 control reports", "segments": 2, "filled": 1},
-            {"key": "recon", "label": "RECONCILIATION", "value": "1", "sub": "break in 3 comparisons", "segments": 1,
-             "filled": 1, "color": BAD, "seg_color": BAD},
+            {"key": "recon", "label": "RECONCILIATION", "value": "—", "sub": "inputs changed · rerun", "segments": 1,
+             "filled": 1, "color": WARN, "seg_color": WARN},
         ],
-        "counts": ["4 OF 5 IN PLACE", "3 OF 3 READY", "1 OF 2 CONTROLS IN PLACE"],
+        "counts": ["4 OF 5 CONNECTED", "3 OF 3 READY", "1 OF 2 CONTROLS CONNECTED"],
         "slots": [
             {"label": "LCR output", "level": "LOADED", "meta": "LCR_Output_30Nov.xlsx  ·  412,806 rows"},
             {"label": "NSFR output", "level": "LOADED", "meta": "NSFR_Output_30Nov.xlsx  ·  388,120 rows"},
@@ -672,11 +687,11 @@ def showcase_state():
             {"label": "Control report 3", "level": "LOADED", "meta": "by COA  ·  664 keys"},
             {"label": "Control report 6", "level": "MISSING", "meta": "by account  ·  file moved"},
         ],
-        "recon_when": "LAST RUN  ·  26 SEP 14:22",
-        "matrix": [["OK", "BREAK", "OK"], ["—", "—", "—"]],
-        "verdict_level": "BREAK",
-        "verdict_title": "BREAKS",
-        "verdict_value": "1 of 3",
+        "recon_when": "INPUTS CHANGED  ·  RERUN",
+        "matrix": [["—", "—", "—"], ["—", "—", "—"]],
+        "verdict_level": "WARN",
+        "verdict_title": "RERUN",
+        "verdict_value": "Required",
         "recon_kind": "soft",
         "activity": [
             {"when": "26 Sep 14:22", "level": "Break", "stage": "Recon",

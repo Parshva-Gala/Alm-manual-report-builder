@@ -141,21 +141,7 @@ Private Sub DressLogBlock(ByVal ws As Worksheet, ByVal lastR As Long)
 End Sub
 
 Private Sub PrintSetup()
-    Dim ws As Worksheet
-    Set ws = GetSheet(SH_SOURCES)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, modPD_Files.S_COLS
-    Set ws = GetSheet(SH_RECON)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
-    Set ws = GetSheet(SH_LOG)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 5
-    Set ws = GetSheet(SH_CONFIG)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 21
-    Set ws = GetSheet(SH_FIELDS)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
-    Set ws = GetSheet(SH_BOOKS)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
-    Set ws = GetSheet(SH_CHARTS)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 20
+    PreparePrint
 End Sub
 
 Private Sub OrderSheets()
@@ -348,4 +334,73 @@ Public Sub PD_ClearLog()
     LogIt V_OK, "Activity", "The log was cleared.", ""
     modPD_Desk.RefreshDesk
     Err.Clear
+End Sub
+
+' Refresh only application-owned visible pages. Find is bounded to the
+' header columns; report artwork supplies the Gallery's content bounds.
+' Do this once before printing, not on every appended activity message.
+Public Sub PreparePrint()
+    Dim ws As Worksheet, lastCol As Long
+    On Error Resume Next
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.visible = xlSheetVisible Then
+            Select Case ws.Name
+                Case SH_SOURCES, SH_RECON, SH_LOG, SH_CONFIG, SH_FIELDS, SH_CHARTS, SH_BOOKS, SH_GALLERY
+                    lastCol = ws.Cells(R_HDR, ws.Columns.count).End(xlToLeft).Column
+                    modPD_Theme.PrintReady ws, lastCol
+            End Select
+        End If
+    Next ws
+    Err.Clear
+End Sub
+
+
+' User-invoked repair for the active ALM table, without rebuilding its data.
+' Generated exports still work independently: native column headings stay on.
+Public Sub PD_FitReport()
+    Dim ws As Worksheet, found As Range, body As Range, marker As Shape
+    Dim lastCol As Long, lastR As Long, c As Long, numericCol As Boolean
+    If PD_Busy Then Exit Sub
+    On Error GoTo Failed
+    If Not TypeOf ActiveSheet Is Worksheet Then Exit Sub
+    Set ws = ActiveSheet
+    If Not ws.Parent Is ThisWorkbook Then
+        On Error Resume Next
+        Set marker = ws.Shapes("pdb_logo")
+        On Error GoTo Failed
+        If marker Is Nothing Then Exit Sub
+        If ws.PivotTables.count = 0 Then Exit Sub
+        modPD_Pivot.FitReportValues ws
+    Else
+        Select Case ws.Name
+            Case SH_SOURCES, SH_RECON, SH_LOG, SH_CONFIG, SH_FIELDS, SH_CHARTS, SH_BOOKS
+                lastCol = ws.Cells(R_HDR, ws.Columns.count).End(xlToLeft).Column
+                Set found = ws.Range(ws.Cells(R_HDR, 1), ws.Cells(ws.Rows.count, lastCol)).Find(What:="*", _
+                    After:=ws.Cells(R_HDR, 1), LookIn:=xlFormulas, LookAt:=xlPart, SearchOrder:=xlByRows, _
+                    SearchDirection:=xlPrevious, MatchCase:=False, SearchFormat:=False)
+                If found Is Nothing Then Exit Sub
+                lastR = found.Row
+                Set body = ws.Range(ws.Cells(R_HDR, 1), ws.Cells(lastR, lastCol))
+                body.Columns.AutoFit
+                For c = 1 To lastCol
+                    numericCol = (ws.Name = SH_RECON And c >= 4 And c <= 6) Or _
+                                 (ws.Name = SH_SOURCES And c >= 5 And c <= 6)
+                    If ws.Columns(c).ColumnWidth < 10 Then ws.Columns(c).ColumnWidth = 10
+                    If Not numericCol And ws.Columns(c).ColumnWidth > 72 Then
+                        ws.Columns(c).ColumnWidth = 72
+                        ws.Range(ws.Cells(R_HDR, c), ws.Cells(lastR, c)).WrapText = True
+                    End If
+                Next c
+                If lastR >= R_FIRST Then
+                    ws.Range(ws.Rows(R_FIRST), ws.Rows(lastR)).AutoFit
+                End If
+                modPD_Theme.PrintReady ws, lastCol, lastR
+            Case Else
+                Exit Sub
+        End Select
+    End If
+    ActiveWindow.DisplayHeadings = True
+    Exit Sub
+Failed:
+    MsgBox "The layout could not be fitted: " & Err.Description, vbExclamation, TOOL_NAME
 End Sub

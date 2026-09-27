@@ -83,6 +83,9 @@ msothemecolortext1
 # Constants added in 2.0, each checked against the Excel / Office type
 # library by name and value before it went in.
 REVIEWED_CONSTANTS = {
+    "xlformulas": -4123,                 # XlFindLookIn
+    "xlbyrows": 1,                      # XlSearchOrder
+    "xlprevious": 2,                    # XlSearchDirection
     "msoautosizenone": 0,                 # MsoAutoSize
     "xlnoadditionalcalculation": -4143,   # XlPivotFieldCalculation
     "xlcolumnstacked": 52,                # XlChartType
@@ -107,6 +110,8 @@ REVIEWED_CONSTANTS = {
     "xlwhole": 1,
     "msoshapeoval": 9,
     "msogradienthorizontal": 1,
+    "msogradientvertical": 2,            # MsoGradientStyle (Office reference)
+    "msoshape8pointstar": 93,            # MsoAutoShapeType (Office reference)
     "msoanchorcenter": 2,
     "msotextorientationhorizontal": 1,
     "vbmodeless": 0,

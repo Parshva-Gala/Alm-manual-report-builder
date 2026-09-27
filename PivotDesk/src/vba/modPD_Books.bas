@@ -92,9 +92,22 @@ Private Sub DressBooks(ByVal ws As Worksheet)
         .Name = modPD_Theme.UI_SEMI
         .Color = modPD_Theme.C_TEXT
     End With
-    ws.Range(ws.Cells(modPD_Theme.R_FIRST, B_PER), ws.Cells(lastR, B_ONLY)).Font.Name = modPD_Theme.UI_FONT
-    ws.Range(ws.Cells(modPD_Theme.R_FIRST, B_DESC), ws.Cells(lastR, B_DESC)).Font.Color = modPD_Theme.C_TEXT_3
-    ws.Range(ws.Cells(modPD_Theme.R_FIRST, B_WHY), ws.Cells(lastR, B_WHY)).Font.Color = modPD_Theme.C_TEXT_2
+    ' Editable plan fields have a raised surface; explanatory text wraps
+    ' so the three framework plans can be read without selecting each cell.
+    With ws.Range(ws.Cells(modPD_Theme.R_FIRST, B_PER), ws.Cells(lastR, B_MAX))
+        .Font.Name = modPD_Theme.UI_FONT
+        .Interior.Color = modPD_Theme.C_ELEV
+    End With
+    ws.Range(ws.Cells(modPD_Theme.R_FIRST, B_FILE), ws.Cells(lastR, B_FILE)).Font.Name = modPD_Theme.UI_MONO
+    With ws.Range(ws.Cells(modPD_Theme.R_FIRST, B_DESC), ws.Cells(lastR, B_DESC))
+        .Font.Color = modPD_Theme.C_TEXT_2
+        .WrapText = True
+    End With
+    With ws.Range(ws.Cells(modPD_Theme.R_FIRST, B_WHY), ws.Cells(lastR, B_WHY))
+        .Font.Color = modPD_Theme.C_TEXT_2
+        .WrapText = True
+    End With
+    ws.Range(ws.Rows(modPD_Theme.R_FIRST), ws.Rows(lastR)).RowHeight = 40
     Err.Clear
 End Sub
 

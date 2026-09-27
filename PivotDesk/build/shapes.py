@@ -21,11 +21,11 @@ from typing import Optional
 EMU = 12700
 
 FONT_PREVIEW = {
-    "Segoe UI": "'Selawik'",
-    "Segoe UI Semibold": "'Selawik Semibold'",
-    "Segoe UI Light": "'Selawik Light'",
-    "Segoe UI Semilight": "'Selawik Semilight'",
-    "Consolas": "'DejaVu Sans Mono'",
+    "Segoe UI": "'Segoe UI','Selawik',sans-serif",
+    "Segoe UI Semibold": "'Segoe UI Semibold','Segoe UI','Selawik Semibold',sans-serif",
+    "Segoe UI Light": "'Segoe UI Light','Segoe UI','Selawik Light',sans-serif",
+    "Segoe UI Semilight": "'Segoe UI Semilight','Segoe UI','Selawik Semilight',sans-serif",
+    "Consolas": "'Consolas','DejaVu Sans Mono',monospace",
 }
 
 
@@ -300,10 +300,12 @@ def to_html(shapes, width, height, canvas, assets_dir, scale=4 / 3, title="Desk"
             for p in b.paras:
                 al = {"l": "left", "ctr": "center", "r": "right"}[p.align]
                 runs = "".join(
-                    '<span style="font-family:%s;font-size:%s;color:%s;letter-spacing:%s">%s</span>' % (
-                        FONT_PREVIEW.get(r_.font, "'Selawik'"), px(r_.size), _css_color(r_.color, r_.alpha),
-                        px(r_.spc), html.escape(r_.text)) for r_ in p.runs)
-                ps.append('<div class="p" style="text-align:%s">%s</div>' % (al, runs))
+                    '<span style="font-family:%s;font-size:%s;color:%s;letter-spacing:%s;font-weight:%s">%s</span>' % (
+                        FONT_PREVIEW.get(r_.font, "'Segoe UI','Selawik',sans-serif"), px(r_.size), _css_color(r_.color, r_.alpha),
+                        px(r_.spc), {'Segoe UI Semibold':600,'Segoe UI Light':300,'Segoe UI Semilight':350}.get(r_.font,400), html.escape(r_.text)) for r_ in p.runs)
+                ps.append('<div class="p" style="text-align:%s;font-family:%s;font-size:%s">%s</div>' % (
+                    al, FONT_PREVIEW.get(p.runs[0].font, "'Segoe UI',sans-serif") if p.runs else "'Segoe UI',sans-serif",
+                    px(max((run.size for run in p.runs), default=9)), runs))
             inner = ('<div class="t%s" style="justify-content:%s;padding:%s %s %s %s;%s">%s</div>' % (
                 " nw" if not b.wrap else "", just, px(t), px(r), px(bb), px(l),
                 "overflow:hidden" if b.clip else "", "".join(ps)))

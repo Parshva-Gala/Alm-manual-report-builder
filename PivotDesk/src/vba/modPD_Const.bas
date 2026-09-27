@@ -28,7 +28,7 @@ Option Explicit
 ' ============================================================================
 
 Public Const TOOL_NAME As String = "Avati"
-Public Const TOOL_VERSION As String = "3.0"
+Public Const TOOL_VERSION As String = "3.3"
 Public Const BANK_NAME As String = "MIDBANK  Cairo"
 
 ' --- sheets in the desk itself ----------------------------------------------

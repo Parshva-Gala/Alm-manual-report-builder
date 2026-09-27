@@ -253,15 +253,152 @@ Public Sub Dress(ByVal ws As Worksheet, ByVal title As String, ByVal about As St
         .Borders(xlEdgeBottom).Color = C_BRAND_DEEP
         .Borders(xlEdgeBottom).Weight = xlThin
     End With
-    ws.Rows(R_BAR).RowHeight = 44
-    ws.Rows(R_TITLE).RowHeight = 44
-    ws.Rows(R_ABOUT).RowHeight = 20
+    ws.Rows(R_BAR).RowHeight = 52
+    ws.Rows(R_TITLE).RowHeight = 64
+    ws.Rows(R_ABOUT).RowHeight = 48
     ws.Rows(4).RowHeight = 34
     ws.Rows(6).RowHeight = 8
     If Len(overline) = 0 Then overline = "ALM DESK  " & ChrW(183) & "  " & UCase$(BANK_NAME)
-    TitleBlock ws, overline, title, about
+    If IsToolSheet(ws) Then
+        ws.Rows(R_TITLE).RowHeight = 68
+        ws.Rows(R_ABOUT).RowHeight = 56
+        SheetHero ws, overline, title, about
+    Else
+        ws.Rows(R_BAR).RowHeight = 40
+        TitleBlock ws, overline, title, about
+    End If
     ws.Tab.Color = C_INK
     ws.DisplayPageBreaks = False
+    Err.Clear
+End Sub
+
+' The tool sheets share the Desk's composition as well as its colours.
+' Keep rows 5, 7 and 8 fixed: all status readers, recipes and edit handlers
+' retain their original addresses. Only the height of the chrome changes.
+Private Function IsToolSheet(ByVal ws As Worksheet) As Boolean
+    If Not ws.Parent Is ThisWorkbook Then Exit Function
+    IsToolSheet = (ws.Name = SH_SOURCES Or ws.Name = SH_RECON Or ws.Name = SH_LOG Or IsReportsSheet(ws.Name))
+End Function
+
+' Shared elevated surface, also used by Gallery cards and live KPI tiles.
+Public Function SurfaceCard(ByVal ws As Worksheet, ByVal nm As String, ByVal x As Double, ByVal y As Double, _
+                            ByVal w As Double, ByVal h As Double) As Shape
+    Dim sh As Shape
+    On Error Resume Next
+    Set sh = ws.Shapes.AddShape(msoShapeRoundedRectangle, x, y, w, h)
+    If sh Is Nothing Then Exit Function
+    sh.Name = nm
+    sh.Placement = xlFreeFloating
+    sh.Adjustments(1) = 0.1
+    ' Enter gradient mode first: BackColor on a new solid shape is not kept
+    ' by Excel's TwoColorGradient transition (the saved endpoint becomes white).
+    sh.Fill.TwoColorGradient msoGradientVertical, 1
+    sh.Fill.ForeColor.RGB = HX("0F1B16")
+    sh.Fill.BackColor.RGB = C_SURFACE
+    sh.Line.ForeColor.RGB = C_HAIRLINE_2
+    sh.Line.Weight = 0.75
+    sh.Shadow.visible = msoTrue
+    sh.Shadow.ForeColor.RGB = C_INK
+    sh.Shadow.Transparency = 0.65
+    sh.Shadow.Blur = 12
+    sh.Shadow.OffsetY = 3
+    sh.Locked = True
+    Set SurfaceCard = sh
+    Err.Clear
+End Function
+
+Private Sub SheetHero(ByVal ws As Worksheet, ByVal overline As String, ByVal title As String, ByVal about As String)
+    Dim sh As Shape, t As Double, focus As String, help As String, label As String
+    On Error Resume Next
+    ClearButtons ws, "pdt_"
+    t = ws.Rows(R_TITLE).Top + 8
+    Set sh = SurfaceCard(ws, "pdt_hero", 28, t, 1064, 108)
+    sh.Fill.ForeColor.RGB = HX("0F1B16")
+    sh.Fill.BackColor.RGB = C_BRAND_950
+    sh.Fill.TwoColorGradient msoGradientHorizontal, 1
+    sh.AlternativeText = title & " workspace"
+    Set sh = ws.Shapes.AddShape(msoShapeRectangle, 29, t + 20, 3, 68)
+    sh.Name = "pdt_accent": sh.Placement = xlFreeFloating
+    sh.Fill.ForeColor.RGB = C_BRAND_BRIGHT: sh.Line.visible = msoFalse
+    Set sh = BarText(ws, "pdt_overline", overline, 52, t + 12, 7, C_LINK, UI_SEMI, 1)
+    sh.Width = 516
+    FitTextBox sh, 6.5, False
+    Set sh = BarText(ws, "pdt_title", title, 50, t + 29, 24, C_TEXT, UI_SEMI)
+    sh.Width = 522: sh.Height = 33
+    FitTextBox sh, 19, False
+    Set sh = BarText(ws, "pdt_about", about, 52, t + 66, 9.5, C_TEXT_2, UI_FONT)
+    sh.Width = 520: sh.Height = 32
+    FitTextBox sh, 8.5, True
+    label = "WORKING CONTEXT"
+    Select Case ws.Name
+        Case SH_SOURCES
+            label = "BEFORE YOU BUILD": focus = "Confirm the source set"
+            help = "Review dates and file status. Use a file for this row when a source needs an explicit match."
+        Case SH_CONFIG
+            label = "EDITABLE REPORT DEFINITIONS": focus = "One row defines one report"
+            help = "Add or edit a pivot, then Check. Use the Fields and Workbooks tabs for names and population splits."
+        Case SH_FIELDS
+            label = "SHARED SOURCE MAPPING": focus = "Keep source names consistent"
+            help = "Map the actual source headers. These names feed every pivot and chart in the next build."
+        Case SH_CHARTS
+            label = "LINKED CHART DEFINITIONS": focus = "Build a view for each question"
+            help = "Set categories, measures and placement. Add a chart, then Check its source and configuration."
+        Case SH_BOOKS
+            label = "WORKBOOK POPULATIONS": focus = "Keep reporting scopes separate"
+            help = "Choose currency or another split field. Check the plan before building independent workbooks."
+        Case SH_GALLERY
+            label = "READY-MADE STARTING POINTS": focus = "Add a report, then refine it"
+            help = "Use Add on a card. Its definition stays editable in Pivots or Charts; Open returns to that row."
+        Case SH_RECON
+            label = "INDEPENDENT CONTROL REVIEW": focus = "Read differences with their scope"
+            help = "Reconcile current files, then inspect each flagged amount. Activity records coverage and source context."
+        Case Else
+            label = "WORKSPACE HISTORY": focus = "Trace the last action"
+            help = "The latest event appears first. Review the message and source before returning to the affected workspace."
+    End Select
+    Set sh = SurfaceCard(ws, "pdt_context", 600, t + 12, 468, 84)
+    sh.Fill.Solid: sh.Fill.ForeColor.RGB = C_BAR_WELL: sh.Shadow.visible = msoFalse
+    Set sh = BarText(ws, "pdt_context_label", label, 618, t + 22, 7, C_LINK, UI_SEMI, 0.8)
+    sh.Width = 430
+    FitTextBox sh, 6.5, False
+    Set sh = BarText(ws, "pdt_context_title", focus, 618, t + 39, 12, C_TEXT, UI_SEMI)
+    sh.Width = 430: sh.Height = 19
+    FitTextBox sh, 10, False
+    Set sh = BarText(ws, "pdt_context_help", help, 618, t + 61, 9, C_TEXT_2, UI_FONT)
+    sh.Width = 428: sh.Height = 29
+    FitTextBox sh, 8.5, True
+    Err.Clear
+End Sub
+
+' Keep labels inside their own surface at native Excel font metrics. The full
+' source text remains available to accessibility tools when a label is shortened.
+Private Sub FitTextBox(ByVal sh As Shape, ByVal minSize As Single, ByVal wrap As Boolean)
+    Dim sz As Single, n As Long, original As String, clipped As String
+    On Error GoTo Done
+    If sh Is Nothing Then Exit Sub
+    original = sh.TextFrame2.TextRange.Text
+    sh.AlternativeText = original
+    sh.TextFrame2.WordWrap = IIf(wrap, msoTrue, msoFalse)
+    sz = sh.TextFrame2.TextRange.Font.Size
+    For n = 1 To 40
+        If sh.TextFrame2.TextRange.BoundHeight <= sh.Height + 0.5 Then
+            If wrap Or sh.TextFrame2.TextRange.BoundWidth <= sh.Width + 0.5 Then Exit Sub
+        End If
+        If sz <= minSize Then Exit For
+        sz = sz - 0.5
+        If sz < minSize Then sz = minSize
+        sh.TextFrame2.TextRange.Font.Size = sz
+    Next n
+    clipped = original
+    For n = 1 To 100
+        If sh.TextFrame2.TextRange.BoundHeight <= sh.Height + 0.5 Then
+            If wrap Or sh.TextFrame2.TextRange.BoundWidth <= sh.Width + 0.5 Then Exit For
+        End If
+        If Len(clipped) <= 4 Then Exit For
+        clipped = Left$(clipped, Len(clipped) - IIf(Len(clipped) > 80, Len(clipped) \ 16, 1))
+        sh.TextFrame2.TextRange.Text = RTrim$(clipped) & ChrW(8230)
+    Next n
+Done:
     Err.Clear
 End Sub
 
@@ -286,49 +423,59 @@ Public Sub DarkNormal(ByVal wb As Workbook)
     Err.Clear
 End Sub
 
-' The title as the Desk sets its hero: a small line in emerald capitals, the
-' title under it in Segoe UI Light, what the sheet is for beneath. Shapes, not
-' cells, so the title never wraps in whatever width column A happens to be.
+' Generated workbooks carry the same hierarchy as the Desk in a shorter
+' report hero. It lives entirely inside rows 2 and 3; row 4 remains free
+' for live totals and charts. No macros are needed in the generated file.
 Public Sub TitleBlock(ByVal ws As Worksheet, ByVal overline As String, ByVal title As String, _
                       ByVal about As String)
-    Dim sh As Shape, t As Double
+    Dim sh As Shape, t As Double, label As String, help As String, titleSize As Single
     On Error Resume Next
     ClearButtons ws, "pdt_"
-    t = ws.Rows(R_TITLE).Top
-    Set sh = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, 14, t + 5, 1100, 38)
-    If Not sh Is Nothing Then
-        sh.Name = "pdt_title"
-        Plain sh
-        With sh.TextFrame2
-            .VerticalAnchor = msoAnchorBottom
-            .TextRange.Text = overline & vbCr & title
-            With .TextRange.Paragraphs(1).Font
-                .Name = UI_SEMI
-                .Size = 7.5
-                .Spacing = 1.4
-                .Fill.ForeColor.RGB = C_LINK
-            End With
-            With .TextRange.Paragraphs(2).Font
-                .Name = UI_LIGHT
-                .Size = 19
-                .Spacing = 0
-                .Fill.ForeColor.RGB = C_TEXT
-            End With
-        End With
-        sh.AlternativeText = title
+    t = ws.Rows(R_TITLE).Top + 8
+    Set sh = SurfaceCard(ws, "pdt_hero", 14, t, 1064, 96)
+    sh.Fill.ForeColor.RGB = C_BRAND_900
+    sh.Fill.BackColor.RGB = C_SURFACE
+    sh.Fill.TwoColorGradient msoGradientHorizontal, 1
+    sh.AlternativeText = title & " report"
+    Set sh = BarText(ws, "pdt_overline", overline, 34, t + 12, 7, C_LINK, UI_SEMI, 1.4)
+    sh.Width = 720
+    FitTextBox sh, 6.5, False
+    titleSize = 22
+    If Len(title) > 55 Then titleSize = 18
+    If Len(title) > 80 Then titleSize = 15
+    If Len(title) > 120 Then titleSize = 13
+    Set sh = BarText(ws, "pdt_title", title, 32, t + 25, titleSize, C_TEXT, UI_SEMI)
+    sh.Width = 736: sh.Height = 31
+    sh.TextFrame2.WordWrap = msoTrue
+    sh.AlternativeText = title
+    If Len(title) > 80 Then sh.Height = 37
+    FitTextBox sh, 13, True
+    Set sh = BarText(ws, "pdt_about", about, 34, t + 58, 9, C_TEXT_2, UI_FONT)
+    sh.Width = 710: sh.Height = 28
+    If Len(title) > 80 Then
+        sh.Top = t + 66
+        sh.Height = 22
     End If
-    Set sh = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, 14, ws.Rows(R_ABOUT).Top + 1, 1100, 18)
-    If Not sh Is Nothing Then
-        sh.Name = "pdt_about"
-        Plain sh
-        With sh.TextFrame2
-            .VerticalAnchor = msoAnchorTop
-            .TextRange.Text = IIf(Len(about) > 0, about, " ")
-            .TextRange.Font.Name = UI_FONT
-            .TextRange.Font.Size = 9
-            .TextRange.Font.Fill.ForeColor.RGB = C_TEXT_2
-        End With
+    FitTextBox sh, 8, True
+    label = "LIVE REPORT / EXCEL CONTROLS"
+    help = "Drag column edges to resize. Filter the view or double-click a value to inspect source rows."
+    If ws.Name = SH_GUIDE Then
+        label = "WORKBOOK OVERVIEW"
+        help = "Review scope and totals, then open a report below. Column edges remain resizable."
+    ElseIf InStr(1, overline, "CHART", vbTextCompare) > 0 Then
+        label = "CHART WORKSPACE"
+        help = "Read the units with the trend. Use Start here to move between reports; resize the chart in Excel."
     End If
+    Set sh = SurfaceCard(ws, "pdt_context", 794, t + 14, 266, 68)
+    sh.Fill.Solid
+    sh.Fill.ForeColor.RGB = C_BAR_WELL
+    sh.Shadow.visible = msoFalse
+    Set sh = BarText(ws, "pdt_context_label", label, 808, t + 26, 7, C_LINK, UI_SEMI, 1)
+    sh.Width = 238
+    FitTextBox sh, 6.5, False
+    Set sh = BarText(ws, "pdt_context_help", help, 808, t + 43, 8.5, C_TEXT_2, UI_FONT)
+    sh.Width = 238: sh.Height = 33
+    FitTextBox sh, 8, True
     Err.Clear
 End Sub
 
@@ -360,10 +507,10 @@ Public Sub Head(ByVal ws As Worksheet, ByRef headings As Variant, ByRef widths A
     Next c
     With ws.Range(ws.Cells(hdrRow, 1), ws.Cells(hdrRow, UBound(headings) + 1))
         .Font.Name = UI_SEMI
-        .Font.Size = 8.5
+        .Font.Size = 9
         .Font.Color = C_BRAND_SOFT
         .Interior.Color = C_INK
-        .WrapText = False
+        .WrapText = True
         .VerticalAlignment = xlCenter
         .IndentLevel = 1
         .Borders(xlEdgeBottom).LineStyle = xlContinuous
@@ -373,7 +520,7 @@ Public Sub Head(ByVal ws As Worksheet, ByRef headings As Variant, ByRef widths A
         .Borders(xlInsideVertical).Color = C_HAIRLINE
         .Borders(xlInsideVertical).Weight = xlThin
     End With
-    ws.Rows(hdrRow).RowHeight = 28
+    ws.Rows(hdrRow).RowHeight = 34
     Err.Clear
 End Sub
 
@@ -520,24 +667,58 @@ Public Sub DressLogRow(ByVal ws As Worksheet, ByVal r As Long)
     Err.Clear
 End Sub
 
-' Print so it can be handed to someone: landscape, one page wide, the header
-' row on every page, a footer that says what and when - and in black and
-' white, so the dark screen does not become a page of toner.
-Public Sub PrintReady(ByVal ws As Worksheet, ByVal lastCol As Long)
+' Bound printing to real content. Formatting all cells or keeping live tile
+' formulas in helper columns must never create thousands of blank pages.
+' The caller's columns define data; visible printable shapes extend that
+' rectangle so report heroes, slicers and charts are included in full.
+Public Sub PrintReady(ByVal ws As Worksheet, ByVal lastCol As Long, Optional ByVal lastRow As Long = 0)
+    Dim found As Range, sh As Shape, edge As Range, endCol As Long, firstRow As Long
+    Dim printShape As Boolean, toolSheet As Boolean
     On Error Resume Next
+    If lastCol < 1 Then lastCol = 1
+    endCol = lastCol
+    If lastRow < 1 Then
+        Set found = ws.Range(ws.Cells(1, 1), ws.Cells(ws.Rows.count, lastCol)).Find(What:="*", _
+            After:=ws.Cells(1, 1), LookIn:=xlFormulas, LookAt:=xlPart, SearchOrder:=xlByRows, _
+            SearchDirection:=xlPrevious, MatchCase:=False, SearchFormat:=False)
+        If Not found Is Nothing Then lastRow = found.Row
+    End If
+    If lastRow < R_HDR Then lastRow = R_HDR
+    For Each sh In ws.Shapes
+        If sh.visible = msoTrue Then
+            ' PrintObject belongs to the Excel drawing object, not Shape.
+            ' Unsupported drawing types retain their visible default.
+            printShape = True
+            Err.Clear
+            printShape = sh.DrawingObject.PrintObject
+            If printShape Then
+                Set edge = Nothing
+                Set edge = sh.BottomRightCell
+                If Not edge Is Nothing Then
+                    If edge.Row > lastRow Then lastRow = edge.Row
+                    If edge.Column > endCol Then endCol = edge.Column
+                End If
+            End If
+        End If
+    Next sh
+    toolSheet = IsToolSheet(ws)
+    firstRow = IIf(toolSheet, R_STATUS, 1)
     Application.PrintCommunication = False
     With ws.PageSetup
         .Orientation = xlLandscape
         .Zoom = False
         .FitToPagesWide = 1
         .FitToPagesTall = False
-        .BlackAndWhite = True
-        .PrintTitleRows = ws.Rows(R_HDR).Address
-        .PrintArea = ws.Range(ws.Cells(R_STATUS, 1), ws.Cells(ws.Rows.count, lastCol)).Address
+        .BlackAndWhite = (toolSheet And ws.Name <> SH_GALLERY)
+        .PrintTitleRows = ""
+        If toolSheet And ws.Name <> SH_GALLERY Then .PrintTitleRows = ws.Rows(R_HDR).Address
+        .PrintArea = ws.Range(ws.Cells(firstRow, 1), ws.Cells(lastRow, endCol)).Address
         .CenterHeader = "&""Segoe UI Semibold,Regular""&11" & ws.Name
         .LeftFooter = "&8" & TOOL_NAME & " ALM Desk " & TOOL_VERSION & "  " & ChrW(183) & "  " & BANK_NAME
         .RightFooter = "&8Page &P of &N  " & ChrW(183) & "  &D"
         .CenterFooter = ""
+        .LeftMargin = Application.InchesToPoints(0.3)
+        .RightMargin = Application.InchesToPoints(0.3)
     End With
     Application.PrintCommunication = True
     Err.Clear
@@ -618,7 +799,7 @@ Public Sub ClearButtons(ByVal ws As Worksheet, ByVal prefix As String)
 End Sub
 
 ' A rounded pill. kind: 0 quiet (another sheet), 1 action (emerald), 2 current
-' (this sheet), 3 container (the group behind a set of pills).
+' (this sheet), 3 container, 4 primary (one clear next action per screen).
 Public Function Pill(ByVal ws As Worksheet, ByVal nm As String, ByVal caption As String, ByVal proc As String, _
                      ByVal x As Double, ByVal y As Double, ByVal w As Double, ByVal h As Double, _
                      ByVal kind As Long) As Shape
@@ -632,6 +813,15 @@ Public Function Pill(ByVal ws As Worksheet, ByVal nm As String, ByVal caption As
     sh.Shadow.visible = msoFalse
     sh.Line.Weight = 0.75
     Select Case kind
+        Case 4
+            sh.Fill.ForeColor.RGB = C_BRAND_BRIGHT
+            sh.Fill.BackColor.RGB = C_BRAND
+            sh.Fill.TwoColorGradient msoGradientHorizontal, 1
+            sh.Line.visible = msoFalse
+            sh.Shadow.visible = msoTrue
+            sh.Shadow.ForeColor.RGB = C_BRAND
+            sh.Shadow.Transparency = 0.7
+            sh.Shadow.Blur = 7
         Case 1
             sh.Fill.ForeColor.RGB = C_BRAND_950
             sh.Line.ForeColor.RGB = C_BRAND_DEEP
@@ -658,6 +848,7 @@ Public Function Pill(ByVal ws As Worksheet, ByVal nm As String, ByVal caption As
         .TextRange.Font.Bold = msoFalse
         .TextRange.Font.Name = UI_SEMI
         Select Case kind
+            Case 4: .TextRange.Font.Fill.ForeColor.RGB = C_INK
             Case 1: .TextRange.Font.Fill.ForeColor.RGB = C_BRAND_SOFT
             Case 2: .TextRange.Font.Fill.ForeColor.RGB = C_TEXT
             Case Else: .TextRange.Font.Fill.ForeColor.RGB = C_TEXT_2
@@ -722,24 +913,24 @@ Public Sub Rail(ByVal ws As Worksheet)
     On Error Resume Next
     If StrComp(ws.Name, SH_HOME, vbTextCompare) = 0 Then Exit Sub
     ClearButtons ws, "pdr_"
-    ws.Rows(R_BAR).RowHeight = 44
-    PlaceLogo ws, "pdr_logo", 16, (44 - 16) / 2, 16
+    ws.Rows(R_BAR).RowHeight = 52
+    PlaceLogo ws, "pdr_logo", 28, 16, 20
     ws.Shapes("pdr_logo").OnAction = "PD_GoHome"
-    x = 16 + 16 * LOGO_RATIO
+    x = 28 + 20 * LOGO_RATIO
     x = Divider(ws, x + 4)
-    BarText ws, "pdr_what", "ALM DESK", x, 11, 7.5, C_TEXT, UI_SEMI, 1.6
-    BarText ws, "pdr_whose", UCase$(Replace(BANK_NAME, "  ", "  " & ChrW(183) & "  ")), x, 24, 6, C_TEXT_3, UI_SEMI, 1.4
+    BarText ws, "pdr_what", "ALM DESK", x, 12.5, 8, C_TEXT, UI_SEMI, 1.6
+    BarText ws, "pdr_whose", UCase$(Replace(BANK_NAME, "  ", "  " & ChrW(183) & "  ")), x, 27, 6.5, C_TEXT_3, UI_SEMI, 1.4
 
     cur = SectionOf(ws.Name)
-    items = Array(Array("Desk", "PD_GoHome", 52, "desk"), Array("Files", "PD_GoFiles", 52, "files"), _
-                  Array("Reports", "PD_GoConfig", 70, "reports"), _
-                  Array("Reconciliation", "PD_GoRecon", 102, "recon"), Array("Activity", "PD_GoLog", 66, "log"))
-    x = x + 104
+    items = Array(Array("Desk", "PD_GoHome", 66, "desk"), Array("Files", "PD_GoFiles", 64, "files"), _
+                  Array("Reports", "PD_GoConfig", 84, "reports"), _
+                  Array("Reconciliation", "PD_GoRecon", 110, "recon"), Array("Activity", "PD_GoLog", 80, "log"))
+    x = 262
     w = 3
     For Each it In items
         w = w + CDbl(it(2)) + 2
     Next it
-    y = (44 - 26) / 2
+    y = 13
     Pill ws, "pdr_nav", "", "", x, y, w + 1, 26, 3
     x = x + 3
     For Each it In items
@@ -747,8 +938,15 @@ Public Sub Rail(ByVal ws As Worksheet)
              IIf(cur = CStr(it(3)), 2, 0)
         x = x + CDbl(it(2)) + 2
     Next it
+    Pill ws, "pdr_view", "Excel / App view", "PD_ToggleAppView", 816, 13, 132, 26, 1
+    Pill ws, "pdr_help", "Desk help", "PD_SheetHelp", 958, 13, 106, 26, 1
     Toolbar ws
     Err.Clear
+End Sub
+
+Public Sub PD_SheetHelp()
+    PD_GoHome
+    modPD_Desk.PD_TourStart
 End Sub
 
 ' Which part of the bar a sheet belongs to.
@@ -779,14 +977,15 @@ End Function
 
 ' Row 4: for the Reports sheets, their tabs; then what this sheet can do.
 Public Sub Toolbar(ByVal ws As Worksheet)
-    Dim x As Double, y As Double, tabs As Variant, t As Variant, w As Double, tw As Double
+    Dim x As Double, y As Double, tabs As Variant, t As Variant, tw As Double, sh As Shape
     On Error Resume Next
-    ws.Rows(4).RowHeight = 34
-    y = ws.Rows(4).Top + (34 - 24) / 2
-    x = 14
+    ws.Rows(4).RowHeight = 44
+    Set sh = SurfaceCard(ws, "pdr_tools", 28, ws.Rows(4).Top + 2, 1064, 38)
+    sh.Shadow.visible = msoFalse
+    y = ws.Rows(4).Top + 9
+    x = 44
     If IsReportsSheet(ws.Name) Then
-        tabs = ReportsSheets()
-        tw = 3
+        tabs = ReportsSheets(): tw = 3
         For Each t In tabs
             tw = tw + 74 + 2
         Next t
@@ -797,44 +996,60 @@ Public Sub Toolbar(ByVal ws As Worksheet)
                  IIf(StrComp(ws.Name, CStr(t(0)), vbTextCompare) = 0, 2, 0)
             x = x + 76
         Next t
-        x = Divider(ws, x + 4, 4)
+        Divider ws, 432, 4
+        x = 460
     End If
     Select Case ws.Name
         Case SH_SOURCES
-            x = Action(ws, "Scan a folder", "PD_LoadFolder", x, y, 96)
-            x = Action(ws, "Pick files", "PD_LoadFiles", x, y, 76)
-            x = Action(ws, "Use a file for this row", "PD_UseFileHere", x, y, 142)
-            x = Action(ws, "Clear this row", "PD_ClearRow", x, y, 98)
+            x = Action(ws, "Scan a folder", "PD_LoadFolder", x, y, 116, 4)
+            x = Action(ws, "Pick files", "PD_LoadFiles", x, y, 88)
+            Divider ws, x + 4, 4
+            x = Action(ws, "Use a file for this row", "PD_UseFileHere", x + 24, y, 156)
+            x = Action(ws, "Fit columns", "PD_FitReport", x + 16, y, 112, 0)
+            Pill ws, "pdr_act_PD_ClearRow", "Clear selected row", "PD_ClearRow", 928, y, 144, 24, 0
         Case SH_CONFIG
-            x = Action(ws, "Add a pivot", "PD_ConfigAdd", x, y, 84)
-            x = Action(ws, "Check", "PD_ConfigCheck", x, y, 62)
-            x = Action(ws, "Restore defaults", "PD_ConfigDefaults", x, y, 112)
+            x = Action(ws, "Add a pivot", "PD_ConfigAdd", x, y, 96, 4)
+            x = Action(ws, "Check", "PD_ConfigCheck", x, y, 74)
             If modPD_Config.Engine() = "recipes" Then
-                x = Action(ws, "Use the 1.0 layout", "PD_ConfigEngine", x, y, 122)
+                x = Action(ws, "Use the 1.0 layout", "PD_ConfigEngine", x + 8, y, 150, 0)
             Else
-                x = Action(ws, "Build from this sheet", "PD_ConfigEngine", x, y, 136)
+                x = Action(ws, "Build from this sheet", "PD_ConfigEngine", x + 8, y, 166, 0)
             End If
+            Pill ws, "pdr_act_PD_ConfigDefaults", "Restore defaults", "PD_ConfigDefaults", 928, y, 144, 24, 0
         Case SH_FIELDS
-            x = Action(ws, "Check", "PD_ConfigCheck", x, y, 62)
+            x = Action(ws, "Check report fields", "PD_ConfigCheck", x, y, 160, 4)
+            x = Action(ws, "Fit columns", "PD_FitReport", x + 12, y, 112, 0)
         Case SH_CHARTS
-            x = Action(ws, "Add a chart", "PD_ChartsAdd", x, y, 84)
-            x = Action(ws, "Check", "PD_ChartsCheck", x, y, 62)
-            x = Action(ws, "Restore defaults", "PD_ChartsDefaults", x, y, 112)
+            x = Action(ws, "Add a chart", "PD_ChartsAdd", x, y, 96, 4)
+            x = Action(ws, "Check", "PD_ChartsCheck", x, y, 74)
+            x = Action(ws, "Fit columns", "PD_FitReport", x + 12, y, 112, 0)
+            Pill ws, "pdr_act_PD_ChartsDefaults", "Restore defaults", "PD_ChartsDefaults", 928, y, 144, 24, 0
         Case SH_BOOKS
-            x = Action(ws, "Check", "PD_BooksCheck", x, y, 62)
-            x = Action(ws, "Restore defaults", "PD_BooksDefaults", x, y, 112)
+            x = Action(ws, "Check workbook plan", "PD_BooksCheck", x, y, 172, 4)
+            x = Action(ws, "Fit columns", "PD_FitReport", x + 12, y, 112, 0)
+            Pill ws, "pdr_act_PD_BooksDefaults", "Restore defaults", "PD_BooksDefaults", 928, y, 144, 24, 0
+        Case SH_GALLERY
+            Set sh = BarText(ws, "pdr_gallery_hint", "Add a card below, then edit its definition.", x, y + 6, 8.5, C_TEXT_2, UI_FONT)
+            sh.Width = 490
         Case SH_RECON
-            x = Action(ws, "Reconcile now", "PD_Reconcile", x, y, 102)
+            x = Action(ws, "Reconcile current files", "PD_Reconcile", x, y, 174, 4)
+            Set sh = BarText(ws, "pdr_recon_hint", "Review flagged rows; Activity carries comparison coverage.", x + 18, y + 6, 8.5, C_TEXT_2, UI_FONT)
+            sh.Width = 580
+            Pill ws, "pdr_act_PD_FitReport", "Fit columns", "PD_FitReport", 936, y, 136, 24, 0
         Case SH_LOG
-            x = Action(ws, "Clear activity", "PD_ClearLog", x, y, 100)
+            Set sh = BarText(ws, "pdr_log_hint", "Latest event first. Messages retain source and run context.", x, y + 6, 9, C_TEXT_2, UI_FONT)
+            sh.Width = 680
+            Pill ws, "pdr_act_PD_FitReport", "Fit columns", "PD_FitReport", 802, y, 124, 24, 0
+            Pill ws, "pdr_act_PD_ClearLog", "Clear activity", "PD_ClearLog", 946, y, 126, 24, 0
     End Select
     Err.Clear
 End Sub
 
 Private Function Action(ByVal ws As Worksheet, ByVal caption As String, ByVal proc As String, _
-                        ByVal x As Double, ByVal y As Double, ByVal w As Double) As Double
-    Pill ws, "pdr_act_" & proc, caption, proc, x, y, w, 24, 1
-    Action = x + w + 6
+                        ByVal x As Double, ByVal y As Double, ByVal w As Double, _
+                        Optional ByVal kind As Long = 1) As Double
+    Pill ws, "pdr_act_" & proc, caption, proc, x, y, w, 24, kind
+    Action = x + w + 8
 End Function
 
 ' The bar of a workbook a build writes: the Avati mark, ALM DESK over the
@@ -849,7 +1064,12 @@ Public Sub BookBar(ByVal ws As Worksheet, ByVal crumb As String, ByVal withBack 
     x = 16 + 15 * LOGO_RATIO
     x = Divider(ws, x + 4)
     BarText ws, "pdb_what", "ALM DESK", x, 9, 7.5, C_TEXT, UI_SEMI, 1.6
-    BarText ws, "pdb_crumb", UCase$(crumb), x, 22, 6, C_TEXT_3, UI_SEMI, 1.4
+    Set sh = BarText(ws, "pdb_crumb", UCase$(crumb), x, 22, 6.5, C_TEXT_2, UI_SEMI, 0.8)
+    sh.Width = 178
+    FitTextBox sh, 6.5, False
+    Set sh = BarText(ws, "pdb_context", UCase$(BANK_NAME) & "  " & ChrW(183) & "  REPORT WORKBOOK", _
+                     814, 16, 7, C_TEXT_2, UI_SEMI, 0.8)
+    sh.Width = 250
     If withBack Then
         Set sh = Pill(ws, "pdb_back", ChrW(8249) & "  Start here", "", x + 190, 8, 96, 24, 1)
         If Not sh Is Nothing Then
@@ -868,7 +1088,7 @@ Public Sub Tile(ByVal ws As Worksheet, ByVal nm As String, ByVal l As Double, By
                 Optional ByVal linked As Range)
     Dim sh As Shape, sz As Single
     On Error Resume Next
-    Set sh = ws.Shapes.AddShape(msoShapeRoundedRectangle, l, t, w, h)
+    Set sh = SurfaceCard(ws, nm, l, t, w, h)
     If sh Is Nothing Then Exit Sub
     sh.Name = nm
     sh.Adjustments.Item(1) = 0.12
@@ -885,13 +1105,16 @@ Public Sub Tile(ByVal ws As Worksheet, ByVal nm As String, ByVal l As Double, By
         sh.Line.visible = msoFalse
         sh.Placement = xlFreeFloating
     End If
-    BarText ws, nm & "_label", label, l + 14, t + 8, 6.5, C_TEXT_3, UI_SEMI, 1
+    Set sh = BarText(ws, nm & "_label", label, l + 14, t + 8, 7, C_TEXT_2, UI_SEMI, 0.6)
+    sh.Width = w - 28
+    FitTextBox sh, 6.5, False
+    sh.AlternativeText = label
     Set sh = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, l + 13, t + 19, w - 20, h - 22)
     If sh Is Nothing Then Exit Sub
     sh.Name = nm & "_value"
     Plain sh
-    ' The figure at 17 pt, smaller only when a fixed text would not fit.
-    sz = 17
+    ' A readable figure, smaller only when a fixed text would not fit.
+    sz = 18
     If linked Is Nothing And Len(value) > 0 Then
         If (w - 22) / (Len(value) * 0.52) < sz Then sz = Int((w - 22) / (Len(value) * 0.52))
         If sz < 10 Then sz = 10
@@ -899,10 +1122,12 @@ Public Sub Tile(ByVal ws As Worksheet, ByVal nm As String, ByVal l As Double, By
     With sh.TextFrame2
         .VerticalAnchor = msoAnchorTop
         .TextRange.Text = IIf(Len(value) > 0, value, " ")
-        .TextRange.Font.Name = UI_LIGHT
+        .TextRange.Font.Name = UI_SEMI
         .TextRange.Font.Size = sz
         .TextRange.Font.Fill.ForeColor.RGB = C_TEXT
     End With
+    ' Preserve exact values while fitting long live results within the tile.
+    sh.TextFrame2.AutoSize = 2          ' msoAutoSizeTextToFitShape
     If Not linked Is Nothing Then sh.DrawingObject.Formula = "=" & linked.Address
     Err.Clear
 End Sub
