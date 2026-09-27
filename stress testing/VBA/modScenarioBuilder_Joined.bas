@@ -28,6 +28,10 @@ Private Const MAX_JOINED_ROWS As Long = 1040000
 Private Const CHUNK As Long = 20000
 Private Const ROW_SOURCE_COL As String = "ROW_SOURCE"
 Private Const JOINED_SHEET As String = "Joined_Data"
+' Test switch. When True, each native pivot is updated as soon as it is made,
+' instead of once its filters are set. Only ReconJoinedPivotBatchRegressionTests
+' sets it, to build its own unbatched baseline; the review pack never does.
+Private mPivotsImmediate As Boolean
 
 ' Which sources contribute, and in which order their columns are laid out.
 Private Function JoinOrder() As Variant
@@ -886,7 +890,7 @@ Private Sub MakePivotSheet(ByVal wb As Workbook, ByVal pc As PivotCache, ByVal n
 
     modShared_Pivot.LayoutReportSheet ws
     Set pt = modShared_Pivot.AddPivotFrom(pc, ws.Cells(modShared_Pivot.RPT_PIVOT_ROW, 1), nm, _
-                                          rowFields, colField, filters, dataFields, True)
+                                          rowFields, colField, filters, dataFields, Not mPivotsImmediate)
     If pt Is Nothing Then Err.Raise vbObjectError + 782, , "Could not create native pivot: " & nm
     If Len(sourceKey) > 0 Then pt.PivotFields(ROW_SOURCE_COL).CurrentPage = sourceKey
     On Error Resume Next
@@ -1562,12 +1566,24 @@ End Function
 Public Function ReconJoinedPivotBatchRegressionTests(ByVal folder As String) As String
     Dim beforeBook As Workbook, afterBook As Workbook, ws As Worksheet, other As Worksheet, pt As PivotTable
     Dim state As Object, result As String, failure As String, compared As Long, pivotCount As Long, fileNo As Integer
-    Dim baseline As String, path As String, beforeRows As Long, afterRows As Long
+    Dim baseline As String, path As String, beforeRows As Long, afterRows As Long, builtHere As Boolean
     On Error GoTo Failed
     Set state = CaptureState(): Application.ScreenUpdating = False: Application.DisplayAlerts = False
     baseline = JoinPath(folder, "unbatched_baseline.xlsx")
-    If Len(Dir$(baseline)) = 0 Then Err.Raise vbObjectError + 846, , "The retained unbatched small fixture is required."
     fileNo = FreeFile: Open JoinPath(folder, "native_batch_results.txt") For Output As #fileNo
+    If Len(Dir$(baseline)) = 0 Then
+        ' No retained pre-batching report in this folder, and nothing in the tool
+        ' writes one. So the baseline is built here, from the same fixtures, with
+        ' every pivot updated as soon as it is made: the unbatched path.
+        baseline = JoinPath(folder, "unbatched_baseline_built.xlsx")
+        mPivotsImmediate = True
+        result = ReconJoinedFinancialOwnershipRegressionTests(folder): Print #fileNo, "baseline: " & result
+        result = ReconJoinedCapitalRegressionTests(folder): Print #fileNo, "baseline: " & result
+        mPivotsImmediate = False
+        If Len(Dir$(baseline)) > 0 Then Kill baseline
+        FileCopy JoinPath(folder, "Joined_Input.xlsx"), baseline
+        builtHere = True
+    End If
     result = ReconJoinedFinancialOwnershipRegressionTests(folder): Print #fileNo, result
     result = ReconJoinedCapitalRegressionTests(folder): Print #fileNo, result
     path = JoinPath(folder, "Joined_Input.xlsx")
@@ -1592,10 +1608,12 @@ Public Function ReconJoinedPivotBatchRegressionTests(ByVal folder As String) As 
     afterBook.Close SaveChanges:=False: Set afterBook = Nothing
     result = CheckDeferredPivotCaller(): Print #fileNo, result
     Close #fileNo: fileNo = 0: RestoreState state
-    ReconJoinedPivotBatchRegressionTests = "PASS: unbatched/native equivalence and deferred update caller contract."
+    ReconJoinedPivotBatchRegressionTests = "PASS: unbatched/native equivalence (" & _
+        IIf(builtHere, "baseline built in this run", "retained baseline") & ") and deferred update caller contract."
     Exit Function
 Failed:
     failure = Err.description
+    mPivotsImmediate = False
     On Error Resume Next
     If fileNo > 0 Then Print #fileNo, "ERROR: " & failure: Close #fileNo
     If Not beforeBook Is Nothing Then beforeBook.Close SaveChanges:=False
