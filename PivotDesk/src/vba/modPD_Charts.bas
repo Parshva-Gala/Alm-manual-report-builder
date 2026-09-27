@@ -68,7 +68,7 @@ Private Const TICK_LOW As Long = -4134           ' xlTickLabelPositionLow
 ' --- on Start here ------------------------------------------------------------
 Private Const GRID_GAP As Double = 12
 Private Const GUIDE_CHART_H As Double = 250
-Private Const SHEET_CHART_W As Double = 980
+Private Const SHEET_CHART_W As Double = 1064
 Private Const SHEET_CHART_H As Double = 520
 ' Each chart's pivot takes a block of columns on the hidden sheet, with room
 ' to grow sideways on a refresh before it would meet the next.
@@ -627,12 +627,14 @@ Private Function DrawOnSheet(ByVal wb As Workbook, ByVal fw As String, ByVal pt 
     ActiveWindow.FreezePanes = False
     ws.Range("A2").Select
     ActiveWindow.FreezePanes = True
+    modPD_Theme.PrintReady ws, 1
     Application.PrintCommunication = False
     With ws.PageSetup
         .Orientation = xlLandscape
         .Zoom = False
         .FitToPagesWide = 1
         .FitToPagesTall = 1
+        .BlackAndWhite = False
     End With
     Application.PrintCommunication = True
     Err.Clear
@@ -709,13 +711,23 @@ End Function
 Private Function DrawChart(ByVal host As Worksheet, ByVal pt As PivotTable, ByVal rc As Object, _
                            ByVal title As String, ByVal l As Double, ByVal t As Double, ByVal w As Double, _
                            ByVal h As Double) As Object
-    Dim co As Object, ch As Object, typ As String, n As Long, u As String
+    Dim co As Object, ch As Object, typ As String, n As Long, u As String, card As Shape
     u = UnitsFor(pt, rc)
     On Error Resume Next
-    Set co = host.ChartObjects.Add(l, t, w, h)
-    If co Is Nothing Then Exit Function
     mSeq = mSeq + 1
+    Set card = modPD_Theme.SurfaceCard(host, "pdc_surface_" & mSeq, l, t, w, h)
+    If Not card Is Nothing Then
+        card.Shadow.visible = msoFalse
+        card.AlternativeText = title & " chart panel"
+    End If
+    Set co = host.ChartObjects.Add(l + 8, t + 6, w - 16, h - 12)
+    If co Is Nothing Then
+        If Not card Is Nothing Then card.Delete
+        Exit Function
+    End If
     co.Name = "pdc_chart_" & mSeq
+    co.Placement = xlFreeFloating
+    co.PrintObject = True
     Set ch = co.Chart
     ch.SetSourceData pt.TableRange1
     typ = CStr(rc("Type"))
@@ -745,9 +757,7 @@ Private Sub StyleSurface(ByVal ch As Object, ByVal title As String)
         .Format.Fill.Visible = msoTrue
         .Format.Fill.Solid
         .Format.Fill.ForeColor.RGB = modPD_Theme.C_SURFACE
-        .Format.Line.Visible = msoTrue
-        .Format.Line.ForeColor.RGB = modPD_Theme.C_HAIRLINE
-        .Format.Line.Weight = 0.75
+        .Format.Line.Visible = msoFalse
         .Font.Name = modPD_Theme.UI_FONT
         .Font.Size = 8.5
         .Font.Color = modPD_Theme.C_TEXT_2
@@ -757,7 +767,7 @@ Private Sub StyleSurface(ByVal ch As Object, ByVal title As String)
     ch.ChartTitle.Text = title
     With ch.ChartTitle.Font
         .Name = modPD_Theme.UI_SEMI
-        .Size = 11
+        .Size = 12
         .Bold = False
         .Color = modPD_Theme.C_TEXT
     End With
@@ -777,7 +787,9 @@ Private Sub StyleAxes(ByVal ch As Object, ByVal rc As Object, ByVal u As String)
         .MajorGridlines.Format.Line.Weight = 0.5
         .Format.Line.Visible = msoFalse
         .MajorTickMark = xlNone
-        .TickLabels.Font.Color = modPD_Theme.C_TEXT_3
+        .TickLabels.Font.Name = modPD_Theme.UI_FONT
+        .TickLabels.Font.Size = 8.5
+        .TickLabels.Font.Color = modPD_Theme.C_TEXT_2
         If Left$(typ, 4) = "100%" Then
             .TickLabels.NumberFormat = "0%"
         Else
@@ -789,6 +801,8 @@ Private Sub StyleAxes(ByVal ch As Object, ByVal rc As Object, ByVal u As String)
         .Format.Line.ForeColor.RGB = modPD_Theme.C_HAIRLINE_2
         .MajorTickMark = xlNone
         .TickLabelPosition = TICK_LOW
+        .TickLabels.Font.Name = modPD_Theme.UI_FONT
+        .TickLabels.Font.Size = 8.5
         .TickLabels.Font.Color = modPD_Theme.C_TEXT_2
         ' Bars read top down: the first category - the biggest, sorted - on top.
         If InStr(typ, "bar") > 0 Then .ReversePlotOrder = True
@@ -869,6 +883,7 @@ Private Sub StyleLegend(ByVal ch As Object, ByVal rc As Object, ByVal nSeries As
             Case Else: ch.Legend.Position = LEG_RIGHT
         End Select
         ch.Legend.Font.Color = modPD_Theme.C_TEXT_2
+        ch.Legend.Font.Name = modPD_Theme.UI_FONT
         ch.Legend.Font.Size = 8.5
     End If
     Err.Clear

@@ -1,4 +1,4 @@
-# Avati ALM Desk 3.1
+# Avati ALM Desk 3.2
 
 A desk for daily ALM analysis at MIDBANK Cairo. Point it at the LCR, NSFR and
 maturity-ladder outputs and control reports 3 and 6. It recognises each file
@@ -23,7 +23,7 @@ What a build makes is set under **Reports**, a tabbed section of five sheets:
 
 | Tab | What it decides |
 |---|---|
-| **Pivots** | Every pivot sheet: one row per pivot, 31 columns of options ([reference](docs/PIVOT_CONFIG.md)) |
+| **Pivots** | Every pivot sheet: one row per pivot, 32 columns of options ([reference](docs/PIVOT_CONFIG.md)) |
 | **Charts** | Every chart: on Start here or on a sheet of its own ([reference](docs/REPORTS.md#chart-config)) |
 | **Workbooks** | How many files a framework becomes. The Maturity ladder is one workbook per currency ([reference](docs/REPORTS.md#workbooks)) |
 | **Fields** | The output columns the pivots and charts may name, and how their labels read |
@@ -43,6 +43,28 @@ The first time the workbook opens, a six-step tour walks through the Desk.
 
 **Excel view** on the app bar brings the ribbon back, with an **Avati** tab
 first on it. **App view** hides it again.
+
+## What changed in 3.2
+
+The Midbank experience now follows the work from the Desk into the generated
+workbooks. The main Desk has a clearer next action, a live operating status,
+refined summary cards and a consistent emerald surface hierarchy. Reconciliation
+results visibly require a rerun when the source selection changes.
+
+Files, the five Reports pages, Reconciliation and Activity use a more compact
+shared header with workflow navigation, contextual help and the primary action.
+Generated Start here pages, pivots and standalone chart pages use the same
+Midbank report header, summary tiles and navigation. The report index has larger
+clickable rows, with both the report name and its description opening the sheet.
+
+Print areas are bounded to report content and visible report artwork. Internal
+helper cells stay out of the printed pivots, and generated reports retain the
+Midbank colours. The source-defined layout previews use synthetic data by
+default. They are design reviews, not screenshots of Excel executing the tool.
+
+The latest Report filters option and top-customer build performance fix are
+preserved. Version 3.2 reapplies the shared layout when an older workspace opens.
+See [the design coverage and verification record](docs/MIDBANK_UI.md).
 
 ## What changed in 3.1
 
@@ -263,7 +285,7 @@ object model. That leaves out:
 - value filters, calculated fields, conditional formats;
 - the logo, which is decoded with MSXML.
 
-Before anyone relies on 3.0, open it once on Windows:
+Before anyone relies on 3.2, open it once on Windows:
 
 1. Enable Content. The tour should start, and the Desk should carry the Avati
    mark.

@@ -65,3 +65,8 @@ End Sub
 Private Sub Workbook_AfterSave(ByVal Success As Boolean)
     modPD_Desk.AfterSave
 End Sub
+
+' Table growth after a build/reconciliation must be reflected in printing.
+Private Sub Workbook_BeforePrint(Cancel As Boolean)
+    modPD_Run.PreparePrint
+End Sub

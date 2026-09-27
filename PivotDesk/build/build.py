@@ -108,7 +108,7 @@ def desk_sheet_xml(canvas_xf: int) -> str:
 
 
 def shipped_state():
-    st = desk.empty_state(today="PIVOTDESK  ·  ALM DESK", greeting="Welcome.")
+    st = desk.empty_state(today="MIDBANK  ·  ALM DESK", greeting="Your ALM workbench.")
     st["macros_banner"] = True
     return st
 

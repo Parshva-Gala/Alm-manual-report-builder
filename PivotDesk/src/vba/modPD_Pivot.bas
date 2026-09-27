@@ -901,8 +901,13 @@ Private Sub FitPivot(ByVal ws As Worksheet, ByVal pt As PivotTable, ByVal rc As 
         ws.Columns(c).ColumnWidth = w
         total = total + w
     Next c
+    With pt.TableRange2
+        .Font.Name = modPD_Theme.UI_FONT
+        .Font.Size = 9.5
+        .VerticalAlignment = xlCenter
+    End With
     ' Filters and body on even rows, tall enough to read.
-    ws.Range(ws.Rows(FILTER_TOP), ws.Rows(rng.Row + rng.Rows.count + 400)).RowHeight = 20
+    ws.Range(ws.Rows(FILTER_TOP), ws.Rows(rng.Row + rng.Rows.count + 400)).RowHeight = 22
     ws.Rows(rng.Row - 1).RowHeight = 10
     ws.Activate
     ActiveWindow.DisplayGridlines = False
@@ -1178,19 +1183,20 @@ End Sub
 ' while it is set: with a hundred sheets, talking to the printer driver for
 ' each property is the difference between a second and a minute.
 Private Sub PrintPivot(ByVal ws As Worksheet, ByVal pt As PivotTable)
+    Dim report As Range
     On Error Resume Next
+    Set report = pt.TableRange2
+    If report Is Nothing Then Exit Sub
+    ' Only the pivot's own columns are data. Far-right GETPIVOTDATA helpers
+    ' are intentionally outside the print area; the shared shell adds its
+    ' visible shapes without consulting UsedRange.
+    modPD_Theme.PrintReady ws, report.Column + report.Columns.count - 1, report.Row + report.Rows.count - 1
     pt.PrintTitles = True
     Application.PrintCommunication = False
     With ws.PageSetup
-        .Orientation = xlLandscape
-        .Zoom = False
-        .FitToPagesWide = 1
-        .FitToPagesTall = False
-        .BlackAndWhite = True
         .CenterHeader = "&""Segoe UI Semibold,Regular""&11&A"
         .LeftFooter = "&8" & TOOL_NAME & " ALM Desk  " & ChrW(183) & "  &F"
-        .CenterFooter = ""
-        .RightFooter = "&8Page &P of &N"
+        .BlackAndWhite = False
     End With
     Application.PrintCommunication = True
     Err.Clear
@@ -1268,6 +1274,9 @@ Public Sub LinkSiblings(ByVal wb As Workbook)
                 ws.Hyperlinks.Add Anchor:=sh, Address:="", SubAddress:="'" & Replace(nm, "'", "''") & "'!A1", _
                                   ScreenTip:=nm
             End If
+            Set sh = modPD_Theme.BarText(ws, "pdb_position", "REPORT " & Format$(i, "00") & " / " & _
+                     Format$(made.count, "00"), 612, 16, 7, modPD_Theme.C_TEXT_2, modPD_Theme.UI_SEMI, 0.8)
+            sh.Width = 150
         End If
     Next i
     Err.Clear
@@ -1366,6 +1375,8 @@ Private Sub Slicers(ByVal ws As Worksheet, ByVal pt As PivotTable, ByRef fields 
             x = x + 162
         End If
     Next i
+    ' Include slicers added after the pivot was first styled.
+    PrintPivot ws, pt
 End Sub
 
 ' The slicer cache for a field, made if this is the first time and reused - with

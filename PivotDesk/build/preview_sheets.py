@@ -3,9 +3,9 @@ Previews of the sheets the VBA paints - Files, Reconciliation, Activity -
 and of a workbook it builds, drawn as HTML with the same rules modPD_Theme
 and modPD_Pivot apply (fonts, fills, borders, row heights, the app bar).
 
-These are pictures of what the code does, for review off Windows. The
-numbers in the built-workbook preview are computed from the LCR sample the
-bank supplied, the same way the Balance sheet pivot groups them.
+These are HTML design mirrors, not Excel runtime screenshots. Generated
+report previews use deterministic synthetic records unless LCR_SAMPLE is
+explicitly supplied. No source-bank workbook is needed for the previews.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from __future__ import annotations
 import collections
 import html
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +30,7 @@ C = dict(INK="000000", CANVAS="060B09", ROW="0C1512", ROW_ALT="111F19", LINE="1A
          DEEP="006141", E900="003323", E950="001D14", M300="4FC79C", M200="8FDBBE",
          OK="2FC48D", OK_BG="0D2A20", WARN="F2B544", WARN_BG="2A2310", BAD="FF6B5E", BAD_BG="2E1614",
          IDLE="7E9388", IDLE_BG="121D19",
-         # the light canvas, still used by the built-workbook previews until they move over
+         # Legacy palette tokens retained for external preview callers.
          PAPER="FFFFFF", MIST="F4F7F5", HAIR="E2E9E5", MUTED="5F7068", BODY="18241F", OK_TX="0B6B47",
          TINT="E6F6EF")
 LEVEL = {"OK": ("OK", "OK_BG"), "LOADED": ("OK", "OK_BG"), "BREAK": ("BAD", "BAD_BG"),
@@ -56,8 +57,8 @@ def px(pt):
 
 
 def page(title, body, width):
-    return ('<!doctype html><html><head><meta charset="utf-8"><title>%s</title><style>'
-            'html,body{margin:0;background:#%s;font-family:"Segoe UI",Segoe UI;color:#%s}'
+    markup = ('<!doctype html><html><head><meta charset="utf-8"><title>%s</title><style>'
+            'html,body{margin:0;background:#%s;font-family:"Segoe UI";color:#%s}'
             '.wrap{width:%dpx;overflow:hidden;background:#%s}'
             'table{border-collapse:collapse;table-layout:fixed}'
             'td{padding:0 0 0 9px;white-space:nowrap;overflow:hidden;text-overflow:clip;font-size:%.1fpx}'
@@ -65,6 +66,17 @@ def page(title, body, width):
             'font-family:"Segoe UI Semibold";font-size:11.3px;box-sizing:border-box;white-space:nowrap}'
             '</style></head><body><div class="wrap">%s</div></body></html>' % (
                 title, C["CANVAS"], C["TX1"], width, C["CANVAS"], 9.5 * PT, body))
+    # Browser hosts may not have Windows fonts. Preserve the native hierarchy
+    # through weight + an explicit sans-serif/monospace fallback in CSS and SVG.
+    def font(match):
+        prefix, quote, name = match.groups()
+        base = "Consolas" if name == "Consolas" else "Segoe UI"
+        fallback = ",monospace" if base == "Consolas" else ",Arial,sans-serif"
+        weight = ";font-weight:600" if name.endswith("Semibold") else ";font-weight:300" if name.endswith("Light") else ""
+        if prefix == "font-family=":
+            return prefix + quote + base + fallback + quote + (" font-weight=" + quote + ("600" if "Semibold" in name else "300") + quote if weight else "")
+        return prefix + quote + base + quote + fallback + weight
+    return re.sub(r"(font-family[:=])(['\"])(Segoe UI(?: Semibold| Light)?|Consolas)\2", font, markup)
 
 
 NAV = [("Desk", "desk", 66), ("Files", "files", 64), ("Reports", "reports", 84),
@@ -122,29 +134,34 @@ def chrome(section, title, about, status, level, actions, tab=None, overline=Non
                 "Chart config": "Check charts", "Workbooks": "Check workbooks", "Gallery": "Open pivot config",
                 "Reconciliation": "Reconcile now", "Activity": "Return to Desk"}
     cta = captions.get(title, "Return to Desk")
-    tiles = []
-    for i, (label, help_text, key) in enumerate((("Add files", "Identify inputs", "files"),
-                                               ("Build reports", "Pivots and charts", "reports"),
-                                               ("Reconcile", "Review differences", "recon"))):
-        edge = C["BRAND"] if key == section else C["LINE2"]
-        meter = "16B07F" if key == section else C["LINE2"]
-        tiles.append(f"""<div style="position:absolute;left:{px(592+i*151)}px;top:{px(20)}px;width:{px(139)}px;height:{px(112)}px;border-radius:14px;border:1px solid #{edge};box-sizing:border-box;background:rgba(11,19,16,.88);box-shadow:0 4px 16px #0004">
-          <div style="position:absolute;left:{px(14)}px;top:{px(14)}px;font-size:{px(22)}px;font-weight:300;color:#{C['M300']}">{i+1:02d}</div>
-          <div style="position:absolute;left:{px(14)}px;top:{px(52)}px;font-size:{px(10)}px;font-weight:600">{label}</div>
-          <div style="position:absolute;left:{px(14)}px;top:{px(71)}px;font-size:{px(7)}px;color:#{C['TX2']}">{help_text}</div>
-          <div style="position:absolute;left:{px(14)}px;top:{px(96)}px;width:{px(111)}px;height:{px(3)}px;border-radius:4px;background:#{meter}"></div>
-        </div>""")
-    star = " ".join(f"{x:.1f},{y:.1f}" for x, y in assets.khatam_points(38, 38, 38))
-    lattice = "".join(f"<svg style='position:absolute;left:{px(582+i*49)}px;top:{px(12+(i%2)*40)}px;width:{px(76)}px;height:{px(76)}px;opacity:.14' viewBox='0 0 76 76'><polygon points='{star}' fill='none' stroke='#16B07F' stroke-width='.75'/></svg>" for i in range(9))
-    title_html = f"""<div style="height:{px(176)}px;position:relative">
-      <div style="position:absolute;left:{px(28)}px;top:{px(16)}px;width:{px(1064)}px;height:{px(152)}px;box-sizing:border-box;overflow:hidden;border:1px solid #{C['LINE2']};border-radius:18px;background:linear-gradient(100deg,#{C['ROW']},#{C['E900']});box-shadow:0 5px 18px #0005">
+    steps = "".join(f"<span class='pill' style='position:absolute;left:{px(210+i*142)}px;top:{px(98)}px;"
+                    f"width:{px(134)}px;height:{px(24)}px;background:#{C['E900'] if key == section else C['WELL']};"
+                    f"border:1px solid #{C['DEEP'] if key == section else C['LINE2']};color:#{C['SOFT']}'>{i+1:02d} {label}</span>"
+                    for i, (label, key) in enumerate((("Files", "files"), ("Reports", "reports"), ("Reconcile", "recon"))))
+    context = {"Files": ("Match files to frameworks", "Check date, currency and source status before building."),
+               "Pivot config": ("Design once. Reuse each build.", "Set dimensions, Report filters and totals. Check each changed row."),
+               "Pivot fields": ("Keep source names consistent", "Map columns once. Pivots and charts share these field names."),
+               "Chart config": ("A view for each question", "Choose categories, values and placement. Charts stay linked to their pivots."),
+               "Workbooks": ("Separate reporting populations", "Split by currency or another field. Each workbook has its own totals."),
+               "Gallery": ("Start with a ready-made report", "Add a card, then refine its settings in Pivots or Charts."),
+               "Reconciliation": ("Follow differences to the source", "Review amounts and tolerance before accepting a result."),
+               "Activity": ("Trace the last action", "Read the latest status and source context, then return to the relevant workspace.")}
+    eyebrow = "WORKSPACE FOCUS"
+    headline, detail = context.get(title, context["Activity"])
+    star = " ".join(f"{x:.1f},{y:.1f}" for x, y in assets.khatam_points(31, 31, 31))
+    lattice = "".join(f"<svg style='position:absolute;left:{px(664+i*61)}px;top:{px(16+(i%2)*23)}px;width:{px(62)}px;height:{px(62)}px;opacity:.1' viewBox='0 0 62 62'><polygon points='{star}' fill='none' stroke='#16B07F' stroke-width='.75'/></svg>" for i in range(6))
+    title_html = f"""<div style="height:{px(144)}px;position:relative">
+      <div style="position:absolute;left:{px(28)}px;top:{px(8)}px;width:{px(1064)}px;height:{px(128)}px;box-sizing:border-box;overflow:hidden;border:1px solid #{C['LINE2']};border-radius:14px;background:linear-gradient(90deg,#{C['E900']},#{C['ROW']});box-shadow:0 4px 16px #0004">
       {lattice}
-      <div style="position:absolute;left:{px(28)}px;top:{px(18)}px;font-size:{px(7)}px;letter-spacing:1.6px;color:#{C['M300']}">{overline}</div>
-      <div style="position:absolute;left:{px(26)}px;top:{px(32)}px;font-size:{px(25)}px;font-weight:300">{html.escape(title)}</div>
-      <div style="position:absolute;left:{px(28)}px;top:{px(72)}px;width:{px(526)}px;max-height:{px(38)}px;font-size:{px(9)}px;line-height:1.3;color:#{C['TX2']}">{html.escape(about)}</div>
-      <span class="pill" style="position:absolute;left:{px(28)}px;top:{px(114)}px;width:{px(166)}px;height:{px(28)}px;color:#000;background:linear-gradient(90deg,#16B07F,#009060);font-weight:600;box-shadow:0 3px 12px #00906030">{cta}</span>
-      {''.join(tiles)}
-      </div></div>"""
+      <div style="position:absolute;left:{px(28)}px;top:{px(13)}px;font-size:{px(7)}px;letter-spacing:1.6px;color:#{C['M300']};font-weight:600">{overline}</div>
+      <div style="position:absolute;left:{px(26)}px;top:{px(27)}px;font-size:{px(22)}px;font-weight:600">{html.escape(title)}</div>
+      <div style="position:absolute;left:{px(28)}px;top:{px(60)}px;width:{px(670)}px;height:{px(32)}px;font-size:{px(9)}px;line-height:1.3;color:#{C['TX2']}">{html.escape(about)}</div>
+      <span class="pill" style="position:absolute;left:{px(28)}px;top:{px(98)}px;width:{px(166)}px;height:{px(24)}px;color:#000;background:linear-gradient(90deg,#16B07F,#009060);font-weight:600;box-shadow:0 3px 12px #00906030">{cta}</span>{steps}
+      <div style="position:absolute;left:{px(724)}px;top:{px(14)}px;width:{px(316)}px;height:{px(100)}px;border:1px solid #{C['LINE2']};border-radius:12px;background:#{C['WELL']}">
+        <div style="position:absolute;left:{px(16)}px;top:{px(14)}px;font-size:{px(7)}px;letter-spacing:1.2px;color:#{C['M300']}">{eyebrow}</div>
+        <div style="position:absolute;left:{px(16)}px;top:{px(33)}px;font-size:{px(11)}px;font-weight:600">{headline}</div>
+        <div style="position:absolute;left:{px(16)}px;top:{px(53)}px;width:{px(282)}px;height:{px(36)}px;font-size:{px(8.5)}px;line-height:1.3;color:#{C['TX2']}">{detail}</div>
+      </div></div></div>"""
     status_html = ("<div style='width:%dpx;height:%.1fpx;background:#%s;border-left:4px solid #%s;display:flex;"
                    "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Segoe UI Semibold\";"
                    "font-size:%.1fpx;color:#%s'>&#9679;&nbsp;&nbsp;%s</div>") % (
@@ -154,13 +171,13 @@ def chrome(section, title, about, status, level, actions, tab=None, overline=Non
 
 
 def table(headers, widths, rows, verdict_col=None, mono_cols=(), muted_cols=(), right_cols=(), semi_cols=(),
-          bars_col=None, band=True, pre_rows=""):
+          bars_col=None, band=True, pre_rows="", row_height=22, wrap_cols=(), edit_cols=()):
     """modPD_Theme.Head and DressTable, dark."""
     cols = "".join('<col style="width:%dpx">' % colw(w) for w in widths)
     # A set width, or Chrome lays a fixed table out as auto and widens columns
     # to their longest text - which Excel never does.
     h = ['<table style="width:%dpx">%s%s<tr style="height:%.1fpx;background:#000">' % (
-        sum(colw(w) for w in widths), cols, pre_rows, px(28))]
+        sum(colw(w) for w in widths), cols, pre_rows, px(30))]
     for t in headers:
         h.append('<td style="font-family:\'Segoe UI Semibold\';font-size:%.1fpx;color:#%s;border-bottom:3px solid #%s;'
                  'border-right:1px solid #%s">%s</td>' % (px(8.5), C["SOFT"], C["BRAND"], C["LINE"], html.escape(t)))
@@ -169,7 +186,7 @@ def table(headers, widths, rows, verdict_col=None, mono_cols=(), muted_cols=(), 
                  default=1) or 1
     for i, r in enumerate(rows):
         bgc = C["ROW_ALT"] if (band and i % 2 == 1) else C["ROW"]
-        h.append('<tr style="height:%.1fpx;background:#%s">' % (px(22), bgc))
+        h.append('<tr style="height:%.1fpx;background:#%s">' % (px(row_height), bgc))
         for j, v in enumerate(r):
             st = ["border-bottom:1px solid #%s" % C["LINE"]]
             txt = v
@@ -191,6 +208,10 @@ def table(headers, widths, rows, verdict_col=None, mono_cols=(), muted_cols=(), 
                 st.append("color:#%s" % C["TX3"])
             if j in semi_cols:
                 st.append("font-family:'Segoe UI Semibold'")
+            if j in wrap_cols:
+                st.append("white-space:normal;line-height:1.35;padding:7px 9px")
+            if j in edit_cols:
+                st.append("background:#111F19")
             if j == bars_col and isinstance(v, (int, float)) and v:
                 w = abs(v) / maxbar * 100
                 st.append("background:linear-gradient(90deg, rgba(244,162,154,.55) %.1f%%, transparent %.1f%%)" % (w, w))
@@ -203,44 +224,48 @@ def table(headers, widths, rows, verdict_col=None, mono_cols=(), muted_cols=(), 
 def files_sheet():
     widths = [30, 12, 54, 20, 11, 12, 13, 34, 56]
     rows = [
-        ["LCR output", "Loaded", r"D:\ALM\30 Nov\LCR_Output_30Nov.xlsx", "Sheet1", 1, 412806, "30 Nov 2025",
+        ["LCR output", "Loaded", r"C:\Demo\ALM\LCR_Output.xlsx", "Sheet1", 1, 90, "30 Jun 2026",
          "CASHFLOW_AMOUNT_LCY_PRE_FACTOR  /  ...", "an ALM output for LCR, from its own framework column."],
-        ["NSFR output", "Loaded", r"D:\ALM\30 Nov\LCR_Portfolio Segmentation.xlsx", "Sheet1", 1, 388120,
-         "30 Nov 2025", "CASHFLOW_AMOUNT_LCY_PRE_FACTOR  /  ...", "an ALM output for NSFR, from its own framework column."],
+        ["NSFR output", "Loaded", r"C:\Demo\ALM\NSFR_Output.xlsx", "Sheet1", 1, 90,
+         "30 Jun 2026", "CASHFLOW_AMOUNT_LCY_PRE_FACTOR  /  ...", "an ALM output for NSFR, from its own framework column."],
         ["Maturity Ladder output", "Empty", "", "", "", "", "", "", ""],
-        ["Control report 3  (by COA)", "Loaded", r"D:\ALM\30 Nov\Control_Report_3.xlsx", "Report", 3, "", "", "",
+        ["Control report 3  (by COA)", "Loaded", r"C:\Demo\ALM\Control_Report_3.xlsx", "Report", 3, "", "", "",
          "a control report - it carries GL_BALANCE_LCY."],
-        ["Control report 6  (by account)", "Missing", r"D:\ALM\30 Nov\CR6_old.xlsx", "Report", 2, "", "", "",
+        ["Control report 6  (by account)", "Missing", r"C:\Demo\ALM\Control_Report_6.xlsx", "Report", 2, "", "", "",
          "The file is no longer at that path."],
     ]
     w = sum(colw(x) for x in widths)
     body = (chrome("files", "Files", "Every file is identified by the columns it carries, not by its name. Add them "
                    "from the Desk, or click a row here and press \"Use a file for this row\" to place one by hand.",
-                   "4 of 5 file(s) loaded.  Ready to build pivots.", "OK",
+                   "Synthetic preview · 3 of 5 file slots loaded. Review missing files before building.", "Check",
                    ["Scan a folder", "Pick files", "Use a file for this row", "Clear this row"]) +
             table(["What", "Status", "File", "Sheet", "Header row", "Rows", "As of", "Amount field", "Note"], widths,
                   rows, verdict_col=1, muted_cols=(2, 8), semi_cols=(0,)))
     return page("Files", body, 1500)
 
 
-def recon_sheet():
+def recon_sheet(detail=False):
+    """Synthetic key-level detail on the existing Reconciliation sheet, not a new tab."""
     widths = [12, 18, 26, 18, 18, 18, 13, 74]
     rows = [
-        ["Control 3", "NSFR", "MBGL.1360", 812_441_902.0, 104_120_000.0, 708_321_902.0, "Check",
+        ["Control 3", "NSFR", "DEMO.COA.001", 125_000_000.0, 115_000_000.0, 10_000_000.0, "Check",
          "Both sides carry this key and the amounts differ."],
-        ["Control 3", "NSFR", "MBGL.4010", -95_220_110.0, -380_120_000.0, 284_899_890.0, "Check",
+        ["Control 3", "NSFR", "DEMO.COA.002", -45_000_000.0, -55_000_000.0, 10_000_000.0, "Check",
          "Both sides carry this key and the amounts differ."],
-        ["Control 3", "NSFR", "MBGL.6510", 0.0, 176_004_220.0, -176_004_220.0, "Break",
+        ["Control 3", "NSFR", "DEMO.COA.003", 0.0, 25_000_000.0, -25_000_000.0, "Break",
          "The control carries this and the output classified nothing against it. The whole amount is unclassified."],
-        ["Control 3", "NSFR", "MBGL.2900", 42_118_004.0, 11_900_000.0, 30_218_004.0, "Check",
+        ["Control 3", "NSFR", "DEMO.COA.004", 18_000_000.0, 15_000_000.0, 3_000_000.0, "Check",
          "Both sides carry this key and the amounts differ."],
-        ["Control 3", "NSFR", "MBGL.3180", 5_100_220.0, 1_880_000.0, 3_220_220.0, "Check",
+        ["Control 3", "NSFR", "DEMO.COA.005", 5_000_000.0, 3_000_000.0, 2_000_000.0, "Check",
          "Both sides carry this key and the amounts differ."],
     ]
+    if detail:
+        rows += [["Control 6", "LCR", f"DEMO.ACC.{i:03d}", i * 250_000.0, i * 250_000.0, 0.0, "OK",
+                  "Both sides carry this key and the amounts agree."] for i in range(1, 7)]
     body = (chrome("recon", "Reconciliation", "Each loaded output against control report 3 (the ledger, by COA) and "
                    "control report 6 (the reporting balance, by account).",
-                   "1 of 2 comparison(s) broke, the largest involving 1,204,331,902 LCY.   Scope is on Activity for "
-                   "each - read it before treating a difference as an error.   (12.4s)", "Break", ["Reconcile now"],
+                   "Synthetic preview · key-level differences. Read Activity for comparison coverage and scope. "
+                   "Offsetting differences do not mean agreement.", "Break", ["Reconcile now"],
                    status_w=1300) +
             table(["Control", "Framework", "Key", "Output", "Control", "Difference", "Verdict", "What it means"],
                   widths, rows, verdict_col=6, mono_cols=(2,), muted_cols=(7,), bars_col=5))
@@ -252,17 +277,17 @@ def log_sheet():
     rows = [
         ["26 Sep  14:22:05", "Break", "Recon", "1 shared key(s) differ ... the net is small because the differences "
          "offset, which is not agreement.", "Control 3 vs NSFR"],
-        ["26 Sep  14:22:05", "OK", "Recon", "664 key(s) on both sides, covering 99.82% of the output's balances. "
+        ["26 Sep  14:22:05", "OK", "Recon", "6 key(s) on both sides, covering 100% of the demo output's balances. "
          "Every shared key agrees.", "Control 3 vs LCR"],
-        ["26 Sep  14:21:52", "OK", "Recon", "Control 3: 664 COA(s).", ""],
-        ["26 Sep  14:05:41", "OK", "Pivots", "412,806 row(s) staged, 46 pivot sheet(s), 38.4s.", "LCR"],
+        ["26 Sep  14:21:52", "OK", "Recon", "Control 3: 6 demo COA(s).", ""],
+        ["26 Sep  14:05:41", "OK", "Pivots", "90 synthetic row(s) staged, 6 pivot sheet(s).", "LCR"],
         ["26 Sep  14:03:10", "Check", "Load", "Two files both look like OUTPUT NSFR. Keeping LCR_Portfolio "
          "Segmentation.xlsx; this one was NOT used.", "NSFR_copy.xlsx"],
         ["26 Sep  14:02:58", "OK", "Load", "Placed as OUTPUT LCR. an ALM output for LCR, from its own framework "
-         "column.", "LCR_Output_30Nov.xlsx"],
+         "column.", "LCR_Output.xlsx"],
     ]
     body = (chrome("log", "Activity", "What the desk did and why, newest first. A file that was not recognised says "
-                   "here what was missing.", "The newest entry is at the top. The Desk shows the latest four.", "Idle",
+                   "here what was missing.", "Synthetic preview · newest entry at the top. The Desk shows the latest four.", "Idle",
                    ["Clear activity"], status_w=1300) +
             table(["When", "Level", "Stage", "What happened", "Which file"], widths, rows, verdict_col=1,
                   mono_cols=(0,), muted_cols=(4,), semi_cols=(2,), band=False))
@@ -270,11 +295,42 @@ def log_sheet():
 
 
 # ---------------------------------------------------------------------------
-#  A built workbook, from the LCR sample
+#  Built workbooks: deterministic synthetic records or an explicit local sample
 # ---------------------------------------------------------------------------
+def synthetic_rows():
+    """Public, deterministic demo records. They contain no source-bank observations."""
+    groups = [("Asset", "Liquid assets", "Cash and reserves", "Cash balances", "Liquid assets", 1.0),
+              ("Asset", "Investments", "Sovereign securities", "Government securities", "Level 1 securities", .95),
+              ("Asset", "Loans", "Customer lending", "Corporate loans", "Contractual inflows", .5),
+              ("Liability", "Deposits", "Customer deposits", "Stable deposits", "Stable retail deposits", .05),
+              ("Liability", "Deposits", "Corporate deposits", "Corporate funding", "Wholesale funding", .4),
+              ("Off Balance Sheet", "Commitments", "Undrawn facilities", "Loan commitments", "Undrawn commitments", .1)]
+    rows = []
+    for i in range(30):
+        for j in range(3):
+            kind, line, subline, coa, rule, factor = groups[(i + j) % len(groups)]
+            pre = (31 - i) * 1_250_000 + (j + 1) * 180_000
+            rows.append(dict(type=kind, line=line, subline=subline, coa=coa,
+                             cp=f"Demo Counterparty {i+1:02d}", rule=rule,
+                             ccy="EGP" if (i + j) % 4 else "USD", pre=float(pre),
+                             post=float(pre * factor), bucket="Up to 30 days", asof="30 Jun 2026"))
+    return rows
+
+
+def data_context():
+    return "Local sample supplied explicitly" if SAMPLE else "Synthetic demonstration · 30 Jun 2026"
+
+
 def balance_pivot():
     """The Balance sheet pivot of an LCR build of the sample: labels tidied as
     Pivot fields says (Line, Subline and COA name: drop codes + title case)."""
+    if not SAMPLE:
+        rows = synthetic_rows()
+        local = collections.Counter(r["ccy"] for r in rows).most_common(1)[0][0]
+        agg = collections.defaultdict(lambda: [0.0, 0.0])
+        for r in rows:
+            agg[(r["type"], r["line"], r["subline"], r["coa"])][r["ccy"] != local] += r["pre"]
+        return local, sorted(agg.items())
     import openpyxl
     import labels
     wb = openpyxl.load_workbook(SAMPLE, read_only=True)
@@ -296,6 +352,7 @@ def balance_pivot():
                labels.tidy(r[ix["COA_NAME"]] or "(no COA)", 2))
         side = 0 if r[ix["CURRENCY_NAME"]] == local else 1
         agg[key][side] += float(r[ix["CASHFLOW_AMOUNT_LCY_PRE_FACTOR"]] or 0)
+    wb.close()
     return local, sorted(agg.items(), key=lambda kv: (kv[0][0], kv[0][1], kv[0][2], kv[0][3]))
 
 
@@ -315,7 +372,7 @@ def compact(v):
     return format(v, ",.0f")
 
 
-def book_bar(crumb, back=True, prev_next=True):
+def book_bar(crumb, back=True, prev_next=True, ordinal=None):
     """modPD_Theme.BookBar and modPD_Pivot.LinkSiblings."""
     lw = 15 * LOGO_RATIO
     x = 16 + lw + 22
@@ -329,6 +386,11 @@ def book_bar(crumb, back=True, prev_next=True):
             pills += ("<span class='pill' style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;"
                       "box-shadow:inset 0 0 0 1px #%s;color:#%s'>%s</span>") % (
                 px(x + 190 + dx), px(8), px(w), px(24), C["LINE2"], C["TX2"], label)
+    pills += (f"<div style='position:absolute;left:{px(814)}px;top:{px(16)}px;font-size:{px(7)}px;"
+              f"letter-spacing:.8px;color:#{C['TX2']};font-weight:600'>MIDBANK CAIRO · REPORT WORKBOOK</div>")
+    if ordinal:
+        pills += (f"<div style='position:absolute;left:{px(612)}px;top:{px(16)}px;font-size:{px(7)}px;"
+                  f"color:#{C['TX2']};font-weight:600'>{html.escape(ordinal)}</div>")
     return ("<div style='height:%.1fpx;background:#000;border-bottom:1px solid #%s;position:relative'>"
             "<img src='file://%s' style='position:absolute;left:%.1fpx;top:%.1fpx;height:%.1fpx'>"
             "<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:1px;height:%.1fpx;background:#%s'></div>"
@@ -341,14 +403,23 @@ def book_bar(crumb, back=True, prev_next=True):
         html.escape(crumb.upper()).replace("  ", "&nbsp;&nbsp;"), pills)
 
 
-def title_block(overline, title, about):
-    return ("<div style='height:%.1fpx;display:flex;flex-direction:column;justify-content:flex-end;"
-            "padding:0 0 %.1fpx %.1fpx;box-sizing:border-box'>"
-            "<div style='font-family:\"Segoe UI Semibold\";font-size:%.1fpx;letter-spacing:1.4px;color:#%s'>%s</div>"
-            "<div style='font-family:\"Segoe UI Light\";font-size:%.1fpx;color:#%s;line-height:1.1'>%s</div></div>"
-            "<div style='height:%.1fpx;padding-left:%.1fpx;font-size:%.1fpx;color:#%s'>%s</div>") % (
-        px(44), px(1), px(14), px(7.5), C["M300"], overline, px(19), C["TX1"], html.escape(title),
-        px(20), px(14), px(9), C["TX2"], html.escape(about))
+def title_block(overline, title, about, kind="report"):
+    """The 112-point generated-report hero (rows 2–3), after the 40-point BookBar."""
+    context = {"report": ("REPORT WORKSPACE", "Filter the view. Double-click a value to inspect its source rows."),
+               "overview": ("WORKBOOK OVERVIEW", "Check scope and totals, then open a report from the index."),
+               "chart": ("CHART WORKSPACE", "Read the units with the trend. Use Start here to move between reports.")}
+    label, detail = context[kind]
+    title_size = 13 if len(title) > 120 else 15 if len(title) > 80 else 18 if len(title) > 55 else 22
+    about_top, about_height = (66, 22) if len(title) > 80 else (58, 28)
+    return f"""<div style="height:{px(112)}px;position:relative">
+      <div style="position:absolute;left:{px(14)}px;top:{px(8)}px;width:{px(1064)}px;height:{px(96)}px;border:1px solid #{C['LINE2']};border-radius:14px;box-sizing:border-box;background:linear-gradient(90deg,#{C['E900']},#{C['ROW']});box-shadow:0 4px 16px #0004">
+        <div style="position:absolute;left:{px(20)}px;top:{px(12)}px;font-size:{px(7)}px;font-weight:600;letter-spacing:1.4px;color:#{C['M300']}">{overline}</div>
+        <div style="position:absolute;left:{px(18)}px;top:{px(25)}px;width:{px(736)}px;height:{px(37 if len(title)>80 else 31)}px;font-size:{px(title_size)}px;line-height:1.15;font-weight:600;overflow:hidden">{html.escape(title)}</div>
+        <div style="position:absolute;left:{px(20)}px;top:{px(about_top)}px;width:{px(710)}px;height:{px(about_height)}px;font-size:{px(9)}px;line-height:1.2;color:#{C['TX2']};overflow:hidden">{html.escape(about)}</div>
+        <div style="position:absolute;left:{px(780)}px;top:{px(14)}px;width:{px(266)}px;height:{px(68)}px;border:1px solid #{C['LINE2']};border-radius:10px;background:#{C['WELL']}">
+          <div style="position:absolute;left:{px(14)}px;top:{px(12)}px;font-size:{px(7)}px;letter-spacing:1px;color:#{C['M300']};font-weight:600">{label}</div>
+          <div style="position:absolute;left:{px(14)}px;top:{px(29)}px;width:{px(238)}px;font-size:{px(8.5)}px;line-height:1.3;color:#{C['TX2']}">{detail}</div>
+        </div></div></div>"""
 
 
 def tiles(items, w_pt=196, gap_pt=10, h_row=66, fixed_w=None):
@@ -356,18 +427,18 @@ def tiles(items, w_pt=196, gap_pt=10, h_row=66, fixed_w=None):
     out = []
     for i, (label, value) in enumerate(items):
         w = fixed_w or w_pt
-        size = 17
+        size = 18
         if fixed_w and (w - 22) / (len(value) * 0.52) < size:
             size = max(10, int((w - 22) / (len(value) * 0.52)))
-        out.append(("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:#%s;"
-                    "box-shadow:inset 0 0 0 1px #%s;border-radius:7px;box-sizing:border-box'>"
+        out.append(("<div style='position:absolute;left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:linear-gradient(#0F1B16,#%s);"
+                    "box-shadow:inset 0 0 0 1px #%s;border-radius:10px;box-sizing:border-box'>"
                     "<div style='position:absolute;left:0;top:%.1fpx;width:%.1fpx;height:%.1fpx;background:#%s'></div>"
                     "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";"
-                    "font-size:%.1fpx;letter-spacing:1px;color:#%s'>%s</div>"
-                    "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Light\";"
+                    "font-size:%.1fpx;letter-spacing:.6px;color:#%s;width:%.1fpx;white-space:nowrap;overflow:hidden'>%s</div>"
+                    "<div style='position:absolute;left:%.1fpx;top:%.1fpx;font-family:\"Segoe UI Semibold\";"
                     "font-size:%.1fpx;color:#%s;white-space:nowrap'>%s</div></div>") % (
             px(14 + i * (w + gap_pt)), px(8), px(w), px(50), C["ROW"], C["LINE2"], px(12), px(2.5), px(26),
-            C["BRAND"], px(14), px(8), px(6.5), C["TX3"], label, px(13), px(19), px(size), C["TX1"],
+            C["BRAND"], px(14), px(8), px(7), C["TX2"], px(w - 28), label, px(13), px(19), px(size), C["TX1"],
             html.escape(value)))
     return "<div style='position:relative;height:%.1fpx'>%s</div>" % (px(h_row), "".join(out))
 
@@ -423,10 +494,10 @@ def pivot_sheet():
             tds += '<td style="border-bottom:1px solid #%s;text-align:right;padding-right:9px;%s%s">%s</td>' % (
                 C["LINE"], "color:#FF0000;" if v < -0.5 else "",
                 "background:#16271F;font-family:'Segoe UI Semibold';" if k == 2 else "", fmt_num(v))
-        rows_html.append('<tr style="height:%.1fpx;background:#%s">%s</tr>' % (px(20), bg, tds))
+        rows_html.append('<tr style="height:%.1fpx;background:#%s">%s</tr>' % (px(22), bg, tds))
     total_row = ("<tr style='height:%.1fpx;background:#%s'><td colspan=4 style='font-family:\"Segoe UI Semibold\";"
                  "border-top:3px solid #%s'>Total</td>%s</tr>") % (
-        px(20), C["E950"], C["BRAND"], "".join(
+        px(22), C["E950"], C["BRAND"], "".join(
             "<td style='text-align:right;padding-right:9px;font-family:\"Segoe UI Semibold\";border-top:3px solid #%s;"
             "%s'>%s</td>" % (C["BRAND"], "color:#FF0000" if v < -0.5 else "", fmt_num(v)) for v in tot))
     filt = ("<table style='margin:0'>%s<tr style='height:%.1fpx'><td style='background:#%s;color:#%s;"
@@ -435,25 +506,29 @@ def pivot_sheet():
         "".join('<col style="width:%dpx">' % colw(w) for w in widths[:2]), px(20), C["ROW_ALT"], C["M300"], C["ROW"],
         px(10))
     crumb = "LCR  \u00b7  MIDBANK CAIRO"
-    body = (book_bar(crumb) +
+    body = (book_bar(crumb, ordinal="REPORT 2 OF 6") +
             title_block("LCR &nbsp;&#183;&nbsp; BALANCE SHEET", "Balance sheet",
                         "The same balances as the balance sheet reads them, down to the COA. Pre-factor only - what "
-                        "the engine took in, before any weighting.") +
+                        "the engine took in, before any weighting. " + data_context() + ".") +
             tiles([("PRE-FACTOR &nbsp;&#183;&nbsp; TOTAL", compact(tot[2]))]) +
             "<div style='height:%.1fpx'></div>" % px(6) + slicers() + "<div style='height:%.1fpx'></div>" % px(8) +
             filt + "<table>%s%s%s%s</table>" % (cols, head, "".join(rows_html), total_row))
     return page("Balance sheet", body, 1500), local
 
 
+def preview_jobs():
+    """Return (name, HTML, viewport width, viewport height); does not render or write files."""
+    jobs = [("sheet-files", files_sheet(), 1500, 720), ("sheet-recon", recon_sheet(), 1500, 650),
+            ("sheet-recon-detail", recon_sheet(detail=True), 1500, 780),
+            ("sheet-activity", log_sheet(), 1500, 700)]
+    pv, _ = pivot_sheet()
+    jobs.append(("built-balance-sheet", pv, 1500, 1030))
+    return jobs
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
-    jobs = [("sheet-files", files_sheet(), 1500, 720), ("sheet-recon", recon_sheet(), 1500, 650),
-            ("sheet-activity", log_sheet(), 1500, 700)]
-    if SAMPLE and os.path.exists(SAMPLE):
-        pv, _ = pivot_sheet()
-        jobs.append(("built-balance-sheet", pv, 1500, 1030))
-        # Start here, with its charts, is drawn by preview_v3.py.
-    for name, html_, w, h in jobs:
+    for name, html_, w, h in preview_jobs():
         path = os.path.join(OUT, name + ".png")
         assets.render(html_, path, w, h, scale=1.5, transparent=False)
         print(path)

@@ -493,7 +493,7 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     ws.Rows(4).RowHeight = 68
     Glance ws, ws.Rows(4).Top + 8, wide
     modPD_Theme.SetStatus ws, Fmt(modPD_Stage.StagedRows()) & " rows staged into one pivot cache.  " & _
-        "Every sheet below is a live PivotTable over it - drag a field, drop a slicer, drill a total.", "OK"
+        "Open a report from the index below. Filter a pivot or double-click a total to inspect its records.", "OK"
     ws.Rows(6).RowHeight = 12
 
     ' --- the charts: a grid, before the index -----------------------------------------
@@ -505,8 +505,8 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     End If
 
     ' --- the index -----------------------------------------------------------------
-    Section ws, r, "IN THIS BOOK  " & ChrW(183) & "  " & modPD_Pivot.MadeSheets().count & " SHEETS"
-    modPD_Theme.Head ws, Array("Sheet", "What is on it"), Array(38, 110), r + 1
+    Section ws, r, "REPORT INDEX  " & ChrW(183) & "  " & modPD_Pivot.MadeSheets().count & " SHEETS"
+    modPD_Theme.Head ws, Array("Open report", "View and scope"), Array(38, 110), r + 1
     first = r + 2
     r = first
     Set made = modPD_Pivot.MadeSheets()
@@ -518,6 +518,8 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
         ' An apostrophe in a sheet name ("Customer's deposits") is doubled in a
         ' link, or the link goes nowhere.
         ws.Hyperlinks.Add Anchor:=ws.Cells(r, 1), Address:="", _
+                          SubAddress:="'" & Replace(CStr(e(0)), "'", "''") & "'!A1", ScreenTip:="Open " & CStr(e(0))
+        ws.Hyperlinks.Add Anchor:=ws.Cells(r, 2), Address:="", _
                           SubAddress:="'" & Replace(CStr(e(0)), "'", "''") & "'!A1", ScreenTip:="Open " & CStr(e(0))
         Err.Clear
         On Error GoTo 0
@@ -532,7 +534,15 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
             .Underline = xlUnderlineStyleNone
             .Color = modPD_Theme.C_LINK
         End With
-        ws.Range(ws.Cells(first, 2), ws.Cells(r - 1, 2)).Font.Color = modPD_Theme.C_TEXT_2
+        With ws.Range(ws.Cells(first, 2), ws.Cells(r - 1, 2))
+            .Font.Color = modPD_Theme.C_TEXT_2
+            .Font.Underline = xlUnderlineStyleNone
+            .WrapText = True
+        End With
+        ws.Rows(CStr(first) & ":" & CStr(r - 1)).AutoFit
+        For i = first To r - 1
+            If ws.Rows(i).RowHeight < 32 Then ws.Rows(i).RowHeight = 32
+        Next i
     End If
 
     ' What the tool had to decide for itself goes here, where it is read, not
@@ -606,14 +616,15 @@ Private Function BookCrumb(ByVal fw As String) As String
 End Function
 
 Private Sub PrintSetupGuide(ByVal ws As Worksheet)
+    modPD_Theme.PrintReady ws, 2
     On Error Resume Next
     Application.PrintCommunication = False
     With ws.PageSetup
-        .Orientation = xlPortrait
+        .Orientation = xlLandscape
         .Zoom = False
         .FitToPagesWide = 1
         .FitToPagesTall = False
-        .BlackAndWhite = True
+        .BlackAndWhite = False
     End With
     Application.PrintCommunication = True
     Err.Clear
@@ -625,7 +636,7 @@ Private Sub Section(ByVal ws As Worksheet, ByVal r As Long, ByVal title As Strin
     With ws.Cells(r, 1)
         .Value2 = title
         .Font.Name = modPD_Theme.UI_SEMI
-        .Font.Size = 8
+        .Font.Size = 10
         .Font.Color = modPD_Theme.C_LINK
         .IndentLevel = 1
         .VerticalAlignment = xlBottom
@@ -635,7 +646,7 @@ Private Sub Section(ByVal ws As Worksheet, ByVal r As Long, ByVal title As Strin
         .Color = modPD_Theme.C_BRAND_DEEP
         .Weight = xlThin
     End With
-    ws.Rows(r).RowHeight = 30
+    ws.Rows(r).RowHeight = 36
     Err.Clear
 End Sub
 
@@ -645,8 +656,8 @@ End Sub
 Private Sub Glance(ByVal ws As Worksheet, ByVal top As Double, ByVal wide As Double)
     Dim items As Variant, i As Long, n As Long, w As Double, gp As Double
     items = Array(Array("ROWS STAGED", Fmt(modPD_Stage.StagedRows())), _
-                  Array("PRE-FACTOR", Compact(modPD_Stage.GrossPre())), _
-                  Array("POST-FACTOR", Compact(modPD_Stage.GrossPost())), _
+                  Array("GROSS PRE-FACTOR", Compact(modPD_Stage.GrossPre())), _
+                  Array("GROSS POST-FACTOR", Compact(modPD_Stage.GrossPost())), _
                   Array("SHEETS", CStr(modPD_Pivot.MadeSheets().count)), _
                   Array("LOCAL CURRENCY", modPD_Stage.LocalCurrency()), _
                   Array("DATA AS OF", modPD_Stage.StagedAsOf()))
@@ -675,7 +686,7 @@ Private Sub Note(ByVal ws As Worksheet, ByVal r As Long, ByVal label As String, 
         .IndentLevel = 1
     End With
     ws.Rows(r).AutoFit
-    If ws.Rows(r).RowHeight < 22 Then ws.Rows(r).RowHeight = 22
+    If ws.Rows(r).RowHeight < 32 Then ws.Rows(r).RowHeight = 32
 End Sub
 
 ' ===================== the look of the output ===============================

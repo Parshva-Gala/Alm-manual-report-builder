@@ -217,6 +217,8 @@ Public Sub PaintCards(ByVal ws As Worksheet)
     Next t
     modPD_Theme.SetStatus ws, nPivot & " pivot reports and " & nChart & " charts. " & _
         IIf(nOn > 0, nOn & " already in the next build.", "None in the next build yet."), "Idle"
+    modPD_Theme.PrintReady ws, 1, r
+    ws.PageSetup.BlackAndWhite = False
     Err.Clear
 End Sub
 
@@ -242,17 +244,17 @@ Private Sub Card(ByVal ws As Worksheet, ByVal t As Variant, ByVal x As Double, B
     Wrapped ws, "pdg_desc_" & key, CStr(t(3)), x + 16, y + 54, CARD_W - 32, 44, 9, modPD_Theme.C_TEXT_2
     Wrapped ws, "pdg_uses_" & key, CStr(t(4)), x + 16, y + 102, CARD_W - 32, 16, 7.5, modPD_Theme.C_TEXT_3
     Select Case st
-        Case "on": cap = "Open":  kind = 2
+        Case "on": cap = "Edit report": kind = 2
         Case "off": cap = "Switch on": kind = 1
-        Case Else: cap = "Add": kind = 1
+        Case Else: cap = "Add report": kind = 4
     End Select
-    modPD_Theme.Pill ws, "pdg_btn_" & key, cap, "PD_GalleryAdd", x + 16, y + CARD_H - 36, 86, 24, kind
+    modPD_Theme.Pill ws, "pdg_btn_" & key, cap, "PD_GalleryAdd", x + 16, y + CARD_H - 36, 96, 24, kind
     If st = "on" Then
-        modPD_Theme.BarText ws, "pdg_state_" & key, ChrW(9679) & "  IN THE NEXT BUILD", x + 112, y + CARD_H - 29, _
-            7, modPD_Theme.C_BRAND_BRIGHT, modPD_Theme.UI_SEMI, 1
+        modPD_Theme.BarText ws, "pdg_state_" & key, ChrW(9679) & "  IN THE NEXT BUILD", x + 122, y + CARD_H - 29, _
+            7, modPD_Theme.C_LINK, modPD_Theme.UI_SEMI, 0.5
     ElseIf st = "off" Then
-        modPD_Theme.BarText ws, "pdg_state_" & key, "ON THE SHEET, SWITCHED OFF", x + 112, y + CARD_H - 29, _
-            7, modPD_Theme.C_TEXT_3, modPD_Theme.UI_SEMI, 1
+        modPD_Theme.BarText ws, "pdg_state_" & key, "ON THE SHEET, SWITCHED OFF", x + 122, y + CARD_H - 29, _
+            7, modPD_Theme.C_TEXT_2, modPD_Theme.UI_SEMI, 0.3
     End If
     Err.Clear
 End Sub

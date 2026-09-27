@@ -141,21 +141,7 @@ Private Sub DressLogBlock(ByVal ws As Worksheet, ByVal lastR As Long)
 End Sub
 
 Private Sub PrintSetup()
-    Dim ws As Worksheet
-    Set ws = GetSheet(SH_SOURCES)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, modPD_Files.S_COLS
-    Set ws = GetSheet(SH_RECON)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
-    Set ws = GetSheet(SH_LOG)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 5
-    Set ws = GetSheet(SH_CONFIG)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 21
-    Set ws = GetSheet(SH_FIELDS)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
-    Set ws = GetSheet(SH_BOOKS)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 8
-    Set ws = GetSheet(SH_CHARTS)
-    If Not ws Is Nothing Then modPD_Theme.PrintReady ws, 20
+    PreparePrint
 End Sub
 
 Private Sub OrderSheets()
@@ -347,5 +333,23 @@ Public Sub PD_ClearLog()
     If lastR >= modPD_Theme.R_FIRST Then ws.Range(ws.Rows(modPD_Theme.R_FIRST), ws.Rows(lastR)).Delete
     LogIt V_OK, "Activity", "The log was cleared.", ""
     modPD_Desk.RefreshDesk
+    Err.Clear
+End Sub
+
+' Refresh only application-owned visible pages. Find is bounded to the
+' header columns; report artwork supplies the Gallery's content bounds.
+' Do this once before printing, not on every appended activity message.
+Public Sub PreparePrint()
+    Dim ws As Worksheet, lastCol As Long
+    On Error Resume Next
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.visible = xlSheetVisible Then
+            Select Case ws.Name
+                Case SH_SOURCES, SH_RECON, SH_LOG, SH_CONFIG, SH_FIELDS, SH_CHARTS, SH_BOOKS, SH_GALLERY
+                    lastCol = ws.Cells(R_HDR, ws.Columns.count).End(xlToLeft).Column
+                    modPD_Theme.PrintReady ws, lastCol
+            End Select
+        End If
+    Next ws
     Err.Clear
 End Sub

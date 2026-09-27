@@ -248,6 +248,32 @@ Public Function ReconSig() As String
     ReconSig = OutputsSig() & modPD_Files.SlotFile("CTRL3|") & "|" & modPD_Files.SlotFile("CTRL6|")
 End Function
 
+' A stored result can only describe the current paths while those files exist.
+Private Function ReconCurrent() As Boolean
+    Dim key As Variant
+    If SettingGet("recon_ran") <> "1" Then Exit Function
+    If SettingGet("recon_sig") <> ReconSig() Then Exit Function
+    For Each key In SlotKeys()
+        If Len(modPD_Files.SlotFile(CStr(key))) > 0 Then
+            If Not IsIn(SlotState(CStr(key))) Then Exit Function
+        End If
+    Next key
+    ReconCurrent = True
+End Function
+
+' A CHECK can be a small difference; it is not an all-clear without a break.
+Private Function ReconNeedsReview() As Boolean
+    Dim fw As Variant, ctl As Variant
+    If Val(SettingGet("recon_n", "0")) = 0 Then ReconNeedsReview = True: Exit Function
+    For Each fw In Frameworks()
+        For Each ctl In Array("CR3", "CR6")
+            If UCase$(SettingGet("m_" & CStr(ctl) & "_" & CStr(fw))) = "CHECK" Then
+                ReconNeedsReview = True: Exit Function
+            End If
+        Next ctl
+    Next fw
+End Function
+
 Public Function BuildSig() As String
     BuildSig = OutputsSig()
 End Function
@@ -312,7 +338,7 @@ Private Function NextAction(ByRef label As String, ByRef lede As String) As Stri
         ctl = "control report 6 is"
     End If
     built = (nFw > 0 And SettingGet("build_sig") = BuildSig())
-    reconciled = (SettingGet("recon_sig") = ReconSig() And SettingGet("recon_ran") = "1")
+    reconciled = ReconCurrent()
     nBreak = CLng(Val(SettingGet("recon_breaks", "0")))
     nCmp = CLng(Val(SettingGet("recon_n", "0")))
     worst = Val(SettingGet("recon_worst", "0"))
@@ -320,14 +346,14 @@ Private Function NextAction(ByRef label As String, ByRef lede As String) As Stri
 
     If nFiles = 0 And Len(missingKey) = 0 Then
         label = "Scan a folder"
-        lede = "Nothing is on the desk yet. Point Avati at the folder holding your framework outputs " & _
-               "and control reports 3 and 6 - it works out which file is which."
+        lede = "Start with LCR, NSFR and maturity ladder outputs, plus controls 3 and 6. " & _
+               "Scan their folder or choose individual files."
         NextAction = "SCAN"
     ElseIf Len(missingKey) > 0 Then
         label = "Find " & SlotLabel(missingKey)
         If Len(label) > 24 Then label = "Find the missing file"
-        lede = SlotLabel(missingKey) & " has moved or been renamed since it was added. Find it again to " & _
-               "carry on - nothing else on the desk has changed."
+        lede = SlotLabel(missingKey) & " is no longer at its saved location. Choose it again, then rerun " & _
+               "reconciliation against the current inputs."
         NextAction = "SLOT:" & missingKey
     ElseIf nFw = 0 Then
         label = "Add an output"
@@ -371,10 +397,15 @@ Private Function NextAction(ByRef label As String, ByRef lede As String) As Stri
         If worst > 0 Then lede = lede & " - the largest involves " & Compact(worst) & " LCY"
         lede = lede & ". Scope is on Activity; read it before calling a difference an error."
         NextAction = "GO_RECON"
+    ElseIf ReconNeedsReview() Then
+        label = "Review the flagged checks"
+        lede = "A comparison needs review. Inspect the differences and scope in Reconciliation " & _
+               "and Activity before treating the checks as complete."
+        NextAction = "GO_RECON"
     Else
         label = "Open the workbooks"
-        lede = "Everything on the desk is built and every shared key reconciles."
-        If Len(folder) > 0 Then lede = lede & " The workbooks are in " & MidTrim(folder, 60) & "."
+        lede = "Shared-key checks are complete. Review scope and coverage in Reconciliation; " & _
+               "your built workbooks are ready to open."
         NextAction = "OPEN_FOLDER"
     End If
 End Function
@@ -421,8 +452,7 @@ Public Sub RefreshDesk()
     SetVisible ws, "pdx_macros", False
     SetText ws, "pdx_btn_view", IIf(AppView(), "Excel view", "App view")
     SetText ws, "pdx_foot", TOOL_NAME & " " & TOOL_VERSION & "  " & ChrW(183) & _
-        "  Every workbook it writes is live PivotTables on one cache " & ChrW(8212) & _
-        " drag a field, add a slicer, double-click a total."
+        "  MIDBANK  " & ChrW(183) & "  Live pivots, shared caches and traceable builds."
 
     ws.Protect DrawingObjects:=True, Contents:=True, Scenarios:=True, UserInterfaceOnly:=True
     Application.ScreenUpdating = su
@@ -430,24 +460,50 @@ Public Sub RefreshDesk()
     Err.Clear
 End Sub
 
+' Headline, status and action share the same decision as PD_NextAction.
+Private Sub HeroState(ByVal act As String, ByRef title As String, ByRef status As String, ByRef level As String)
+    level = "IDLE"
+    Select Case True
+        Case act = "SCAN"
+            title = "Your ALM workbench.": status = "START WITH SOURCE FILES"
+        Case Left$(act, 5) = "SLOT:"
+            title = "Bring the desk up to date.": status = "SOURCE FILE NEEDS ATTENTION": level = "WARN"
+        Case act = "PICK"
+            title = "Complete your source set.": status = "MORE SOURCE DATA NEEDED": level = "CHECK"
+        Case act = "GO_CONFIG"
+            title = "Resolve the build checks.": status = "REPORT SETUP NEEDS ATTENTION": level = "WARN"
+        Case act = "BUILD"
+            title = "Ready for the next build.": status = "FRAMEWORKS READY": level = "OK"
+        Case act = "NONE"
+            title = "Choose your next build.": status = "SELECT A FRAMEWORK"
+        Case act = "RECON"
+            title = "Ready to reconcile.": status = "CURRENT INPUTS NEED A CHECK": level = "CHECK"
+        Case act = "GO_RECON"
+            If Val(SettingGet("recon_breaks", "0")) > 0 Then
+                title = "Review the differences.": status = "RECONCILIATION BREAKS": level = "BREAK"
+            Else
+                title = "Review the flagged checks.": status = "COMPARISON NEEDS REVIEW": level = "CHECK"
+            End If
+        Case Else
+            title = "Your workbooks are ready.": status = "SHARED-KEY CHECKS COMPLETE": level = "OK"
+    End Select
+End Sub
+
 Private Sub PaintHero(ByVal ws As Worksheet)
-    Dim label As String, lede As String, h As Long, g As String
+    Dim label As String, lede As String, act As String, g As String, status As String, level As String
     Dim keys As Variant, i As Long, nFiles As Long, nFw As Long, nCtl As Long, st As String
-    Dim ran As Boolean, nBreak As Long, nCmp As Long, asOf As String, fw As Variant
+    Dim ran As Boolean, currentRecon As Boolean, nBreak As Long, nCmp As Long, asOf As String, fw As Variant
     On Error Resume Next      ' one label that will not paint must not stop the rest
 
-    h = Hour(Now)
-    If h < 12 Then
-        g = "Good morning."
-    ElseIf h < 17 Then
-        g = "Good afternoon."
-    Else
-        g = "Good evening."
-    End If
+    act = NextAction(label, lede)
+    HeroState act, g, status, level
     SetText ws, "pdx_hero_greet", g
+    SetText ws, "pdx_hero_state", status
+    SetTextColor ws, "pdx_hero_state", LevelDark(level)
+    SetFill ws, "pdx_hero_state", DarkBg(level)
+    SetLine ws, "pdx_hero_state", LevelDark(level), 0.65
     SetText ws, "pdx_hero_date", UCase$(Format$(Date, "dddd")) & "  " & ChrW(183) & "  " & _
                                  UCase$(Format$(Date, "d mmmm yyyy"))
-    NextAction label, lede
     SetText ws, "pdx_hero_lede", lede
     SetText ws, "pdx_cta", label
     CenterIcon ws, "pdx_cta", "pdx_cta_ic"
@@ -465,6 +521,7 @@ Private Sub PaintHero(ByVal ws As Worksheet)
     Kpi ws, "ctl", nCtl, 2, "of 2 control reports"
 
     ran = (SettingGet("recon_ran") = "1")
+    currentRecon = ReconCurrent()
     nBreak = CLng(Val(SettingGet("recon_breaks", "0")))
     nCmp = CLng(Val(SettingGet("recon_n", "0")))
     If Not ran Then
@@ -472,12 +529,22 @@ Private Sub PaintHero(ByVal ws As Worksheet)
         SetTextColor ws, "pdx_kpi_recon_value", HX("F2F7F4")
         SetText ws, "pdx_kpi_recon_sub", "not run yet"
         SetFill ws, "pdx_kpi_recon_seg1", HX("FFFFFF"), 0.9
+    ElseIf Not currentRecon Then
+        SetText ws, "pdx_kpi_recon_value", ChrW(8212)
+        SetTextColor ws, "pdx_kpi_recon_value", HX("F2B544")
+        SetText ws, "pdx_kpi_recon_sub", "inputs changed " & ChrW(183) & " rerun"
+        SetFill ws, "pdx_kpi_recon_seg1", HX("F2B544")
     ElseIf nBreak > 0 Then
         SetText ws, "pdx_kpi_recon_value", CStr(nBreak)
         SetTextColor ws, "pdx_kpi_recon_value", HX("FF6B5E")
         SetText ws, "pdx_kpi_recon_sub", Plural(nBreak, "break", "breaks") & " in " & nCmp & _
                                          Plural(nCmp, " comparison", " comparisons")
         SetFill ws, "pdx_kpi_recon_seg1", HX("FF6B5E")
+    ElseIf ReconNeedsReview() Then
+        SetText ws, "pdx_kpi_recon_value", ChrW(8212)
+        SetTextColor ws, "pdx_kpi_recon_value", HX("F2B544")
+        SetText ws, "pdx_kpi_recon_sub", "checks need review"
+        SetFill ws, "pdx_kpi_recon_seg1", HX("F2B544")
     Else
         SetText ws, "pdx_kpi_recon_value", "0"
         SetTextColor ws, "pdx_kpi_recon_value", HX("2FC48D")
@@ -524,7 +591,7 @@ Private Sub PaintFiles(ByVal ws As Worksheet)
         SetText ws, "pdx_slot" & (i + 1) & "_meta", SlotMeta(CStr(keys(i)), st)
         SetTextColor ws, "pdx_slot" & (i + 1) & "_meta", SlotMetaColor(st)
     Next i
-    SetText ws, "pdx_card1_count", n & " OF 5 IN PLACE"
+    SetText ws, "pdx_card1_count", n & " OF 5 CONNECTED"
 End Sub
 
 Private Sub PaintBuild(ByVal ws As Worksheet)
@@ -592,7 +659,7 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
     Next j
 
     If nReady = 0 Then
-        SetText ws, "pdx_card2_count", "NOTHING TO BUILD YET"
+        SetText ws, "pdx_card2_count", "AWAITING FRAMEWORK OUTPUTS"
     Else
         SetText ws, "pdx_card2_count", nReady & " OF 3 READY"
     End If
@@ -631,7 +698,7 @@ Private Sub PaintBuild(ByVal ws As Worksheet)
 End Sub
 
 Private Sub PaintRecon(ByVal ws As Worksheet)
-    Dim st3 As String, st6 As String, nFw As Long, fw As Variant, ran As Boolean
+    Dim st3 As String, st6 As String, nFw As Long, fw As Variant, ran As Boolean, currentRecon As Boolean
     Dim r As Long, c As Long, v As String, ctlKey As Variant, fws As Variant, nm As String
     Dim nBreak As Long, nCmp As Long, lvl As String
     On Error Resume Next      ' one label that will not paint must not stop the rest
@@ -651,17 +718,20 @@ Private Sub PaintRecon(ByVal ws As Worksheet)
 
     Select Case True
         Case nFw = 0 And Not IsIn(st3) And Not IsIn(st6)
-            SetText ws, "pdx_card3_count", "NEEDS AN OUTPUT AND A CONTROL"
+            SetText ws, "pdx_card3_count", "ADD OUTPUTS + CONTROLS"
         Case nFw = 0
             SetText ws, "pdx_card3_count", "NEEDS AN OUTPUT"
         Case Not IsIn(st3) And Not IsIn(st6)
             SetText ws, "pdx_card3_count", "NEEDS A CONTROL REPORT"
         Case Else
-            SetText ws, "pdx_card3_count", (Abs(IsIn(st3)) + Abs(IsIn(st6))) & " OF 2 CONTROLS IN PLACE"
+            SetText ws, "pdx_card3_count", (Abs(IsIn(st3)) + Abs(IsIn(st6))) & " OF 2 CONTROLS CONNECTED"
     End Select
 
     ran = (SettingGet("recon_ran") = "1")
-    If ran Then
+    currentRecon = ReconCurrent()
+    If ran And Not currentRecon Then
+        SetText ws, "pdx_c3_when", "INPUTS CHANGED  " & ChrW(183) & "  RERUN"
+    ElseIf ran Then
         SetText ws, "pdx_c3_when", "LAST RUN  " & ChrW(183) & "  " & UCase$(SettingGet("recon_when"))
     Else
         SetText ws, "pdx_c3_when", "NOT RUN YET"
@@ -674,6 +744,7 @@ Private Sub PaintRecon(ByVal ws As Worksheet)
         For c = 0 To UBound(fws)
             nm = "pdx_m_" & r & (c + 1)
             v = SettingGet("m_" & CStr(ctlKey) & "_" & CStr(fws(c)))
+            If Not currentRecon Then v = ""
             PaintCell ws, nm, v
         Next c
     Next ctlKey
@@ -684,10 +755,18 @@ Private Sub PaintRecon(ByVal ws As Worksheet)
         lvl = "IDLE"
         SetText ws, "pdx_c3_vtitle", "NOT RUN"
         SetText ws, "pdx_c3_vvalue", ChrW(8212)
+    ElseIf Not currentRecon Then
+        lvl = "WARN"
+        SetText ws, "pdx_c3_vtitle", "RERUN"
+        SetText ws, "pdx_c3_vvalue", "Required"
     ElseIf nBreak > 0 Then
         lvl = "BREAK"
         SetText ws, "pdx_c3_vtitle", UCase$(Plural(nBreak, "break", "breaks"))
         SetText ws, "pdx_c3_vvalue", nBreak & " of " & nCmp
+    ElseIf ReconNeedsReview() Then
+        lvl = "CHECK"
+        SetText ws, "pdx_c3_vtitle", "REVIEW"
+        SetText ws, "pdx_c3_vvalue", "Checks"
     Else
         lvl = "OK"
         SetText ws, "pdx_c3_vtitle", "ALL CLEAR"
@@ -718,7 +797,7 @@ Private Function DarkBg(ByVal lvl As String) As Long
     Select Case UCase$(lvl)
         Case "OK": DarkBg = HX("0D2A20")
         Case "BREAK": DarkBg = HX("2E1614")
-        Case "CHECK": DarkBg = HX("2A2310")
+        Case "CHECK", "WARN", "FORCED": DarkBg = HX("2A2310")
         Case Else: DarkBg = HX("121D19")
     End Select
 End Function
@@ -1149,10 +1228,10 @@ End Sub
 Private Sub TourStep(ByVal n As Long, ByRef targets As String, ByRef title As String, ByRef body As String)
     Select Case n
         Case 1
-            targets = "pdx_hero_greet,pdx_hero_lede,pdx_cta,pdx_cta2"
-            title = "The next step, always"
-            body = "Avati reads the desk and puts the next sensible step on this button. " & _
-                   "The sentence above it says why."
+            targets = "pdx_hero_greet,pdx_hero_lede,pdx_cta,pdx_cta2,pdx_hero_state"
+            title = "Your next action, in context"
+            body = "The headline and readiness badge follow your files, builds and checks. " & _
+                   "The bright button takes the next step; the four metrics show the current position."
         Case 2
             targets = "pdx_card1"
             title = "Put the files on the desk"
@@ -1165,9 +1244,9 @@ Private Sub TourStep(ByVal n As Long, ByRef targets As String, ByRef title As St
                    "and every row can be changed."
         Case 4
             targets = "pdx_card3"
-            title = "Breaks before anyone asks"
-            body = "Reconcile the outputs against control reports 3 and 6. Each cell of the matrix is one " & _
-                   "control against one framework."
+            title = "Review every flagged check"
+            body = "Compare outputs with controls 3 and 6. The matrix separates breaks from checks needing review. " & _
+                   "Open Reconciliation and Activity for the differences and scope."
         Case 5
             targets = "pdx_rb"
             title = "Open what you built"
