@@ -158,6 +158,34 @@ foreach ($f in ($lintTargets | Sort-Object Name)) {
     Write-Output "$($f.Name):"
     $problems | ForEach-Object { Write-Output $_ }
   }
+  # VBA takes at most 24 line continuations per statement and 1023 characters per
+  # line. VBComponents.Import rejects a file over either with a bare COM error
+  # (0x800A9D00), so say which file and line here, before Excel starts.
+  $contRun = 0; $contStart = 0; $contLine = 0
+  foreach ($line in (Get-Content $f.FullName)) {
+    $contLine++
+    if ($line.Length -gt 1023) {
+      $lintFailed = $true
+      Write-Output "$($f.Name):"
+      Write-Output "  line ${contLine} is $($line.Length) characters; VBA allows 1023"
+    }
+    if ($line -notmatch "^\s*'" -and $line -match '(^|\s)_\s*$') {
+      if ($contRun -eq 0) { $contStart = $contLine }
+      $contRun++
+    } else {
+      if ($contRun -gt 24) {
+        $lintFailed = $true
+        Write-Output "$($f.Name):"
+        Write-Output "  line ${contStart}: statement has $contRun line continuations; VBA allows 24"
+      }
+      $contRun = 0
+    }
+  }
+  if ($contRun -gt 24) {
+    $lintFailed = $true
+    Write-Output "$($f.Name):"
+    Write-Output "  line ${contStart}: statement has $contRun line continuations; VBA allows 24"
+  }
 }
 
 # Standard modules reach the sheet code modules by name (Sheet1.Foo). VBA only rejects an

@@ -13,20 +13,35 @@ Private mRateTolerance As Double
 Private mParamIssues As Object
 
 Public Sub OpenReconWorkbench()
+    Dim hs As Worksheet, w As Window
+    ' Runs at the end of every Run: nothing here may raise, whatever window the
+    ' person is in (see UiSetView).
+    On Error Resume Next
+    DoEvents                          ' let Windows hear from Excel after a long run
+    Application.ScreenUpdating = False
     EnsureReconWorkbench
-    ThisWorkbook.Worksheets(HOME).Activate
-    ActiveWindow.DisplayGridlines = False
-    ActiveWindow.DisplayHeadings = False
+    Application.ScreenUpdating = True
+    Set hs = ThisWorkbook.Worksheets(HOME)
+    If hs Is Nothing Then Exit Sub
+    If Not UiTryActivate(hs) Then Exit Sub
+    Set w = UiOwnWindow(hs)
+    If w Is Nothing Then Exit Sub
+    w.DisplayGridlines = False
+    w.DisplayHeadings = False
     ' The cockpit is laid out for the full width A:AK; fit it to the window,
     ' but never so small that it stops being readable or so large it blurs.
-    On Error Resume Next
-    ThisWorkbook.Worksheets(HOME).Range("A1:AK1").Select
-    ActiveWindow.zoom = True
-    If ActiveWindow.zoom < 70 Then ActiveWindow.zoom = 70
-    If ActiveWindow.zoom > 110 Then ActiveWindow.zoom = 110
-    ThisWorkbook.Worksheets(HOME).Range("A2").Select
-    On Error GoTo 0
-    ActiveWindow.ScrollRow = 1: ActiveWindow.ScrollColumn = 1
+    ' Zoom-to-selection needs the tool's window in front, so only then.
+    ' Compare handles: two references to the same Window are not always "Is".
+    If UiIsActiveWindow(w) Then
+        hs.Range("A1:AK1").Select
+        w.zoom = True
+        If w.zoom < 70 Then w.zoom = 70
+        If w.zoom > 110 Then w.zoom = 110
+        hs.Range("A2").Select
+    End If
+    w.ScrollRow = 1: w.ScrollColumn = 1
+    Application.ScreenUpdating = True
+    Err.Clear
 End Sub
 
 ' The one home is the reconciliation cockpit in modCockpit. Its values are named
@@ -141,12 +156,9 @@ Public Sub EnsureJoinedOverview(ByVal wb As Workbook, Optional ByVal recordCount
         .PageSetup.FitToPagesWide = 1: .PageSetup.FitToPagesTall = 1
         .PageSetup.LeftMargin = 12: .PageSetup.RightMargin = 12: .PageSetup.TopMargin = 12: .PageSetup.BottomMargin = 12
         .PageSetup.PrintGridlines = False: .PageSetup.PrintHeadings = False
-        .Activate: .Range("B3").Select
     End With
-    With ActiveWindow
-        .DisplayGridlines = False: .DisplayHeadings = False: .zoom = 90
-        .ScrollRow = 1: .ScrollColumn = 1
-    End With
+    ' The pack takes minutes; the person may be in another window by now.
+    If UiTryActivate(ws) Then UiSetView ws, -1, 0, 90, False
 End Sub
 
 Private Sub JoinedOverviewLink(ByVal wb As Workbook, ByVal ws As Worksheet, ByVal titleAddress As String, ByVal textAddress As String, _
@@ -270,7 +282,7 @@ End Sub
 Public Sub RunStressReconciliation()
     Dim result As String
     result = RunStressReconciliationQuiet()
-    OpenReconWorkbench
+    OpenReconWorkbench   ' never raises
     If Left$(result, 5) = "ERROR" Then UiProblem "Reconcile", "The reconciliation did not run.", result
 End Sub
 
@@ -770,9 +782,10 @@ Public Sub StyleReconTable(ByVal ws As Worksheet, ByVal lastRow As Long, ByVal c
     fc.Interior.Color = RGB(254, 243, 242): fc.Font.Color = RGB(180, 35, 24)
     Set fc = rg.FormatConditions.Add(xlCellValue, xlEqual, "=""BLOCKED""")
     fc.Interior.Color = RGB(253, 246, 227): fc.Font.Color = RGB(176, 138, 46)
-    ws.Activate: ActiveWindow.DisplayGridlines = False
-    ActiveWindow.FreezePanes = False: ActiveWindow.splitRow = 7: ActiveWindow.SplitColumn = 2: ActiveWindow.FreezePanes = True
-    ActiveWindow.zoom = 85
+    ' View settings last and guarded: this runs after every check is written,
+    ' and a window that will not take them must not fail the run.
+    If Not JKB_Busy Then UiTryActivate ws
+    UiSetView ws, 7, 2, 85
 End Sub
 
 Private Sub UpdateReconSummary(ByVal state As String)
@@ -962,7 +975,7 @@ Public Sub OpenDataManager()
     End With
     ReconButton ws, "DataClearConfirm", "Clear selected data", "ConfirmClearData", "B14:D15", True
     ReconButton ws, "DataClearBack", "Back to review", "OpenReconWorkbench", "F14:H15", False
-    ws.Activate: ActiveWindow.DisplayGridlines = False: ActiveWindow.DisplayHeadings = False: ActiveWindow.zoom = 90
+    If UiTryActivate(ws) Then UiSetView ws, -1, 0, 90, False
 End Sub
 
 Public Sub ConfirmClearData()

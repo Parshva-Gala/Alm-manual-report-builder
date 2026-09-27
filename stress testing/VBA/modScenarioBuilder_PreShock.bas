@@ -780,7 +780,8 @@ Private Sub SeedMetricDefaults(ByVal ws As Worksheet)
     m = modScenarioBuilder_Multi.SeedMetricsMaxEcl():     WriteMetricSeeds ws, m, at: at = at + UBound(m) + 1
     m = modScenarioBuilder_Multi.SeedMetricsLiquidity():  WriteMetricSeeds ws, m, at: at = at + UBound(m) + 1
     m = modScenarioBuilder_Multi.SeedMetricsCapital():    WriteMetricSeeds ws, m, at: at = at + UBound(m) + 1
-    m = modValueSources.VS_SeedMetrics():                WriteMetricSeeds ws, m, at
+    m = modValueSources.VS_SeedMetrics():                WriteMetricSeeds ws, m, at: at = at + UBound(m) + 1
+    m = modDesignBasePreShock.DBP_SeedMetrics():          WriteMetricSeeds ws, m, at
     modScenarioBuilder_Multi.UpgradeCapitalMetricDefaults ws
 End Sub
 
@@ -810,7 +811,8 @@ Private Sub AppendMissingMetrics(ByVal ws As Worksheet)
                   modScenarioBuilder_Multi.SeedMetricsMaxEcl(), _
                   modScenarioBuilder_Multi.SeedMetricsLiquidity(), _
                   modScenarioBuilder_Multi.SeedMetricsCapital(), _
-                  modValueSources.VS_SeedMetrics())
+                  modValueSources.VS_SeedMetrics(), _
+                  modDesignBasePreShock.DBP_SeedMetrics())
     For si = LBound(sets_) To UBound(sets_)
         m = sets_(si)
         For i = LBound(m) To UBound(m)
@@ -902,20 +904,20 @@ Private Sub SeedDimensionDefaults(ByVal ws As Worksheet)
       Array("IFRS STAGE", "STAGE_ID|DEAL_STAGE_ID", "STAGE", "Stage 1 / 2 / 3"), _
       Array("IFRS MODEL", "IFRS_SEGMENT_CODE|IFRS_SEGMENT2_CODE|IFRS_SEGMENT3_CODE", "TEXT", "IFRS segmentation / model"), _
       Array("ACCOUNT/DEAL NUMBER", "ACCOUNT_NUMBER|FACILITY_CODE", "TEXT", "Account or facility identifier"), _
-      Array("CURRENCY", "ISO_CODE|CURRENCY_CODE", "TEXT", "Currency"), _
+      Array("CURRENCY", "ISO_CODE|CURRENCY_CODE||CURRENCY_NAME", "CURRENCY", "Currency; CURRENCY_NAME (ALM files) only where no code column exists"), _
       Array("COUNTERPARTY CLASSIFICATION", "COUNTERPARTY_CLASSIFICATION_NAME|COUNTERPARTY_CLASSIFICATION_CODE", "TEXT", "Credit counterparty classification"), _
       Array("COUNTERPARTY CLASSIFICATION (ECL)", "COUNTERPARTY_CLASSIFICATION_NAME|COUNTERPARTY_CLASSIFICATION_CODE", "TEXT", "Preset to ECL counterparty classification"), _
-      Array("COUNTERPARTY CLASSIFICATION (ALM)", "COUNTERPARTY_CLASSIFICATION_NAME|COUNTERPARTY_CLASSIFICATION_CODE", "TEXT", "Preset candidate; verify taxonomy equivalence for ALM scenarios"), _
-      Array("COUNTERPARTY CODE", "CUSTOMER_CODE|COUNTERPARTY_ID|CUSTOMER_ID", "TEXT", "Customer / counterparty identifier"), _
+      Array("COUNTERPARTY CLASSIFICATION (ALM)", "COUNTERPARTY_CLASSIFICATION_NAME|COUNTERPARTY_CLASSIFICATION_CODE", "LOOSE_TEXT", "Preset candidate; the ALM files carry only the code, read as the name"), _
+      Array("COUNTERPARTY CODE", "CUSTOMER_CODE|COUNTERPARTY_ID|CUSTOMER_ID||COUNTERPARTY_CODE", "TEXT", "Customer / counterparty identifier; COUNTERPARTY_CODE (ALM files) only where none of the others exists"), _
       Array("SECTOR", "SECTOR_NAME|SECTOR_CODE", "SECTOR", "Detailed sector"), _
       Array("CBJ_TREE_ECO_SECTOR", "CBJ_TREE_ECO_SECTOR_CODE|CBJ_TREE_ECO_SECTOR_NAME", "UNDERSCORE_TEXT", "CBJ sector tree"), _
       Array("ACCOUNTING TYPE", "ACCOUNTING_TYPE_NAME|ACCOUNTING_TYPE_CODE", "TEXT", "Accounting classification"), _
       Array("GOVT FLAG", "GOV_FLAG|FLG_GOVT_PSE", "YESNO", "Government / public-sector indicator"), _
       Array("PRODUCT", "COA_NAME|COA_CODE|PRODUCT_NAME|PRODUCT_CODE", "TEXT", "Product / COA mapping"), _
       Array("FLAG WHOLESALE IMPORTERS", "FLAG_WHOLESALE_IMPORTERS", "YESNO", "Map when a source field is available"), _
-      Array("BALANCE SHEET TYPE", "", "TEXT", "ALM / balance-sheet dimension; intentionally not guessed from ECL"), _
-      Array("RULE IDENTIFIER", "", "TEXT", "ALM rule dimension; requires an ALM source, not ECL"), _
-      Array("BALANCESHEET LINE", "", "TEXT", "Balance-sheet line; requires an explicit bank mapping"))
+      Array("BALANCE SHEET TYPE", "COA_BALANCESHEET_CATEGORY", "TEXT", "ALM balance-sheet category; only the ALM files carry it"), _
+      Array("RULE IDENTIFIER", "RULE_IDENTIFIER_CODE", "RULEID", "ALM rule identifier; STABLE_DEPOSITS, STABLE DEPOSITS and STABLE read as one value"), _
+      Array("BALANCESHEET LINE", "BALANCESHEET_LINE_NAME|BALANCESHEET_SUB_LINE_NAME", "BSLINE", "ALM balance-sheet line or sub-line; only the ALM files carry it"))
     For i = LBound(m) To UBound(m)
         r = PS_MAP_FIRST_ROW + i
         If r > PS_MAP_LAST_ROW Then Exit For
@@ -1074,7 +1076,7 @@ Private Sub ApplyValidation(ByVal ws As Worksheet)
     ListValidation PreShockSheet(), "F" & (PS_SRC_FIRST_ROW + 3), "Strict,Ignore"
     ListValidation PsMetricsSheet(), "C" & PS_METRIC_FIRST_ROW & ":C" & PS_METRIC_LAST_ROW, "Yes,No"
     ListValidation PsMetricsSheet(), "E" & PS_METRIC_FIRST_ROW & ":E" & PS_METRIC_LAST_ROW, "ALL,1,2,3"
-    ListValidation PsFieldsSheet(), "C" & PS_MAP_FIRST_ROW & ":C" & PS_MAP_LAST_ROW, "TEXT,STAGE,YESNO,SECTOR,UNDERSCORE_TEXT"
+    ListValidation PsFieldsSheet(), "C" & PS_MAP_FIRST_ROW & ":C" & PS_MAP_LAST_ROW, "TEXT,STAGE,YESNO,SECTOR,UNDERSCORE_TEXT,RULEID,CURRENCY,LOOSE_TEXT,BSLINE"
     ListValidation PsFieldsSheet(), Chr$(64 + PS_MAP_BREAK_COL) & PS_MAP_FIRST_ROW & ":" & _
                    Chr$(64 + PS_MAP_BREAK_COL) & PS_MAP_LAST_ROW, "Yes,No"
     ListValidation PreShockSheet(), "I" & (PS_SRC_FIRST_ROW + 2), "Yes,No"
@@ -4337,17 +4339,23 @@ Private Sub AppendUnsupported(ByRef s As String, ByVal field As String)
     End If
 End Sub
 Private Function ResolveFilterColumns(ByVal candidates As String) As Collection
-    Dim c As New Collection, seen As Object, p As Variant, k As String, ix As Long
+    Dim c As New Collection, seen As Object, p As Variant, k As String, ix As Long, grp As Variant
     Set seen = NewMap()
-    For Each p In Split(candidates, "|")
-        k = NormalHeader(p)
-        If mEclHeaders.Exists(k) Then
-            ix = CLng(mEclHeaders(k)): If Not seen.Exists(CStr(ix)) Then c.Add ix: seen(CStr(ix)) = True
-        Else
-            k = CanonicalEclHeader(p)
-            If mEclHeaders.Exists(k) Then ix = CLng(mEclHeaders(k)): If Not seen.Exists(CStr(ix)) Then c.Add ix: seen(CStr(ix)) = True
-        End If
-    Next p
+    ' DBP: "a|b||c" - c is read only where neither a nor b exists, so another
+    ' file's column can stand in without adding a column to a file that
+    ' already resolves the field. Without "||" this is one group, as before.
+    For Each grp In Split(candidates, "||")
+        For Each p In Split(CStr(grp), "|")
+            k = NormalHeader(p)
+            If mEclHeaders.Exists(k) Then
+                ix = CLng(mEclHeaders(k)): If Not seen.Exists(CStr(ix)) Then c.Add ix: seen(CStr(ix)) = True
+            Else
+                k = CanonicalEclHeader(p)
+                If mEclHeaders.Exists(k) Then ix = CLng(mEclHeaders(k)): If Not seen.Exists(CStr(ix)) Then c.Add ix: seen(CStr(ix)) = True
+            End If
+        Next p
+        If c.count > 0 Then Exit For
+    Next grp
     Set ResolveFilterColumns = c
 End Function
 Private Function ParseValueList(ByVal s As String, ByVal mode As String) As Object
@@ -4464,6 +4472,22 @@ Private Function NormalizeFilterValue(ByVal v As Variant, ByVal mode As String) 
                 s = "NO"
             End If
         Case "UNDERSCORE_TEXT": s = Replace(s, "_", " ")
+        ' DBP: RULEID - the rule identifier master says STABLE_DEPOSITS, the
+        ' test-case filters say STABLE DEPOSITS and the LCR extract says STABLE.
+        Case "RULEID"
+            s = Trim$(Replace(s, "_", " "))
+            If Right$(s, 9) = " DEPOSITS" Then
+                s = Left$(s, Len(s) - 9)
+            ElseIf Right$(s, 8) = " DEPOSIT" Then
+                s = Left$(s, Len(s) - 8)
+            End If
+        ' DBP: CURRENCY - the ALM extracts carry the currency name only.
+        Case "CURRENCY": s = CurrencyIsoCode(s)
+        ' DBP: LOOSE_TEXT - RETAIL_PRODUCTS and 'Retail - Products' are one value.
+        Case "LOOSE_TEXT": s = Replace(Replace(s, "_", " "), "-", " ")
+        ' DBP: BSLINE - the ALM files write the line with its code (2.01.00_deposits),
+        ' the filters use the bank's older names. Default until the bank confirms.
+        Case "BSLINE": s = BalanceSheetLineKey(s)
         Case "SECTOR"
             s = Replace(s, "_", " ")
             Do While Len(s) > 0 And Mid$(s, 1, 1) Like "[0-9 ]": s = Mid$(s, 2): Loop
@@ -4472,6 +4496,58 @@ Private Function NormalizeFilterValue(ByVal v As Variant, ByVal mode As String) 
     Do While InStr(s, "  ") > 0: s = Replace(s, "  ", " "): Loop
     NormalizeFilterValue = Trim$(s)
 End Function
+' The ISO code for a currency name as the ALM extracts write it. A code, or a
+' name not listed, comes back unchanged.
+Private Function CurrencyIsoCode(ByVal s As String) As String
+    Dim k As String
+    k = Replace(Replace(s, "-", " "), ".", " ")
+    Do While InStr(k, "  ") > 0: k = Replace(k, "  ", " "): Loop
+    k = Trim$(k)
+    Select Case k
+        Case "JORDAN DINAR", "JORDANIAN DINAR": k = "JOD"
+        Case "US DOLLAR", "USD DOLLAR", "UNITED STATES DOLLAR": k = "USD"
+        Case "EURO": k = "EUR"
+        Case "POUND", "POUND STERLING", "BRITISH POUND", "STERLING": k = "GBP"
+        Case "AUSTRALIAN DOLLAR": k = "AUD"
+        Case "BAHRAINI DINAR", "BAHRAIN DINAR": k = "BHD"
+        Case "CANADIAN DOLLAR": k = "CAD"
+        Case "IRAQ DINAR", "IRAQI DINAR": k = "IQD"
+        Case "JAPANESE YEN": k = "JPY"
+        Case "KUWAIT DINAR", "KUWAITI DINAR": k = "KWD"
+        Case "LEBANESE POUND": k = "LBP"
+        Case "NORWAY KRONE", "NORWEGIAN KRONE": k = "NOK"
+        Case "OMAN RIAL", "OMANI RIAL": k = "OMR"
+        Case "QATAR RIYAL", "QATARI RIYAL": k = "QAR"
+        Case "SAUDI RIYAL": k = "SAR"
+        Case "SWISS FRANC": k = "CHF"
+        Case "TURKISH LIRA", "TURKISH LIRA TRY": k = "TRY"
+        Case "TUNISIA DINAR", "TUNISIAN DINAR": k = "TND"
+        Case "UAE DIRHAM": k = "AED"
+        Case "EGYPTIAN POUND": k = "EGP"
+        Case "DANISH KRONE": k = "DKK"
+        Case "SWEDISH KRONA": k = "SEK"
+        Case Else: k = s
+    End Select
+    CurrencyIsoCode = k
+End Function
+
+' A balance-sheet line without its code prefix, with the filters' older
+' names read as the file's names.
+Private Function BalanceSheetLineKey(ByVal s As String) As String
+    Dim i As Long
+    s = Trim$(s)
+    i = InStr(1, s, "_")
+    If i > 1 Then
+        If Left$(s, i - 1) Like "*[0-9]*" And Not Left$(s, i - 1) Like "*[!0-9.]*" Then s = Trim$(Mid$(s, i + 1))
+    End If
+    Do While InStr(s, "  ") > 0: s = Replace(s, "  ", " "): Loop
+    Select Case s
+        Case "CUSTOMER DEPOSITS": s = "DEPOSITS"
+        Case "CASH ON HANDS AND IN CENTRAL BANKS": s = "CASH AND CENTRAL BANK BALANCES"
+    End Select
+    BalanceSheetLineKey = s
+End Function
+
 Private Function NormalizeStage(ByVal v As Variant) As String
     Dim s As String, digit As String, tail As String
     s = SafeUpperText(v)
@@ -4570,6 +4646,24 @@ Public Function SourceKeys() As Variant
     ' Source column of the metric rules; nothing else needs to change.
     SourceKeys = Array("ECL", "CAPRWA", "LL", "LCR", "CAP", "NSFR")
 End Function
+
+' Every input has its row on the Inputs sheet, named and described, whatever the
+' workbook was built from. Older workbooks carried only the ECL and CAPRWA rows,
+' so LL, LCR and CAP loaded into unnamed rows. Status and file columns are kept.
+Public Sub EnsureSourceRows()
+    Dim ws As Worksheet, i As Long, k As Variant, r As Long
+    On Error Resume Next
+    Set ws = PsSourcesSheet()
+    If ws Is Nothing Then Exit Sub
+    For Each k In SourceKeys()
+        r = PS_SRC_LIST_ROW + i
+        If SafeUpperText(ws.Cells(r, 1).Value2) <> CStr(k) Then ws.Cells(r, 1).Value2 = CStr(k)
+        If Len(SafeText(ws.Cells(r, 2).Value2)) = 0 Then ws.Cells(r, 2).Value2 = SourceLabel(CStr(k))
+        If Len(SafeText(ws.Cells(r, 8).Value2)) = 0 Then ws.Cells(r, 8).Value2 = "Not loaded"
+        i = i + 1
+    Next k
+    Err.Clear
+End Sub
 
 Private Function SourceLabel(ByVal key As String) As String
     Select Case SafeUpperText(key)
@@ -5441,13 +5535,9 @@ Private Sub StyleOne(ByVal ws As Worksheet, ByVal cols As Long, ByVal span As Lo
     ' window, so it is advisory and never allowed to cost the rest of the styling.
     On Error Resume Next
     If Application.Visible Then
+        ' Through the tool's own window: ActiveWindow may be another workbook.
         If ws.Parent.Windows.count > 0 Then
-            ws.Activate
-            ws.Range("A1").Select
-            ActiveWindow.FreezePanes = False
-            ws.Cells(PS_FIRST_ROW, 1).Select
-            ActiveWindow.FreezePanes = True
-            ws.Range("A1").Select
+            If UiTryActivate(ws) Then UiSetView ws, PS_FIRST_ROW - 1, 0
         End If
     End If
     Err.Clear
