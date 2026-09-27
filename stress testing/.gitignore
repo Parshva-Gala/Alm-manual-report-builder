@@ -1,0 +1,9 @@
+# Bank data never goes in this public repository.
+# The build input workbook and every built workbook carry the bank's figures.
+*.xlsm
+*.xlsx
+*.xls
+*.csv
+# The shock catalog is copied from the bank's design document.
+shock_catalog.tsv
+_st_build_out.*
