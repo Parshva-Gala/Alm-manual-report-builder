@@ -1,0 +1,545 @@
+<html><head><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta charset="utf-8">
+<title>JKB filter builder</title>
+<hta:application id="jkb" scroll="no" border="thin" maximizebutton="yes" innerborder="no" contextmenu="no"/>
+<style>
+/* ===========================================================================
+   The filter builder, design system v2 (same tokens as the console and the
+   workbook's modUI_Theme).
+
+   TWO RULES HERE ARE BUG FIXES, NOT STYLE CHOICES. Keep them.
+
+   1. No <select> anywhere. In MSHTML a <select> is a windowed control painted
+      by the OS above the page; its dropdown covered the value list and the
+      expression and blocked clicks. Every choice is a segmented toggle or a
+      list instead, which cannot cover anything.
+   2. Every panel is absolutely pinned to its column's edges, so the expression
+      is always on screen however many conditions there are. IE11 gets the
+      flexbox alternative wrong.
+
+   IE11 host: ES5, no CSS custom properties, no grid, no position:sticky.
+   =========================================================================== */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:"Segoe UI",Arial,sans-serif;font-size:13px;line-height:1.5;background:#F5F7FA;color:#101828;overflow:hidden}
+::-ms-clear{display:none}
+svg{vertical-align:middle}
+
+/* ---------- header ------------------------------------------------------- */
+header{position:absolute;top:0;left:0;right:0;height:72px;background:#FFFFFF;border-bottom:1px solid #EAECF0;padding:14px 20px 0 20px}
+.logo{float:left;width:40px;height:40px;border-radius:10px;background:#0E2240;color:#FFFFFF;font-weight:700;font-size:11.5px;text-align:center;line-height:40px;margin-right:14px}
+header h1{margin:0;font-size:17px;font-weight:600;letter-spacing:-.3px;line-height:1.3;display:inline-block}
+header .crumbs{display:inline-block;margin-left:10px;vertical-align:2px}
+.crumb{display:inline-block;background:#F2F4F7;border:1px solid #EAECF0;border-radius:6px;padding:0 8px;font-size:11.5px;color:#344054;margin-right:5px;line-height:20px;font-weight:600}
+header p{margin:2px 0 0;font-size:12px;color:#667085}
+header p b{color:#344054;font-weight:600}
+header .tools{position:absolute;top:20px;right:20px}
+.zbtn{display:inline-block;height:30px;line-height:28px;padding:0 10px;margin-left:4px;border:1px solid #D0D5DD;border-radius:8px;font-size:12px;font-weight:600;color:#344054;background:#FFFFFF;cursor:pointer}
+.zbtn:hover{background:#F9FAFB}
+
+/* ---------- columns ------------------------------------------------------ */
+.wrap{position:absolute;top:72px;left:0;right:0;bottom:64px}
+.col{position:absolute;top:0;bottom:0;overflow:hidden}
+.col.left{left:0;width:270px;background:#FFFFFF;border-right:1px solid #EAECF0}
+.col.mid{left:270px;right:320px;background:#F5F7FA}
+.col.right{right:0;width:320px;background:#FFFFFF;border-left:1px solid #EAECF0}
+.phead{position:absolute;top:0;left:0;right:0;padding:16px 16px 10px 16px}
+.pbody{position:absolute;left:0;right:0;bottom:0;overflow:auto;padding:0 10px 14px 10px}
+
+.sh{font-size:13px;font-weight:600;color:#101828;margin:0 0 8px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sh .no{display:inline-block;width:20px;height:20px;border-radius:50%;background:#EEF3FB;color:#193F89;font-size:11px;text-align:center;line-height:20px;margin-right:8px;font-weight:700}
+.sh .n{color:#98A2B3;font-weight:500;margin-left:4px}
+.sh .f{color:#193F89}
+
+.search{position:relative}
+.search svg{position:absolute;left:10px;top:9px;color:#98A2B3}
+input,textarea{width:100%;border:1px solid #D0D5DD;border-radius:8px;padding:0 10px;height:34px;font-family:inherit;font-size:12.5px;background:#FFFFFF;color:#101828}
+.search input{padding-left:32px}
+input:focus,textarea:focus{outline:none;border-color:#84ADFF}
+textarea{font-family:Consolas,"Cascadia Mono","Courier New",monospace;font-size:12px;line-height:1.6;resize:none;padding:10px 12px;height:auto}
+
+/* ---------- lists -------------------------------------------------------- */
+.item{padding:0 10px;height:34px;line-height:34px;border-radius:6px;cursor:pointer;font-size:12.5px;color:#344054;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:1px 0}
+.item:hover{background:#F9FAFB;color:#101828}
+.item.on{background:#EEF3FB;color:#193F89;font-weight:600}
+.item .tag{float:right;font-size:10.5px;color:#667085;background:#F2F4F7;border-radius:5px;padding:0 6px;line-height:18px;margin-top:8px;font-weight:600}
+.item.on .tag{background:#FFFFFF;color:#193F89}
+.item .box{display:inline-block;width:16px;height:16px;border:1.5px solid #D0D5DD;border-radius:4px;margin-right:10px;vertical-align:-3px;background:#FFFFFF;text-align:center;line-height:12px;font-size:11px;color:#FFFFFF}
+.item.on .box{background:#193F89;border-color:#193F89}
+.grp{font-size:11px;font-weight:600;color:#98A2B3;letter-spacing:.6px;text-transform:uppercase;padding:10px 10px 4px 10px}
+.empty{padding:22px 12px;font-size:12.5px;color:#667085;line-height:1.6;text-align:center}
+.empty b{color:#344054}
+
+/* ---------- buttons ------------------------------------------------------ */
+button{height:34px;border:1px solid #D0D5DD;background:#FFFFFF;color:#344054;border-radius:8px;padding:0 14px;font-family:inherit;font-weight:600;cursor:pointer;font-size:12.5px;margin-left:8px}
+button:hover{background:#F9FAFB;border-color:#B9C0CC;color:#101828}
+button:active{background:#F2F4F7}
+button.primary{background:#193F89;color:#FFFFFF;border-color:#193F89}
+button.primary:hover{background:#12306B;border-color:#12306B;color:#FFFFFF}
+button.sm{height:28px;padding:0 10px;font-size:12px;margin-left:6px}
+button.ghost{background:transparent;border-color:transparent;color:#667085}
+button.ghost:hover{background:#F2F4F7;color:#101828}
+button.icon{width:28px;padding:0;margin-left:2px}
+button:focus{outline:2px solid #84ADFF;outline-offset:1px}
+
+.seg{display:inline-block;border:1px solid #D0D5DD;border-radius:8px;overflow:hidden;vertical-align:middle;background:#FFFFFF}
+.seg span{display:inline-block;height:28px;line-height:28px;padding:0 12px;font-size:12px;font-weight:600;cursor:pointer;color:#475467;border-left:1px solid #D0D5DD}
+.seg span:first-child{border-left:none}
+.seg span:hover{background:#F9FAFB;color:#101828}
+.seg span.on{background:#EEF3FB;color:#193F89}
+.seg.or span.on{background:#FFFAEB;color:#B54708}
+.seg.sm span{height:24px;line-height:24px;padding:0 10px;font-size:11.5px}
+
+/* ---------- conditions --------------------------------------------------- */
+.joiner{margin:2px 0 10px 18px;position:relative}
+.joiner:before{content:"";position:absolute;left:-10px;top:-12px;bottom:-12px;border-left:2px dotted #D0D5DD}
+.clause{border:1px solid #EAECF0;border-radius:12px;background:#FFFFFF;padding:12px 14px 10px 14px;margin-bottom:10px;cursor:pointer;position:relative}
+.clause:hover{border-color:#D0D5DD}
+.clause.on{border-color:#193F89;box-shadow:0 0 0 3px #D6E2F5}
+.clause.bad{border-color:#FECDCA}
+.row1{white-space:nowrap}
+.num{display:inline-block;width:22px;height:22px;border-radius:6px;background:#F2F4F7;color:#475467;font-size:11px;font-weight:700;text-align:center;line-height:22px;margin-right:10px;vertical-align:middle}
+.clause.on .num{background:#193F89;color:#FFFFFF}
+.fld{display:inline-block;max-width:40%;font-weight:600;color:#101828;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin-right:10px}
+.fld.none{color:#98A2B3;font-weight:500;font-style:italic}
+.acts{float:right;white-space:nowrap}
+.chips{display:block;margin:10px 0 0 32px;min-height:22px}
+.chip{display:inline-block;background:#F2F4F7;border:1px solid #EAECF0;border-radius:6px;padding:0 4px 0 8px;font-size:12px;cursor:pointer;margin:0 6px 6px 0;color:#344054;line-height:22px;font-weight:500}
+.chip .x{display:inline-block;width:16px;text-align:center;color:#98A2B3;margin-left:2px}
+.chip:hover{background:#FEF3F2;border-color:#FECDCA;color:#B42318}
+.chip:hover .x{color:#B42318}
+.chip.more{cursor:default;background:#FFFFFF;color:#667085}
+.hint{font-size:12px;color:#98A2B3}
+
+/* ---------- the expression, pinned to the bottom of the middle column ---- */
+.midfoot{position:absolute;left:0;right:0;bottom:0;height:150px;background:#FFFFFF;border-top:1px solid #EAECF0;padding:12px 18px 14px 18px}
+.midfoot .sh{margin-bottom:6px}
+.midfoot .copy{position:absolute;right:18px;top:8px}
+#preview{height:92px;overflow:auto;border:1px solid #EAECF0;border-radius:10px;background:#F9FAFB;padding:10px 12px;font-family:Consolas,"Cascadia Mono","Courier New",monospace;font-size:12.5px;line-height:1.65;color:#344054;word-wrap:break-word;-ms-user-select:text}
+#preview .kw{color:#193F89;font-weight:700}
+#preview .op{color:#7A2E0E;font-weight:700}
+#preview .fn{color:#101828;font-weight:600}
+#preview .st{color:#067647}
+#preview .ph{color:#98A2B3;font-family:"Segoe UI",Arial,sans-serif;font-style:italic}
+#rawWrap{position:absolute;top:56px;left:18px;right:18px;bottom:150px;display:none;padding-bottom:14px}
+#raw{height:100%}
+
+/* ---------- chosen values ------------------------------------------------ */
+.chosen{position:absolute;left:0;right:0;bottom:0;height:150px;border-top:1px solid #EAECF0;padding:12px 16px;overflow:auto;background:#FCFCFD}
+
+/* ---------- bottom bar --------------------------------------------------- */
+.bar{position:absolute;left:0;right:0;bottom:0;height:64px;padding:15px 20px;background:#FFFFFF;border-top:1px solid #EAECF0}
+.bar .bl{float:left}
+.bar .bl button{margin:0 8px 0 0}
+.bar .br{float:right}
+.msg{display:inline-block;margin-left:8px;font-size:12.5px;vertical-align:middle;line-height:34px}
+.msg .ic{display:inline-block;width:18px;height:18px;border-radius:50%;text-align:center;line-height:18px;font-size:11px;font-weight:700;margin-right:6px;vertical-align:1px}
+.ok{color:#067647} .ok .ic{background:#ECFDF3}
+.bad{color:#B42318} .bad .ic{background:#FEF3F2}
+.warnT{color:#B54708} .warnT .ic{background:#FFFAEB}
+.busy{color:#475467}
+.kbd{display:inline-block;height:19px;line-height:17px;padding:0 5px;border:1px solid #D0D5DD;border-bottom-width:2px;border-radius:4px;font-size:10.5px;color:#475467;font-weight:600;background:#FFFFFF}
+.keys{font-size:11.5px;color:#98A2B3;margin-right:12px;vertical-align:middle}
+
+#confirm{position:absolute;left:50%;top:160px;width:420px;margin-left:-210px;background:#FFFFFF;border-radius:14px;z-index:30;display:none;box-shadow:0 20px 48px rgba(16,24,40,.24);padding:22px 24px 18px 24px}
+#confirm h3{margin:0 0 4px 0;font-size:16px;font-weight:600}
+#confirm p{margin:0 0 16px 0;font-size:12.5px;color:#667085}
+#confirm .b{text-align:right}
+#scrim{position:absolute;top:0;left:0;right:0;bottom:0;background:#0C111D;opacity:.3;filter:alpha(opacity=30);z-index:29;display:none}
+</style></head><body>
+
+<header>
+  <div class="logo">JKB</div>
+  <h1 id="title">Filter builder</h1>
+  <span class="crumbs" id="crumbs"></span>
+  <p id="sub"></p>
+  <span class="tools">
+    <span class="zbtn" id="bSmaller" title="Smaller text">A&minus;</span>
+    <span class="zbtn" id="bBigger" title="Larger text">A+</span>
+    <span class="zbtn" id="bReset" title="Default size">100%</span>
+  </span>
+</header>
+
+<div class="wrap">
+  <div class="col left">
+    <div class="phead">
+      <div class="sh"><span class="no">1</span>Choose a field<span class="n" id="fcount"></span></div>
+      <div class="search"><svg width="14" height="14" viewBox="0 0 16 16"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="11" y1="11" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <input id="fsearch" placeholder="Search fields   (Ctrl+F)"></div>
+    </div>
+    <div class="pbody" id="flistWrap" style="top:92px"><div id="flist"></div></div>
+  </div>
+
+  <div class="col mid">
+    <div class="phead" style="padding:14px 18px 10px 18px">
+      <span class="sh" style="display:inline-block;margin:4px 0 0 0"><span class="no">2</span>Build the conditions</span>
+      <span style="float:right">
+        <span class="seg sm" id="modeSeg"><span id="mVisual" class="on">Visual</span><span id="mRaw">Text</span></span>
+        <button class="sm" id="bAnd">+ AND</button>
+        <button class="sm" id="bOr">+ OR</button>
+        <button class="sm ghost" id="bClear">Clear all</button>
+      </span>
+    </div>
+    <div class="pbody" id="clauseWrap" style="top:56px;bottom:150px;padding:4px 18px 14px 18px"><div id="clauses"></div></div>
+    <div id="rawWrap"><textarea id="raw" spellcheck="false"></textarea></div>
+    <div class="midfoot">
+      <div class="sh">Expression saved to Excel<span class="n" id="exprlen"></span></div>
+      <button class="sm copy" id="bCopy" title="Copy the expression">Copy</button>
+      <div id="preview"></div>
+    </div>
+  </div>
+
+  <div class="col right">
+    <div class="phead">
+      <div class="sh"><span class="no">3</span>Pick values for <span class="f" id="curfield">&hellip;</span></div>
+      <div class="search"><svg width="14" height="14" viewBox="0 0 16 16"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="11" y1="11" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <input id="vsearch" placeholder="Search, or type a value and press Enter"></div>
+      <div style="margin-top:8px;white-space:nowrap">
+        <button class="sm" id="bAll" style="margin-left:0">Select all shown</button>
+        <button class="sm ghost" id="bNone">Clear</button>
+        <span class="hint" id="vcount" style="float:right;padding-top:5px"></span>
+      </div>
+    </div>
+    <div class="pbody" id="vlistWrap" style="top:132px;bottom:150px"><div id="vlist"></div></div>
+    <div class="chosen">
+      <div class="sh">Selected<span class="n" id="chipcount"></span></div>
+      <div class="chips" id="chips" style="margin-left:0"></div>
+    </div>
+  </div>
+</div>
+
+<div class="bar">
+  <span class="bl">
+    <button id="bValidate">Check syntax</button>
+    <button id="bTest">Count matching rows</button>
+    <span class="msg" id="msg"></span>
+  </span>
+  <span class="br">
+    <span class="keys"><span class="kbd">Ctrl</span> <span class="kbd">Enter</span> save &nbsp; <span class="kbd">Esc</span> close</span>
+    <button id="bClose">Cancel</button>
+    <button id="bSave" class="primary">Save to Excel</button>
+  </span>
+</div>
+
+<div id="scrim"></div>
+<div id="confirm">
+  <h3>Discard your changes?</h3>
+  <p>The conditions you built have not been saved to Excel yet.</p>
+  <div class="b"><button id="cKeep">Keep editing</button><button id="cDiscard" class="primary">Discard and close</button></div>
+</div>
+
+<script language="JScript">
+/* This is an HTA, not a web page, because it can write back to the running
+   Excel. VBScript is disabled on Windows 11 and JScript has no GetObject, so
+   the window and the workbook talk through files; the protocol comes from
+   modShared_Bridge so there is one implementation for every page. */
+__BRIDGE_JS__
+
+/* Last resort when the workbook cannot be reached: the clipboard, so the work
+   is never lost. */
+function jkbCopy(expr){
+  try { var h = new ActiveXObject("htmlfile"); h.parentWindow.clipboardData.setData("text", expr); return true; }
+  catch(e) { try { window.clipboardData.setData("Text", expr); return true; } catch(e2) { return false; } }
+}
+</script>
+
+<script src="__VALUES_FILE__"></script>
+<script language="JScript">
+var CTX = __CTX__;
+var VALUES = window.JKB_VALUES || {};
+var clauses = [], active = -1, rawMode = false, shownValues = [], initialExpr = "", saving = false;
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function trim(s){ return String(s).replace(/^\s+|\s+$/g,''); }
+function idx(a,s){ for(var i=0;i<a.length;i++){ if(a[i]===s) return i; } return -1; }
+function quote(v){ return "'" + String(v).replace(/'/g,"''") + "'"; }
+function js(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+function attr(s){ return esc(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
+function fmt(n){ var s = String(n), o = '', c = 0, i; for(i=s.length-1;i>=0;i--){ o = s.charAt(i) + o; c++; if(c%3===0 && i>0) o = ',' + o; } return o; }
+
+/* Dimensions first, since they are the names a filter is meant to use, then
+   every other column the extract carries so nothing is unreachable. */
+function fieldList(){
+  var a = [], seen = {}, i, n;
+  for(i=0;i<(CTX.dimensions||[]).length;i++){ n = CTX.dimensions[i].name; if(!seen[n]){ seen[n]=1; a.push({name:n, tag:'dim'}); } }
+  for(i=0;i<(CTX.fields||[]).length;i++){ n = CTX.fields[i]; if(!seen[n]){ seen[n]=1; a.push({name:n, tag:''}); } }
+  return a;
+}
+
+function build(){
+  var out = '', i, j, c, q, part;
+  for(i=0;i<clauses.length;i++){
+    c = clauses[i];
+    if(!c.field || !c.values.length) continue;
+    q = [];
+    for(j=0;j<c.values.length;j++) q.push(quote(c.values[j]));
+    part = c.field + ' ' + c.op + ' (' + q.join(', ') + ')';
+    out = out ? (out + ' ' + c.join + ' ' + part) : part;
+  }
+  return out;
+}
+
+/* Round-trips raw text back into clauses so the two views stay in step. */
+function parseRaw(txt){
+  var out = [], m, vals, vre, v;
+  var re = /(AND|OR)?\s*([A-Za-z0-9_ \/().]+?)\s+(NOT IN|IN)\s*\(([\s\S]*?)\)\s*(?=(?:AND|OR)\s|$)/gi;
+  while((m = re.exec(txt)) !== null){
+    vals = []; vre = /'((?:[^']|'')*)'/g;
+    while((v = vre.exec(m[4])) !== null) vals.push(v[1].replace(/''/g,"'"));
+    out.push({ join:(m[1]||'AND').toUpperCase(), field:trim(m[2]), op:m[3].toUpperCase(), values:vals });
+  }
+  return out;
+}
+
+/* A read-only, coloured rendering of the expression: keywords, operators,
+   fields and quoted values each read at a glance. */
+function highlightExpr(e){
+  if(!e) return "<span class='ph'>Nothing yet. Add a condition, choose a field, then pick its values.</span>";
+  var out = '', re = /('(?:[^']|'')*')|\b(NOT IN|IN)\b|\b(AND|OR)\b|([A-Za-z_][A-Za-z0-9_.]*)|([\s\S])/g, m;
+  while((m = re.exec(e)) !== null){
+    if(m[1]) out += "<span class='st'>" + esc(m[1]) + "</span>";
+    else if(m[2]) out += "<span class='op'>" + esc(m[2]) + "</span>";
+    else if(m[3]) out += "<span class='kw'>" + esc(m[3]) + "</span>";
+    else if(m[4]) out += "<span class='fn'>" + esc(m[4]) + "</span>";
+    else out += esc(m[5]);
+  }
+  return out;
+}
+
+/* ---------- fields ------------------------------------------------------- */
+function renderFields(){
+  var q = trim($('fsearch').value).toLowerCase(), all = fieldList(), h = '', n = 0, cur = '', i, lastTag = null;
+  if(active >= 0 && clauses[active]) cur = clauses[active].field;
+  for(i=0;i<all.length && n<400;i++){
+    if(q && all[i].name.toLowerCase().indexOf(q) < 0) continue;
+    if(!q && all[i].tag !== lastTag){ h += "<div class='grp'>" + (all[i].tag ? 'Mapped dimensions' : 'All extract columns') + "</div>"; lastTag = all[i].tag; }
+    n++;
+    h += "<div class='item" + (all[i].name===cur?" on":"") + "' title='" + attr(all[i].name) + "' onclick=\"pickField('" + js(all[i].name) + "')\">" +
+         (VALUES[all[i].name] ? "<span class='tag'>" + fmt(VALUES[all[i].name].length) + "</span>" : "") + esc(all[i].name) + "</div>";
+  }
+  if(!n) h = "<div class='empty'>No field matches <b>&ldquo;" + esc(q) + "&rdquo;</b>.</div>";
+  $('flist').innerHTML = h;
+  $('fcount').innerHTML = q ? (n + ' of ' + all.length) : all.length;
+}
+/* Picking a field fills the selected condition while it is still empty;
+   once it has values, a new condition is started so nothing is overwritten. */
+function pickField(f){
+  if(active >= 0 && clauses[active] && clauses[active].field === f) return;
+  if(active < 0 || (clauses[active].field && clauses[active].values.length)) addClause('AND', true);
+  clauses[active].field = f;
+  clauses[active].values = [];
+  $('vsearch').value = '';
+  render();
+  try { $('vsearch').focus(); } catch(e) {}
+}
+
+/* ---------- conditions --------------------------------------------------- */
+function renderClauses(){
+  var h = '', i, j, c;
+  for(i=0;i<clauses.length;i++){
+    c = clauses[i];
+    if(i > 0){
+      h += "<div class='joiner'><span class='seg sm" + (c.join==='OR'?' or':'') + "'>" +
+           "<span class='" + (c.join==='AND'?'on':'') + "' onclick='setJoin(" + i + ",\"AND\")'>AND</span>" +
+           "<span class='" + (c.join==='OR'?'on':'') + "' onclick='setJoin(" + i + ",\"OR\")'>OR</span></span></div>";
+    }
+    h += "<div class='clause" + (i===active?" on":"") + (c.field && !c.values.length && i!==active ? " bad" : "") + "' onclick='setActive(" + i + ")'>";
+    h += "<div class='row1'><span class='num'>" + (i+1) + "</span>";
+    h += "<span class='fld" + (c.field?"":" none") + "' title='" + attr(c.field||'') + "'>" + esc(c.field || 'Choose a field on the left') + "</span>";
+    h += "<span class='seg sm'><span class='" + (c.op==='IN'?'on':'') + "' onclick='setOp(" + i + ",\"IN\")'>is any of</span>" +
+         "<span class='" + (c.op==='NOT IN'?'on':'') + "' onclick='setOp(" + i + ",\"NOT IN\")'>is none of</span></span>";
+    h += "<span class='acts'>" +
+         "<button class='sm ghost icon' title='Move up' onclick='move(" + i + ",-1)' style='font-size:9px'>&#9650;</button>" +
+         "<button class='sm ghost icon' title='Move down' onclick='move(" + i + ",1)' style='font-size:9px'>&#9660;</button>" +
+         "<button class='sm ghost icon' title='Duplicate' onclick='dup(" + i + ")'>&#10697;</button>" +
+         "<button class='sm ghost icon' title='Remove this condition' onclick='del(" + i + ")'>&#10005;</button></span></div>";
+    h += "<div class='chips'>";
+    for(j=0;j<c.values.length && j<16;j++) h += "<span class='chip' title='Remove' onclick='dropVal(" + i + "," + j + ")'>" + esc(c.values[j]) + "<span class='x'>&#10005;</span></span>";
+    if(c.values.length > 16) h += "<span class='chip more'>+" + (c.values.length-16) + " more</span>";
+    if(!c.values.length) h += "<span class='hint'>" + (c.field ? "No values yet. Pick them on the right." : "Then pick its values on the right.") + "</span>";
+    h += "</div></div>";
+  }
+  $('clauses').innerHTML = h || "<div class='empty' style='padding-top:60px'><b>No conditions yet</b><br>Choose a field on the left to start, or press <b>+ AND</b>.<br>Each condition keeps rows whose field is any of, or none of, the values you pick.</div>";
+}
+
+/* ---------- values ------------------------------------------------------- */
+function renderValues(){
+  var c, f, vals, q, h = '', n = 0, v, i, on;
+  shownValues = [];
+  if(active < 0 || !clauses[active] || !clauses[active].field){
+    $('vlist').innerHTML = "<div class='empty'>Choose a field first and its values appear here.</div>";
+    $('curfield').innerHTML = '&hellip;'; $('vcount').innerHTML = '';
+    renderChips(); return;
+  }
+  c = clauses[active]; f = c.field;
+  $('curfield').innerHTML = esc(f);
+  vals = VALUES[f] || []; q = trim($('vsearch').value).toLowerCase();
+  for(i=0;i<vals.length && n<600;i++){
+    v = String(vals[i]);
+    if(q && v.toLowerCase().indexOf(q) < 0) continue;
+    n++; shownValues.push(v);
+    on = idx(c.values, v) >= 0;
+    h += "<div class='item" + (on?" on":"") + "' title='" + attr(v) + "' onclick=\"toggleVal('" + js(v) + "')\"><span class='box'>" + (on ? "&#10003;" : "") + "</span>" + esc(v) + "</div>";
+  }
+  if(!vals.length) h = "<div class='empty'>No values were cached for this field.<br>Type a value above and press <b>Enter</b>; it is used exactly as typed.</div>";
+  else if(!n) h = "<div class='empty'>None of the " + fmt(vals.length) + " values match <b>&ldquo;" + esc(q) + "&rdquo;</b>.<br>Press <b>Enter</b> to use what you typed anyway.</div>";
+  $('vlist').innerHTML = h;
+  $('vcount').innerHTML = vals.length ? (fmt(n) + ' of ' + fmt(vals.length)) : '';
+  renderChips();
+}
+function renderChips(){
+  var h = '', n = 0, j, c;
+  if(active >= 0 && clauses[active]){
+    c = clauses[active]; n = c.values.length;
+    for(j=0;j<n;j++) h += "<span class='chip' title='Remove' onclick='dropVal(" + active + "," + j + ")'>" + esc(c.values[j]) + "<span class='x'>&#10005;</span></span>";
+  }
+  $('chips').innerHTML = h || "<span class='hint'>Nothing selected yet.</span>";
+  $('chipcount').innerHTML = n ? n : '';
+}
+
+function render(){
+  renderClauses(); renderValues(); renderFields();
+  var e = rawMode ? $('raw').value : build();
+  $('preview').innerHTML = highlightExpr(e);
+  $('exprlen').innerHTML = e ? (fmt(e.length) + ' characters') : '';
+}
+
+/* ---------- actions ------------------------------------------------------ */
+function addClause(j, quiet){ clauses.push({join:j, field:'', op:'IN', values:[]}); active = clauses.length-1; if(!quiet) render(); }
+function setActive(i){ if(active === i) return; active = i; $('vsearch').value=''; render(); }
+function setJoin(i,v){ clauses[i].join = v; render(); }
+function setOp(i,v){ clauses[i].op = v; render(); }
+function move(i,d){ var t=i+d, x; if(t<0||t>=clauses.length) return; x=clauses[i]; clauses[i]=clauses[t]; clauses[t]=x; active=t; render(); }
+function dup(i){ var c=clauses[i]; clauses.splice(i+1,0,{join:c.join,field:c.field,op:c.op,values:c.values.slice(0)}); active=i+1; render(); }
+function del(i){ clauses.splice(i,1); if(active>=clauses.length) active=clauses.length-1; render(); }
+function toggleVal(v){ var c, i; if(active<0) return; c=clauses[active]; i=idx(c.values,v); if(i>=0) c.values.splice(i,1); else c.values.push(v); render(); }
+function addVal(v){ var c; if(active<0||!v) return; c=clauses[active]; if(idx(c.values,v)<0) c.values.push(v); $('vsearch').value=''; render(); }
+function dropVal(i,j){ clauses[i].values.splice(j,1); render(); }
+function say(t,cls){
+  var ic = cls==='ok' ? '&#10003;' : (cls==='bad' ? '!' : (cls==='warnT' ? '!' : ''));
+  $('msg').className = 'msg ' + (cls||'');
+  $('msg').innerHTML = (ic ? "<span class='ic'>" + ic + "</span>" : "") + esc(t);
+}
+function currentExpr(){ return rawMode ? trim($('raw').value) : build(); }
+function isDirty(){ return currentExpr() !== initialExpr; }
+
+function validate(){
+  var e = currentExpr(), op, cl, i;
+  if(!e){ say('Nothing to save yet. Add at least one condition with values.','bad'); return false; }
+  op = (e.match(/\(/g)||[]).length; cl = (e.match(/\)/g)||[]).length;
+  if(op !== cl){ say('Unbalanced brackets: ' + op + ' opening, ' + cl + ' closing.','bad'); return false; }
+  if(((e.match(/'/g)||[]).length) % 2 !== 0){ say('A value is missing its closing quote.','bad'); return false; }
+  if(!/\b(IN|NOT IN)\b/i.test(e)){ say('Each condition needs "is any of" or "is none of".','bad'); return false; }
+  if(!rawMode){ for(i=0;i<clauses.length;i++){ if(clauses[i].field && !clauses[i].values.length){ say('Condition ' + (i+1) + ' has no values, so it will be left out.','warnT'); return true; } } }
+  say('The expression is well formed.','ok');
+  return true;
+}
+
+/* ---------- zoom --------------------------------------------------------- */
+var zoomPct = 100;
+function applyZoom(p){ zoomPct = Math.max(80, Math.min(160, p)); document.body.style.fontSize = (13 * zoomPct / 100) + 'px'; $('bReset').innerHTML = zoomPct + '%'; }
+
+function setMode(raw){
+  rawMode = raw;
+  $('mVisual').className = raw ? '' : 'on';
+  $('mRaw').className = raw ? 'on' : '';
+  $('rawWrap').style.display = raw ? 'block' : 'none';
+  $('clauseWrap').style.display = raw ? 'none' : 'block';
+}
+function askClose(){
+  if(!isDirty() || saving){ window.close(); return; }
+  $('scrim').style.display = 'block'; $('confirm').style.display = 'block';
+  try { $('cKeep').focus(); } catch(e) {}
+}
+function hideConfirm(){ $('scrim').style.display = 'none'; $('confirm').style.display = 'none'; }
+
+window.onload = function(){
+  var parts = [], ch = '', i, nv = 0, k;
+  if(CTX.mode === 'formula'){ $('title').innerHTML = 'Formula builder'; document.title = 'JKB formula builder'; }
+  if(CTX.testCase) parts.push(CTX.testCase);
+  if(CTX.testElement) parts.push(CTX.testElement);
+  if(CTX.elementType) parts.push(CTX.elementType);
+  for(i=0;i<parts.length;i++) ch += "<span class='crumb'>" + esc(parts[i]) + "</span>";
+  $('crumbs').innerHTML = ch;
+  for(k in VALUES){ if(VALUES.hasOwnProperty(k)) nv++; }
+  $('sub').innerHTML = 'Saves to <b>' + esc(CTX.target) + '</b>' + (CTX.source ? ' &nbsp;&middot;&nbsp; source <b>' + esc(CTX.source) + '</b>' : '') +
+                       ' &nbsp;&middot;&nbsp; ' + nv + ' field' + (nv===1?'':'s') + ' with cached values';
+
+  if(CTX.current){
+    clauses = parseRaw(CTX.current);
+    if(!clauses.length){ $('raw').value = CTX.current; setMode(true); }
+    else { active = 0; setMode(false); }
+  } else setMode(false);
+  render();
+  initialExpr = currentExpr();
+
+  $('fsearch').onkeyup = renderFields;
+  $('vsearch').onkeyup = function(e){ var ev = e || window.event; if(ev.keyCode===13) addVal(trim($('vsearch').value)); else renderValues(); };
+  $('bAnd').onclick = function(){ addClause('AND'); };
+  $('bOr').onclick  = function(){ addClause('OR'); };
+  $('bClear').onclick = function(){ clauses = []; active = -1; $('raw').value=''; render(); say('Cleared. Nothing is saved until you press Save to Excel.',''); };
+  $('bAll').onclick = function(){ var c, i; if(active<0) return; c = clauses[active]; for(i=0;i<shownValues.length;i++){ if(idx(c.values,shownValues[i])<0) c.values.push(shownValues[i]); } render(); };
+  $('bNone').onclick = function(){ if(active<0) return; clauses[active].values = []; render(); };
+  $('bCopy').onclick = function(){ if(jkbCopy(currentExpr())) say('Expression copied to the clipboard.','ok'); else say('The clipboard is not available here.','bad'); };
+
+  $('mVisual').onclick = function(){
+    var parsed;
+    if(rawMode){
+      parsed = parseRaw($('raw').value);
+      if($('raw').value && !parsed.length){ say('That text cannot be shown as conditions, so it stays as text.','warnT'); return; }
+      clauses = parsed; active = clauses.length ? 0 : -1;
+    }
+    setMode(false); render();
+  };
+  $('mRaw').onclick = function(){ $('raw').value = build(); setMode(true); render(); try { $('raw').focus(); } catch(e) {} };
+  $('raw').onkeyup = function(){ var v = $('raw').value; $('preview').innerHTML = highlightExpr(v); $('exprlen').innerHTML = v ? fmt(v.length) + ' characters' : ''; };
+
+  $('bSmaller').onclick = function(){ applyZoom(zoomPct - 10); };
+  $('bBigger').onclick  = function(){ applyZoom(zoomPct + 10); };
+  $('bReset').onclick   = function(){ applyZoom(100); };
+
+  $('bValidate').onclick = function(){ validate(); };
+  $('bTest').onclick = function(){
+    if(!validate()) return;
+    say('Counting rows in Excel\u2026','busy');
+    jkbCall('TestFilterForBuilder', [currentExpr()], function(r){
+      var n;
+      if(String(r).indexOf('ERR:') === 0){ say(String(r).substring(4),'bad'); return; }
+      n = parseFloat(r);
+      if(n < 0) say('That condition could not be run. Check the Mapping status column in Excel.','bad');
+      else if(n === 0) say('Matches no rows. Check the values.','warnT');
+      else say('Matches ' + fmt(Math.round(n)) + ' row' + (n===1?'':'s') + '.','ok');
+    });
+  };
+  $('bSave').onclick = function(){
+    var expr;
+    if(!validate()) return;
+    expr = currentExpr(); saving = true;
+    say('Saving to ' + CTX.target + '\u2026','busy');
+    jkbCall('ApplyPreShockEditQuiet', [CTX.target, expr], function(r){
+      var err;
+      if(String(r).indexOf('ERR:') !== 0){ window.close(); return; }
+      saving = false;
+      err = String(r).substring(4);
+      if(jkbCopy(expr)) say(err + ' The expression is on the clipboard; paste it into ' + CTX.target + '.','warnT');
+      else say(err + ' Copy the expression from the box above.','bad');
+    });
+  };
+  $('bClose').onclick = askClose;
+  $('cKeep').onclick = hideConfirm;
+  $('cDiscard').onclick = function(){ initialExpr = currentExpr(); window.close(); };
+
+  document.onkeydown = function(e){
+    var ev = e || window.event;
+    if($('confirm').style.display === 'block'){ if(ev.keyCode === 27){ hideConfirm(); return false; } return true; }
+    if(ev.keyCode === 27){ askClose(); return false; }
+    if(ev.keyCode === 13 && ev.ctrlKey){ $('bSave').click(); return false; }
+    if(ev.keyCode === 70 && ev.ctrlKey){ $('fsearch').focus(); return false; }
+    return true;
+  };
+
+  try { window.resizeTo(Math.min(1320, screen.availWidth), Math.min(840, screen.availHeight)); } catch(e) {}
+  try { window.moveTo(Math.max(0, (screen.availWidth - 1320) / 2), Math.max(0, (screen.availHeight - 840) / 2)); } catch(e) {}
+  try { $('fsearch').focus(); } catch(e) {}
+};
+</script></body></html>

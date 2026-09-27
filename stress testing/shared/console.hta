@@ -1,0 +1,924 @@
+<html>
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<hta:application id="app" applicationname="JKBConsole" border="thin" scroll="no"
+  singleinstance="no" maximizebutton="yes" minimizebutton="yes" contextmenu="no" />
+<script type="text/javascript" src="__PAYLOAD_FILE__"></script>
+<style type="text/css">
+/* ===========================================================================
+   JKB review console, design system v2.
+
+   One visual language shared with the workbook (modUI_Theme) and the other two
+   windows. The tokens below are the whole palette; nothing on screen uses a
+   colour that is not in this list.
+
+     ink      #101828  text       #344054  muted   #667085  faint  #98A2B3
+     line     #EAECF0  line-2     #D0D5DD  canvas  #F5F7FA  subtle #F9FAFB
+     brand    #193F89  brand-dk   #12306B  tint    #EEF3FB  tint-2 #D6E2F5
+     rail     #0E2240  (overridden by payload.accentDark)
+     ok       #067647 on #ECFDF3, dot #17B26A
+     warn     #B54708 on #FFFAEB, dot #F79009
+     bad      #B42318 on #FEF3F2, dot #F04438
+     idle     #475467 on #F2F4F7, dot #98A2B3
+
+   Colour carries meaning and nothing else: green, amber and red are verdicts.
+
+   Host is MSHTML (IE11 engine): ES5 only, no CSS custom properties, no grid,
+   no position:sticky, flexbox avoided for layout. Every region is absolutely
+   pinned so nothing can be pushed off screen; the table keeps its heading by
+   pairing a header table with a scrolling body table of identical widths.
+   =========================================================================== */
+
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;padding:0;overflow:hidden;}
+body{
+  font-family:"Segoe UI","Segoe UI Variable Text",Arial,sans-serif;font-size:13px;line-height:1.5;
+  color:#101828;background:#F5F7FA;-ms-user-select:none;
+}
+::-ms-clear{display:none;}
+svg{vertical-align:middle;}
+.num,.tnum{font-feature-settings:"tnum" 1;-ms-font-feature-settings:"tnum" 1;}
+
+/* ----------------------------------------------------------------- shell */
+#rail{position:absolute;top:0;left:0;bottom:0;width:244px;background:#0E2240;color:#B7C4D8;overflow:hidden;z-index:5;}
+#railnav{position:absolute;top:88px;left:0;right:0;bottom:118px;overflow:auto;}
+#railfoot{position:absolute;left:0;right:0;bottom:0;height:118px;border-top:1px solid rgba(255,255,255,.08);padding:14px 18px;}
+#main{position:absolute;top:0;left:244px;right:0;bottom:0;overflow:hidden;}
+#top{position:absolute;top:0;left:0;right:0;height:132px;background:#FFFFFF;border-bottom:1px solid #EAECF0;z-index:4;}
+#body{position:absolute;top:132px;left:0;right:0;bottom:0;overflow:auto;padding:20px 28px 40px 28px;}
+
+/* ------------------------------------------------------------------ rail */
+.brand{position:absolute;top:0;left:0;right:0;height:88px;padding:20px 18px 0 18px;}
+.logo{float:left;width:36px;height:36px;border-radius:8px;background:#FFFFFF;color:#0E2240;
+      font-weight:700;font-size:12px;letter-spacing:.4px;text-align:center;line-height:36px;margin-right:12px;}
+.brand .n{font-size:14.5px;font-weight:600;color:#FFFFFF;line-height:1.25;padding-top:1px;
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.brand .v{font-size:11.5px;color:#8FA1BB;margin-top:3px;white-space:nowrap;}
+.railgrp{padding:16px 18px 6px 18px;font-size:10.5px;letter-spacing:.9px;text-transform:uppercase;color:#7F93B0;font-weight:600;}
+.navitem{display:block;position:relative;margin:1px 10px;padding:7px 10px 7px 12px;border-radius:6px;cursor:pointer;color:#C9D4E4;}
+.navitem:hover{background:rgba(255,255,255,.06);color:#FFFFFF;}
+.navitem.on{background:rgba(255,255,255,.11);color:#FFFFFF;}
+.navitem.on .bar{position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:2px;background:#8DB3F2;}
+.navitem .lbl{display:inline-block;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;}
+.navitem .cnt{float:right;font-size:11px;color:#8FA1BB;padding:1px 7px;border-radius:9px;background:rgba(255,255,255,.07);margin-top:1px;}
+.navitem.on .cnt{color:#FFFFFF;background:rgba(255,255,255,.14);}
+.navitem .key{float:right;font-size:10.5px;color:#8FA1BB;display:none;margin-top:2px;}
+body.showkeys .navitem .key{display:inline;}
+body.showkeys .navitem .cnt{display:none;}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:10px;vertical-align:middle;}
+.d-ok{background:#17B26A;} .d-warn{background:#F79009;} .d-bad{background:#F04438;} .d-idle{background:#5B6F8C;}
+#railfoot .k{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:#7F93B0;font-weight:600;}
+#railfoot .t{font-size:12.5px;color:#E3EAF4;margin-top:2px;}
+.railtools{margin-top:12px;}
+.rbtn{display:inline-block;height:26px;line-height:24px;padding:0 9px;margin-right:4px;border:1px solid rgba(255,255,255,.14);
+      border-radius:6px;color:#C9D4E4;font-size:11.5px;font-weight:600;cursor:pointer;background:transparent;}
+.rbtn:hover{background:rgba(255,255,255,.08);color:#FFFFFF;}
+
+/* ------------------------------------------------------------------- top */
+#crumbs{position:absolute;left:28px;top:16px;right:420px;font-size:12px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#crumbs b{color:#344054;font-weight:600;}
+#crumbs .sep{color:#D0D5DD;margin:0 7px;}
+#htitle{position:absolute;left:28px;top:36px;right:420px;font-size:22px;font-weight:600;letter-spacing:-.4px;color:#101828;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
+#hsub{position:absolute;left:28px;top:68px;right:420px;font-size:12.5px;color:#667085;height:38px;overflow:hidden;line-height:1.5;}
+#hacts{position:absolute;right:28px;top:22px;text-align:right;white-space:nowrap;}
+#hmeta{position:absolute;right:28px;top:74px;text-align:right;white-space:nowrap;font-size:12px;color:#667085;}
+#hmeta .pill{margin-left:6px;}
+
+/* --------------------------------------------------------------- buttons */
+.btn{display:inline-block;height:34px;line-height:32px;padding:0 14px;margin-left:8px;border:1px solid #D0D5DD;border-radius:8px;
+     background:#FFFFFF;color:#344054;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;vertical-align:middle;}
+.btn:hover{background:#F9FAFB;border-color:#B9C0CC;color:#101828;}
+.btn:active{background:#F2F4F7;}
+.btn.primary{background:#193F89;border-color:#193F89;color:#FFFFFF;}
+.btn.primary:hover{background:#12306B;border-color:#12306B;}
+.btn.sm{height:30px;line-height:28px;padding:0 11px;font-size:12px;}
+.btn.icon{padding:0 9px;}
+.btn .ext{margin-left:6px;opacity:.7;}
+.btn:focus,.navitem:focus,.step:focus,.seg span:focus,.rbtn:focus{outline:2px solid #84ADFF;outline-offset:1px;}
+
+/* ------------------------------------------------------------------ path */
+.path{background:#FFFFFF;border:1px solid #EAECF0;border-radius:12px;margin:0 0 18px 0;padding:6px;white-space:nowrap;font-size:0;}
+.step{display:inline-block;vertical-align:top;width:20%;padding:10px 12px 10px 12px;border-radius:8px;cursor:pointer;font-size:13px;position:relative;white-space:normal;}
+.step:hover{background:#F9FAFB;}
+.step.on{background:#EEF3FB;}
+.step .c{float:left;width:28px;height:28px;border-radius:50%;border:1.5px solid #D0D5DD;color:#667085;font-size:12px;font-weight:600;
+         text-align:center;line-height:25px;margin-right:10px;background:#FFFFFF;}
+.step.s-ok .c{background:#ECFDF3;border-color:#ABEFC6;color:#067647;}
+.step.s-warn .c{background:#FFFAEB;border-color:#FEDF89;color:#B54708;}
+.step.s-bad .c{background:#FEF3F2;border-color:#FECDCA;color:#B42318;}
+.step.on .c{border-color:#193F89;}
+.step .t{display:block;font-size:12.5px;font-weight:600;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.step .s{display:block;font-size:11.5px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.step.s-ok .s{color:#067647;} .step.s-warn .s{color:#B54708;} .step.s-bad .s{color:#B42318;}
+.step .chev{position:absolute;right:-4px;top:17px;color:#D0D5DD;font-size:14px;}
+
+/* ---------------------------------------------------------------- banner */
+.banner{background:#FFFFFF;border:1px solid #EAECF0;border-radius:12px;padding:18px 20px 18px 20px;margin-bottom:18px;position:relative;}
+.banner .ic{position:absolute;left:20px;top:20px;width:40px;height:40px;border-radius:10px;text-align:center;line-height:40px;}
+.banner .txt{margin-left:56px;}
+.banner .band{font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;}
+.banner .line{font-size:19px;font-weight:600;letter-spacing:-.3px;line-height:1.3;margin-top:2px;color:#101828;}
+.banner .note{font-size:12.5px;color:#667085;margin-top:4px;max-width:980px;}
+.banner.v-ok .ic{background:#ECFDF3;color:#067647;} .banner.v-ok .band{color:#067647;}
+.banner.v-warn .ic{background:#FFFAEB;color:#B54708;} .banner.v-warn .band{color:#B54708;}
+.banner.v-bad .ic{background:#FEF3F2;color:#B42318;} .banner.v-bad .band{color:#B42318;}
+.banner.v-idle .ic{background:#F2F4F7;color:#475467;} .banner.v-idle .band{color:#475467;}
+
+/* ----------------------------------------------------------------- tiles */
+.tiles{margin:0 -8px 10px -8px;font-size:0;}
+.tile{display:inline-block;vertical-align:top;width:calc(25% - 16px);min-width:170px;margin:0 8px 16px 8px;padding:16px 18px;
+      background:#FFFFFF;border:1px solid #EAECF0;border-radius:12px;font-size:13px;}
+.tile .tl{font-size:12px;color:#667085;font-weight:600;}
+.tile .tv{font-size:28px;font-weight:600;letter-spacing:-.8px;line-height:1.2;margin-top:6px;color:#101828;}
+.tile .tv .pill{font-size:11px;letter-spacing:0;vertical-align:6px;margin-left:8px;}
+.tile .tn{font-size:12px;color:#667085;line-height:1.45;margin-top:8px;height:52px;overflow:hidden;}
+.tile.bad .tv{color:#B42318;} .tile.ok .tv{color:#067647;} .tile.warn .tv{color:#B54708;}
+
+/* ------------------------------------------------------------------ card */
+.card{background:#FFFFFF;border:1px solid #EAECF0;border-radius:12px;margin-bottom:18px;overflow:hidden;}
+.chead{padding:16px 20px 12px 20px;position:relative;}
+.chead h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.15px;color:#101828;}
+.chead .about{font-size:12.5px;color:#667085;margin-top:2px;max-width:900px;}
+.ctools{padding:0 20px 12px 20px;white-space:nowrap;}
+.ctools .right{float:right;}
+.ctools .btn{margin-left:6px;}
+.cfoot{padding:10px 20px;border-top:1px solid #EAECF0;font-size:12px;color:#667085;background:#FCFCFD;}
+.cfoot b{color:#344054;font-weight:600;}
+.cfoot .btn{float:right;margin-top:-5px;}
+
+/* segmented control */
+.seg{display:inline-block;border:1px solid #D0D5DD;border-radius:8px;overflow:hidden;vertical-align:middle;background:#FFFFFF;}
+.seg span{display:inline-block;height:30px;line-height:30px;padding:0 12px;font-size:12px;font-weight:600;color:#344054;cursor:pointer;border-left:1px solid #D0D5DD;}
+.seg span:first-child{border-left:none;}
+.seg span:hover{background:#F9FAFB;}
+.seg span.on{background:#F2F4F7;color:#101828;}
+.seg span .n{display:inline-block;margin-left:6px;padding:0 6px;border-radius:9px;background:#F2F4F7;color:#475467;font-size:11px;line-height:17px;}
+.seg span.on .n{background:#FFFFFF;}
+.seg span .n.bad{background:#FEF3F2;color:#B42318;}
+
+/* search */
+#searchwrap{position:relative;display:inline-block;vertical-align:middle;}
+#search{width:260px;height:32px;padding:0 30px 0 32px;border:1px solid #D0D5DD;border-radius:8px;font-size:12.5px;font-family:inherit;color:#101828;background:#FFFFFF;}
+#search:focus{outline:none;border-color:#84ADFF;}
+#searchicon{position:absolute;left:10px;top:8px;color:#98A2B3;}
+#clearsearch{position:absolute;right:9px;top:6px;color:#98A2B3;cursor:pointer;display:none;font-size:15px;line-height:1;}
+#clearsearch:hover{color:#101828;}
+
+/* ----------------------------------------------------------------- table */
+.tbl{border-top:1px solid #EAECF0;}
+.thead{overflow:hidden;background:#F9FAFB;border-bottom:1px solid #EAECF0;}
+.tbody{overflow:auto;max-height:560px;}
+.tbl table{border-collapse:collapse;table-layout:fixed;}
+.tbl th{text-align:left;padding:0 12px;height:38px;font-weight:600;font-size:11.5px;color:#475467;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tbl th:hover{color:#101828;background:#F2F4F7;}
+.tbl th.sorted{color:#193F89;}
+.tbl th .ar{font-size:9px;margin-left:5px;}
+.tbl th.rt{text-align:right;}
+.tbl td{padding:0 12px;height:42px;border-bottom:1px solid #F2F4F7;font-size:12.5px;color:#344054;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+body.compact .tbl td{height:32px;font-size:12px;}
+.tbl tr:hover td{background:#F9FAFB;cursor:pointer;}
+.tbl tr.sel td{background:#EEF3FB;}
+.tbl td.first{color:#101828;font-weight:500;}
+td.num{text-align:right;}
+td.num.neg{color:#B42318;}
+td.num.zero{color:#98A2B3;}
+td.long{color:#667085;}
+mark{background:#FEF0C7;color:inherit;padding:0 1px;border-radius:2px;}
+
+.pill{display:inline-block;padding:1px 8px 1px 7px;border-radius:12px;font-size:11.5px;font-weight:600;white-space:nowrap;line-height:18px;border:1px solid transparent;}
+.pill i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:1px;}
+.p-ok{background:#ECFDF3;color:#067647;border-color:#ABEFC6;} .p-ok i{background:#17B26A;}
+.p-warn{background:#FFFAEB;color:#B54708;border-color:#FEDF89;} .p-warn i{background:#F79009;}
+.p-bad{background:#FEF3F2;color:#B42318;border-color:#FECDCA;} .p-bad i{background:#F04438;}
+.p-idle{background:#F2F4F7;color:#475467;border-color:#EAECF0;} .p-idle i{background:#98A2B3;}
+
+/* ----------------------------------------------------------------- empty */
+.empty{padding:52px 20px 58px 20px;text-align:center;}
+.empty .mk{display:inline-block;width:48px;height:48px;border-radius:12px;background:#F2F4F7;color:#475467;line-height:48px;margin-bottom:14px;}
+.empty .t{font-size:15px;font-weight:600;margin-bottom:4px;color:#101828;}
+.empty .d{font-size:12.5px;color:#667085;max-width:440px;margin:0 auto;line-height:1.55;}
+
+/* ---------------------------------------------------------------- drawer */
+#scrim{position:absolute;top:0;left:0;right:0;bottom:0;background:#0C111D;display:none;z-index:6;opacity:.18;filter:alpha(opacity=18);}
+#drawer{position:absolute;top:0;right:0;bottom:0;width:480px;background:#FFFFFF;border-left:1px solid #EAECF0;display:none;z-index:7;
+        box-shadow:-12px 0 32px rgba(16,24,40,.12);}
+#drawer .dh{position:absolute;top:0;left:0;right:0;height:112px;padding:20px 24px 0 24px;border-bottom:1px solid #EAECF0;}
+#drawer .dh .k{font-size:12px;color:#667085;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:40px;}
+#drawer .dh .t{font-size:18px;font-weight:600;margin-top:2px;letter-spacing:-.25px;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:40px;}
+#drawer .dh .v{margin-top:8px;}
+#drawer .x{position:absolute;right:18px;top:16px;width:32px;height:32px;border-radius:8px;text-align:center;line-height:32px;cursor:pointer;color:#667085;}
+#drawer .x:hover{background:#F2F4F7;color:#101828;}
+#dscroll{position:absolute;top:112px;left:0;right:0;bottom:62px;overflow:auto;padding:18px 24px 24px 24px;}
+#dfoot{position:absolute;left:0;right:0;bottom:0;height:62px;border-top:1px solid #EAECF0;padding:13px 24px 0 16px;background:#FCFCFD;}
+#dfoot .pos{float:left;font-size:12px;color:#667085;padding:7px 0 0 8px;}
+.figs{font-size:0;margin:0 -6px 8px -6px;}
+.fig{display:inline-block;vertical-align:top;width:calc(50% - 12px);margin:0 6px 12px 6px;padding:12px 14px;border:1px solid #EAECF0;border-radius:10px;font-size:13px;}
+.fig .l{font-size:11.5px;color:#667085;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fig .n{font-size:17px;font-weight:600;letter-spacing:-.3px;margin-top:2px;color:#101828;}
+.fig.neg .n{color:#B42318;}
+.dl{margin:4px 0 0 0;}
+.dl .r{padding:10px 0;border-bottom:1px solid #F2F4F7;}
+.dl .r:last-child{border-bottom:none;}
+.dl .l{font-size:11.5px;color:#667085;font-weight:600;}
+.dl .d{font-size:13px;color:#101828;margin-top:2px;word-wrap:break-word;-ms-user-select:text;}
+.dl .d.mono{font-family:Consolas,"Cascadia Mono","Courier New",monospace;font-size:12px;background:#F9FAFB;border:1px solid #EAECF0;border-radius:8px;padding:10px 12px;line-height:1.55;margin-top:6px;}
+
+/* ----------------------------------------------------------------- modal */
+#help{position:absolute;left:50%;top:90px;width:520px;margin-left:-260px;background:#FFFFFF;border-radius:14px;z-index:30;display:none;
+      box-shadow:0 20px 48px rgba(16,24,40,.22);padding:22px 24px 18px 24px;}
+#help h3{margin:0 0 4px 0;font-size:16px;font-weight:600;}
+#help .sub{font-size:12.5px;color:#667085;margin-bottom:12px;}
+#help table{width:100%;border-collapse:collapse;}
+#help td{padding:8px 0;border-bottom:1px solid #F2F4F7;font-size:12.5px;color:#344054;}
+#help td.k{width:170px;}
+#helpscrim{position:absolute;top:0;left:0;right:0;bottom:0;background:#0C111D;opacity:.3;filter:alpha(opacity=30);z-index:29;display:none;}
+.kbd{display:inline-block;min-width:20px;height:21px;line-height:19px;padding:0 6px;border:1px solid #D0D5DD;border-bottom-width:2px;border-radius:5px;
+     background:#FFFFFF;font-size:11px;color:#344054;text-align:center;font-weight:600;margin-right:3px;}
+
+/* ----------------------------------------------------------------- toast */
+#toast{position:absolute;bottom:24px;left:50%;margin-left:-220px;width:440px;padding:12px 16px 12px 16px;background:#101828;color:#FFFFFF;
+       border-radius:10px;font-size:12.5px;display:none;z-index:40;box-shadow:0 12px 32px rgba(16,24,40,.28);}
+#toast .ic{display:inline-block;width:20px;color:#75E0A7;}
+#toast.err .ic{color:#FDA29B;}
+
+@media(max-width:1180px){
+  #rail{width:212px;} #main{left:212px;} .navitem .lbl{max-width:112px;}
+  #body{padding-left:20px;padding-right:20px;}
+  #crumbs,#htitle,#hsub{left:20px;right:360px;} #hacts,#hmeta{right:20px;}
+  .step .s{display:none;} .step{padding:12px 8px;} .step .c{margin-right:7px;}
+  #search{width:200px;}
+}
+</style>
+</head>
+<body>
+  <div id="rail">
+    <div class="brand" id="brand"></div>
+    <div id="railnav"></div>
+    <div id="railfoot"></div>
+  </div>
+  <div id="main">
+    <div id="top">
+      <div id="crumbs"></div>
+      <div id="htitle"></div>
+      <div id="hsub"></div>
+      <div id="hacts"></div>
+      <div id="hmeta"></div>
+    </div>
+    <div id="body"></div>
+  </div>
+  <div id="scrim" onclick="closeDrawer()"></div>
+  <div id="drawer">
+    <div class="dh">
+      <span class="x" title="Close (Esc)" onclick="closeDrawer()">&#x2715;</span>
+      <div class="k" id="drawerkind"></div>
+      <div class="t" id="drawertitle"></div>
+      <div class="v" id="drawerverdict"></div>
+    </div>
+    <div id="dscroll"></div>
+    <div id="dfoot">
+      <span class="pos" id="drawerpos"></span>
+      <span class="btn sm" style="float:right" onclick="copyRow()">Copy details</span>
+      <span class="btn sm" style="float:right" onclick="moveSel(1)">Next &#8595;</span>
+      <span class="btn sm" style="float:right" onclick="moveSel(-1)">Previous &#8593;</span>
+    </div>
+  </div>
+  <div id="helpscrim" onclick="toggleHelp(false)"></div>
+  <div id="help"></div>
+  <div id="toast"></div>
+
+<script language="JScript">
+__BRIDGE_JS__
+</script>
+<script type="text/javascript">
+/* =========================================================================
+   The payload is the whole contract (modShared_Console.BuildPayload):
+     tool, version, asOf, ranAt, accent, accentDark,
+     tiles[{label,value,format,verdict,note}], flow[], actions[{label,macro,primary}],
+     sections[{id,group,title,about,status,overview,verdict,columns[{label,type}],rows[[]]}]
+   Everything below renders it. Nothing here knows which tool it is showing.
+   ========================================================================= */
+var P = window.JKB_PAYLOAD || { tool:"Console", sections:[], tiles:[], actions:[], flow:[] };
+var current = null, sortCol = -1, sortDir = 1, filterText = "", selRow = -1;
+var viewRows = [], exceptionsOnly = false, helpOpen = false, limit = 300, zoomPct = 100;
+var PAGE = 300;
+
+var ICON = {
+  search:'<svg width="14" height="14" viewBox="0 0 16 16"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="11" y1="11" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  ok:'<svg width="20" height="20" viewBox="0 0 20 20"><polyline points="4.5,10.5 8.5,14 15.5,6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  warn:'<svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 3 L18 17 L2 17 Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><line x1="10" y1="8" x2="10" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="14.6" r="1" fill="currentColor"/></svg>',
+  bad:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/><line x1="10" y1="6" x2="10" y2="11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="13.8" r="1" fill="currentColor"/></svg>',
+  idle:'<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/><line x1="10" y1="10" x2="10" y2="6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="10" x2="12.8" y2="11.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  copy:'<svg width="14" height="14" viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M11 5 V3.5 A1.5 1.5 0 0 0 9.5 2 H3.5 A1.5 1.5 0 0 0 2 3.5 V9.5 A1.5 1.5 0 0 0 3.5 11 H5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
+  ext:'<svg class="ext" width="11" height="11" viewBox="0 0 12 12"><path d="M4.5 2.5 H9.5 V7.5 M9.5 2.5 L3 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  empty:'<svg width="22" height="22" viewBox="0 0 22 22"><rect x="3" y="4" width="16" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="3" y1="9" x2="19" y2="9" stroke="currentColor" stroke-width="1.6"/></svg>'
+};
+
+function $(id){ return document.getElementById(id); }
+function esc(s){
+  if (s === null || s === undefined) return "";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function clamp(n, lo, hi){ return n < lo ? lo : (n > hi ? hi : n); }
+function isNumType(t){ return t === "money" || t === "count" || t === "pct"; }
+
+/* -------------------------------------------------------------- verdicts */
+function verdictClass(v){
+  var t = String(v||"").toUpperCase();
+  if (t.length === 0) return "idle";
+  if (/^(MATCH|PASS|OK|CLEAN|RECONCIL|POPULATED|COMPLETE|READY|LOADED|VALIDATED|NOT WEIGHTED|YES)/.test(t)) return "ok";
+  if (/^(BREAK|FAIL|MISMATCH|MISSING|STOPPED|BLOCKED|ERROR)/.test(t)) return "bad";
+  if (/^(CHECK|PARTIAL|WARN|UNMAPPED|UNSUPPORTED|NOT TESTED|NOT RUN|NOT LOADED|NO RULE|COVERAGE|EXPLAINED|EMPTY|INCONCLUSIVE|PAIRED|NO MATCH|REVIEW)/.test(t)) return "warn";
+  return "idle";
+}
+var RANK = { idle:0, ok:1, warn:2, bad:3 };
+function worstOf(a, b){ return RANK[a] >= RANK[b] ? a : b; }
+function pill(text, cls){
+  cls = cls || verdictClass(text);
+  return '<span class="pill p-' + cls + '"><i></i>' + esc(text) + '</span>';
+}
+
+/* --------------------------------------------------------------- numbers */
+function fmtNum(v, dp){
+  if (v === null || v === undefined || v === "") return "";
+  var n = Number(v);
+  if (isNaN(n)) return esc(v);
+  var neg = n < 0; n = Math.abs(n);
+  var whole = dp ? n.toFixed(dp) : String(Math.round(n)), frac = "", dot = whole.indexOf(".");
+  if (dot >= 0){ frac = whole.substring(dot); whole = whole.substring(0, dot); }
+  var out = "", c = 0, i;
+  for (i = whole.length - 1; i >= 0; i--){
+    out = whole.charAt(i) + out; c++;
+    if (c % 3 === 0 && i > 0) out = "," + out;
+  }
+  return (neg ? "-" : "") + out + frac;
+}
+function fmtShort(v){
+  var n = Number(v);
+  if (isNaN(n)) return esc(v);
+  var a = Math.abs(n), s = n < 0 ? "-" : "";
+  if (a >= 1e9) return s + (a/1e9).toFixed(a >= 1e10 ? 1 : 2) + "bn";
+  if (a >= 1e6) return s + (a/1e6).toFixed(a >= 1e7 ? 1 : 2) + "m";
+  return s + fmtNum(a);
+}
+function fmtPct(v){
+  var n = Number(v);
+  if (v === null || v === "" || isNaN(n)) return "";
+  var a = Math.abs(n);
+  return (n*100).toFixed(a < 0.01 ? 3 : (a < 1 ? 2 : 1)) + "%";
+}
+
+/* -------------------------------------------------------------- sections */
+function sectionById(id){
+  var i;
+  for (i = 0; i < P.sections.length; i++) if (P.sections[i].id === id) return P.sections[i];
+  return null;
+}
+function hasVerdict(s){
+  var i;
+  for (i = 0; i < (s.columns || []).length; i++) if (s.columns[i].type === "verdict") return true;
+  return false;
+}
+function rowNeedsReview(s, row){
+  var i;
+  for (i = 0; i < s.columns.length; i++){
+    if (s.columns[i].type === "verdict" && verdictClass(row[i]) !== "ok") return true;
+  }
+  return false;
+}
+function exceptionCount(s){
+  var i, n = 0;
+  if (!s.rows || !hasVerdict(s)) return 0;
+  for (i = 0; i < s.rows.length; i++) if (rowNeedsReview(s, s.rows[i])) n++;
+  return n;
+}
+
+/* ================================================================ rail == */
+function drawRail(){
+  var h = '', lastGrp = null, i, s, cls;
+  $("brand").innerHTML = '<div class="logo">JKB</div><div class="n" title="' + esc(P.tool) + '">' + esc(P.tool) + '</div>' +
+    '<div class="v">' + esc(P.version || "") + (P.asOf ? " &middot; as of " + esc(P.asOf) : "") + '</div>';
+  for (i = 0; i < P.sections.length; i++){
+    s = P.sections[i];
+    if (s.group && s.group !== lastGrp){ h += '<div class="railgrp">' + esc(s.group) + '</div>'; lastGrp = s.group; }
+    cls = verdictClass(s.verdict);
+    h += '<div class="navitem' + (current === s.id ? ' on' : '') + '" role="button" tabindex="0" title="' + esc(s.title) + '" onclick="show(\'' + s.id + '\')">' +
+         (current === s.id ? '<span class="bar"></span>' : '') +
+         '<span class="dot d-' + cls + '"></span><span class="lbl">' + esc(s.title) + '</span>' +
+         '<span class="cnt tnum">' + fmtNum(s.rows ? s.rows.length : 0) + '</span>' +
+         (i < 9 ? '<span class="key">' + (i + 1) + '</span>' : '') + '</div>';
+  }
+  $("railnav").innerHTML = h;
+  $("railfoot").innerHTML = '<div class="k">Last refreshed</div><div class="t">' + esc(P.ranAt || "Not run yet") + '</div>' +
+    '<div class="railtools"><span class="rbtn" title="Smaller text" onclick="zoomBy(-1)">A&minus;</span>' +
+    '<span class="rbtn" title="Larger text" onclick="zoomBy(1)">A+</span>' +
+    '<span class="rbtn" id="zoomreset" title="Default size" onclick="zoomBy(0)">' + zoomPct + '%</span>' +
+    '<span class="rbtn" title="Keyboard shortcuts" onclick="toggleHelp(true)">?</span></div>';
+}
+
+/* ================================================================= top == */
+function drawTop(){
+  var s = sectionById(current), h = "", i, a, sorted = [];
+  $("crumbs").innerHTML = esc(P.tool) + '<span class="sep">/</span>' + (s && s.group ? esc(s.group) + '<span class="sep">/</span>' : '') + '<b>' + esc(s ? s.title : "") + '</b>';
+  $("htitle").innerHTML = esc(s ? s.title : P.tool);
+  $("hsub").innerHTML = esc(s ? (s.about || "") : "");
+  $("hsub").title = s ? (s.about || "") : "";
+  /* Secondary actions first, the one primary last, so it sits at the right
+     edge where the eye ends. Reconciliation opens another place, so it says so. */
+  for (i = 0; i < (P.actions || []).length; i++) if (!P.actions[i].primary) sorted.push(P.actions[i]);
+  for (i = 0; i < (P.actions || []).length; i++) if (P.actions[i].primary) sorted.push(P.actions[i]);
+  for (i = 0; i < sorted.length; i++){
+    a = sorted[i];
+    h += '<span class="btn' + (a.primary ? ' primary' : '') + '" role="button" tabindex="0" onclick="runMacro(\'' +
+         esc(a.macro) + '\',\'' + esc(a.label).replace(/'/g, "\\'") + '\')">' + esc(a.label) +
+         (a.macro === "OpenReconWorkbench" ? ICON.ext : '') + '</span>';
+  }
+  $("hacts").innerHTML = h;
+  $("hmeta").innerHTML = s && s.verdict ? 'Status' + pill(s.verdict) : '';
+}
+
+/* ======================================================== the 5-step path */
+/* The tool's one numbered path, shared with the home sheet in the workbook:
+   Load inputs, Test cases, Base & pre-shock, Shock & post-shock, Build reports. A step opens
+   the view that proves it, or runs the action that is it. */
+function firstExisting(ids){
+  var i;
+  for (i = 0; i < ids.length; i++) if (sectionById(ids[i])) return ids[i];
+  return null;
+}
+/* A step with rows but no verdict column has been set up but not judged;
+   it reads as ready rather than as untouched. */
+function stepState(ids){
+  var i, s, w = "idle", rows = 0;
+  for (i = 0; i < ids.length; i++){
+    s = sectionById(ids[i]);
+    if (!s) continue;
+    rows += s.rows ? s.rows.length : 0;
+    w = worstOf(w, verdictClass(s.verdict));
+  }
+  if (w === "idle" && rows > 0) return "ready";
+  return w;
+}
+function hasAction(macro){
+  var i;
+  for (i = 0; i < (P.actions || []).length; i++) if (P.actions[i].macro === macro) return true;
+  return false;
+}
+var STEPS = [
+  { t:"Load inputs",   ids:["pre_shock_sources"] },
+  { t:"Test cases",   ids:["pre_shock_metrics","pre_shock_fields","pre_shock_cases"] },
+  { t:"Base & pre-shock", ids:["pre_shock_results","derived_values"] },
+  { t:"Shock & post-shock", ids:[], macro:"OpenReconWorkbench" },
+  { t:"Build reports", ids:[], macro:"BuildManualReconPack" }
+];
+var STATE_TEXT = { ok:"Complete", warn:"Needs review", bad:"Has breaks", idle:"Not started", ready:"Ready to review" };
+function drawPath(){
+  var h = '<div class="path">', i, st, cls, on, sub, j;
+  var usable = 0;
+  for (i = 0; i < STEPS.length; i++) if (firstExisting(STEPS[i].ids) || (STEPS[i].macro && hasAction(STEPS[i].macro))) usable++;
+  if (usable < 3) return "";
+  for (i = 0; i < STEPS.length; i++){
+    st = STEPS[i];
+    on = false;
+    for (j = 0; j < st.ids.length; j++) if (st.ids[j] === current) on = true;
+    if (st.macro){ cls = "idle"; sub = hasAction(st.macro) ? "Opens in Excel" : "Not available"; }
+    else { cls = stepState(st.ids); sub = STATE_TEXT[cls]; }
+    h += '<div class="step s-' + cls + (on ? ' on' : '') + '" role="button" tabindex="0" onclick="openStep(' + i + ')">' +
+         '<span class="c">' + (cls === "ok" ? '&#10003;' : (i + 1)) + '</span>' +
+         '<span class="t">' + esc(st.t) + '</span><span class="s">' + esc(sub) + '</span></div>';
+  }
+  return h + '</div>';
+}
+function openStep(i){
+  var st = STEPS[i], id;
+  if (st.macro){ if (hasAction(st.macro)) runMacro(st.macro, st.t); return; }
+  id = firstExisting(st.ids);
+  if (id) show(id);
+}
+
+/* ============================================================ overview == */
+function drawBanner(){
+  var worst = "idle", i, s, breaks = 0, checks = 0, cls, band, line, note;
+  for (i = 0; i < P.sections.length; i++){
+    s = P.sections[i];
+    cls = verdictClass(s.verdict);
+    worst = worstOf(worst, cls);
+    if (cls === "bad") breaks++;
+    if (cls === "warn") checks++;
+  }
+  if (P.headline && P.headline.line){
+    cls = verdictClass(P.headline.verdict || worst); band = P.headline.verdict || "";
+    line = P.headline.line; note = P.headline.note || "";
+  } else if (worst === "bad"){
+    cls = "bad"; band = "Attention needed";
+    line = breaks + (breaks === 1 ? " view has breaks to investigate" : " views have breaks to investigate");
+    note = "Open each red view, filter to exceptions and inspect the rows behind every difference before sign-off.";
+  } else if (worst === "warn"){
+    cls = "warn"; band = "Review required";
+    line = checks + (checks === 1 ? " view needs a decision" : " views need a decision");
+    note = "Resolve incomplete coverage and the items flagged for review before sign-off.";
+  } else if (worst === "ok"){
+    cls = "ok"; band = "Reconciled";
+    line = "Every completed check agrees within tolerance";
+    note = "Confirm coverage is complete, then build the manual reports.";
+  } else {
+    cls = "idle"; band = "Not run";
+    line = "Ready for a first run";
+    note = "Load the system output and its input files, run the tests, then reopen the console to see how the tool and the system compare.";
+  }
+  return '<div class="banner v-' + cls + '"><div class="ic">' + ICON[cls] + '</div><div class="txt">' +
+         '<div class="band">' + esc(band) + '</div><div class="line">' + esc(line) + '</div>' +
+         '<div class="note">' + esc(note) + '</div></div></div>';
+}
+function drawTiles(){
+  if (!P.tiles || !P.tiles.length) return "";
+  var h = '<div class="tiles">', i, t, val, cls;
+  for (i = 0; i < P.tiles.length; i++){
+    t = P.tiles[i];
+    cls = t.verdict ? verdictClass(t.verdict) : "";
+    val = t.format === "money" ? fmtShort(t.value) : t.format === "pct" ? fmtPct(t.value) : t.format === "count" ? fmtNum(t.value) : esc(t.value);
+    h += '<div class="tile ' + cls + '" title="' + esc(fmtNum(t.value)) + '"><div class="tl">' + esc(t.label) + '</div>' +
+         '<div class="tv tnum">' + val + '</div><div class="tn">' + esc(t.note || "") + '</div></div>';
+  }
+  return h + '</div>';
+}
+/* The flow chart survives for tools that send one (ALM does); stress testing
+   deliberately sends none because its figures are not additive. */
+function drawFlow(){
+  if (!P.flow || !P.flow.length) return "";
+  var W = Math.max(560, Math.min(1900, ($("main").clientWidth || 1200) - 100)), H = 150, n = P.flow.length + 1;
+  var gap = 34, boxW = Math.min(200, (W - 44 - gap * (n - 1)) / n), y = 24, bh = 50, i, e, x, svg = "", col, cls;
+  x = Math.max(22, Math.floor((W - (boxW * n + gap * (n - 1))) / 2));
+  svg += '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
+  for (i = 0; i < P.flow.length; i++){
+    e = P.flow[i]; cls = verdictClass(e.verdict);
+    col = cls === "bad" ? "#F04438" : cls === "warn" ? "#F79009" : "#17B26A";
+    svg += flowNode(x, y, boxW, bh, e.from, e.amountIn);
+    var ex = x + boxW, ex2 = x + boxW + gap, my = y + bh/2;
+    svg += '<line x1="' + ex + '" y1="' + my + '" x2="' + (ex2 - 7) + '" y2="' + my + '" stroke="' + col + '" stroke-width="2"/>';
+    svg += '<polygon points="' + ex2 + ',' + my + ' ' + (ex2-7) + ',' + (my-4.5) + ' ' + (ex2-7) + ',' + (my+4.5) + '" fill="' + col + '"/>';
+    if (e.dropped && Math.abs(Number(e.dropped)) > 0.5){
+      var mx = (ex + ex2) / 2;
+      svg += '<line x1="' + mx + '" y1="' + my + '" x2="' + mx + '" y2="' + (y + bh + 22) + '" stroke="' + col + '" stroke-width="1.5" stroke-dasharray="3,3"/>';
+      svg += '<text x="' + mx + '" y="' + (y + bh + 40) + '" text-anchor="middle" font-size="11.5" font-family="Segoe UI" fill="' + col + '" font-weight="600">' + esc(fmtShort(e.dropped)) + '</text>';
+    }
+    x = ex2;
+  }
+  svg += flowNode(x, y, boxW, bh, P.flow[P.flow.length - 1].to, P.flow[P.flow.length - 1].amountOut) + '</svg>';
+  return '<div class="card"><div class="chead"><h2>Reconciliation stages</h2><div class="about">Stage totals and what falls out between them.</div></div>' +
+         '<div style="padding:0 20px 12px 20px;overflow-x:auto">' + svg + '</div></div>';
+}
+function flowNode(x, y, w, h, label, amount){
+  var t = String(label || ""), n = Math.floor(w / 6.8);
+  if (t.length > n) t = t.substring(0, Math.max(1, n - 1)) + "…";
+  return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="8" fill="#FFFFFF" stroke="#D0D5DD"/>' +
+    '<text x="' + (x + w/2) + '" y="' + (y + 21) + '" text-anchor="middle" font-size="12" font-family="Segoe UI" fill="#101828" font-weight="600">' + esc(t) + '</text>' +
+    '<text x="' + (x + w/2) + '" y="' + (y + 38) + '" text-anchor="middle" font-size="12" font-family="Segoe UI" fill="#667085">' + esc(fmtShort(amount)) + '</text>';
+}
+
+/* =============================================================== table == */
+function visibleRows(s){
+  var out = [], i, j, hit, f = filterText.toLowerCase();
+  if (!s.rows) return out;
+  for (i = 0; i < s.rows.length; i++){
+    if (exceptionsOnly && !rowNeedsReview(s, s.rows[i])) continue;
+    if (f === ""){ out.push(s.rows[i]); continue; }
+    hit = false;
+    for (j = 0; j < s.rows[i].length; j++){
+      if (s.rows[i][j] !== null && String(s.rows[i][j]).toLowerCase().indexOf(f) >= 0){ hit = true; break; }
+    }
+    if (hit) out.push(s.rows[i]);
+  }
+  if (sortCol >= 0 && s.columns[sortCol]){
+    var t = s.columns[sortCol].type, c = sortCol;
+    out.sort(function(a, b){
+      if (isNumType(t)) return ((Number(a[c]) || 0) - (Number(b[c]) || 0)) * sortDir;
+      var av = String(a[c] === null ? "" : a[c]).toLowerCase(), bv = String(b[c] === null ? "" : b[c]).toLowerCase();
+      return (av < bv ? -1 : av > bv ? 1 : 0) * sortDir;
+    });
+  }
+  return out;
+}
+function columnWidths(s, rows){
+  var w = [], i, j, len, maxLen, c, v, sample = Math.min(rows.length, 150);
+  for (i = 0; i < s.columns.length; i++){
+    c = s.columns[i];
+    maxLen = String(c.label).length;
+    for (j = 0; j < sample; j++){
+      v = rows[j][i];
+      len = isNumType(c.type) ? fmtNum(v, c.type === "money" ? 0 : 0).length : String(v === null || v === undefined ? "" : v).length;
+      if (len > maxLen) maxLen = len;
+    }
+    if (c.type === "money" || c.type === "count") w.push(clamp(maxLen * 7.8 + 30, 100, 170));
+    else if (c.type === "pct")                   w.push(96);
+    else if (c.type === "verdict")               w.push(clamp(maxLen * 7.4 + 44, 104, 170));
+    else                                         w.push(clamp(maxLen * 6.9 + 28, 96, 400));
+  }
+  return w;
+}
+function drawTable(s){
+  var rows, w, i, j, h, total = 0, hi = filterText.toLowerCase(), exc, shown, fill;
+  if (!s.columns || !s.columns.length) return "";
+  rows = visibleRows(s);
+  viewRows = rows;
+  exc = exceptionCount(s);
+
+  h = '<div class="card"><div class="chead"><h2>' + esc(s.title) + '</h2>' +
+      (s.status ? '<div class="about">' + esc(s.status) + '</div>' : '') + '</div>';
+  h += '<div class="ctools">';
+  if (hasVerdict(s)){
+    h += '<span class="seg"><span class="' + (exceptionsOnly ? '' : 'on') + '" onclick="setExceptions(false)">All rows<span class="n tnum">' + fmtNum(s.rows.length) + '</span></span>' +
+         '<span class="' + (exceptionsOnly ? 'on' : '') + '" onclick="setExceptions(true)">Exceptions<span class="n tnum' + (exc ? ' bad' : '') + '">' + fmtNum(exc) + '</span></span></span>';
+  }
+  h += '<span class="right"><span id="searchwrap"><span id="searchicon">' + ICON.search + '</span>' +
+       '<input id="search" type="text" placeholder="Search this view   ( / )" value="' + esc(filterText) + '">' +
+       '<span id="clearsearch" onclick="clearSearch()" style="display:' + (filterText ? 'block' : 'none') + '">&#x2715;</span></span>' +
+       '<span class="seg" style="margin-left:8px"><span class="' + (document.body.className.indexOf("compact") < 0 ? 'on' : '') + '" title="Comfortable rows" onclick="setDensity(false)">Comfortable</span>' +
+       '<span class="' + (document.body.className.indexOf("compact") >= 0 ? 'on' : '') + '" title="Compact rows" onclick="setDensity(true)">Compact</span></span>' +
+       '<span class="btn sm icon" title="Copy this view to the clipboard" onclick="copyView()">' + ICON.copy + '</span></span></div>';
+
+  if (!rows.length){ h += emptyState(s); return h + '</div>'; }
+
+  w = columnWidths(s, rows);
+  for (i = 0; i < w.length; i++) total += w[i];
+  /* A short table should still fill the card. The last column takes the slack. */
+  fill = Math.max(0, availableTableWidth() - total);
+  if (fill > 0){ w[w.length - 1] += fill; total += fill; }
+
+  h += '<div class="tbl"><div class="thead" id="thead"><table style="width:' + total + 'px">' + colgroup(w) + '<thead><tr>';
+  for (i = 0; i < s.columns.length; i++){
+    var cl = (isNumType(s.columns[i].type) ? "rt" : "") + (sortCol === i ? " sorted" : "");
+    h += '<th class="' + cl + '" onclick="sortBy(' + i + ')" title="Sort by ' + esc(s.columns[i].label) + '">' + esc(s.columns[i].label) +
+         (sortCol === i ? '<span class="ar">' + (sortDir > 0 ? "&#9650;" : "&#9660;") + '</span>' : '') + '</th>';
+  }
+  h += '</tr></thead></table></div>';
+  h += '<div class="tbody" id="tbody" onscroll="syncHead()"><table style="width:' + total + 'px">' + colgroup(w) + '<tbody>';
+  shown = Math.min(rows.length, limit);
+  for (i = 0; i < shown; i++){
+    h += '<tr onclick="openDrawer(' + i + ')">';
+    for (j = 0; j < s.columns.length; j++) h += cell(s.columns[j], rows[i][j], hi, j === 0);
+    h += '</tr>';
+  }
+  h += '</tbody></table></div></div>';
+  h += '<div class="cfoot">Showing <b class="tnum">' + fmtNum(shown) + '</b> of <b class="tnum">' + fmtNum(rows.length) + '</b>' +
+       (rows.length !== s.rows.length ? ' (' + fmtNum(s.rows.length) + ' in total)' : '') +
+       (filterText ? ' matching &ldquo;' + esc(filterText) + '&rdquo;' : '') +
+       ' &nbsp;&middot;&nbsp; select a row to inspect it' +
+       (shown < rows.length ? '<span class="btn sm" onclick="showMore()">Show ' + fmtNum(Math.min(PAGE, rows.length - shown)) + ' more</span>' : '') + '</div>';
+  return h + '</div>';
+}
+function availableTableWidth(){
+  var m = $("main"), w = m ? m.clientWidth : 1200;
+  if ($("drawer").style.display === "block") w -= 480;
+  return w - 56 - 2;
+}
+function colgroup(w){
+  var s = '<colgroup>', i;
+  for (i = 0; i < w.length; i++) s += '<col style="width:' + w[i] + 'px">';
+  return s + '</colgroup>';
+}
+function cell(col, v, hi, first){
+  var n, txt;
+  if (col.type === "money" || col.type === "count"){
+    n = Number(v);
+    if (v === null || v === undefined || v === "" || isNaN(n)) return '<td class="num"></td>';
+    return '<td class="num tnum' + (n < 0 ? ' neg' : (n === 0 ? ' zero' : '')) + '">' + fmtNum(n) + '</td>';
+  }
+  if (col.type === "pct") return '<td class="num tnum">' + fmtPct(v) + '</td>';
+  txt = String(v === null || v === undefined ? "" : v);
+  if (col.type === "verdict") return txt.length ? '<td>' + pill(txt) + '</td>' : '<td></td>';
+  return '<td class="' + (first ? 'first' : (txt.length > 60 ? 'long' : '')) + '" title="' + esc(txt) + '">' + highlight(txt, hi) + '</td>';
+}
+function highlight(txt, hi){
+  if (!hi) return esc(txt);
+  var i = txt.toLowerCase().indexOf(hi);
+  if (i < 0) return esc(txt);
+  return esc(txt.substring(0, i)) + '<mark>' + esc(txt.substring(i, i + hi.length)) + '</mark>' + esc(txt.substring(i + hi.length));
+}
+function syncHead(){ var b = $("tbody"), t = $("thead"); if (b && t) t.scrollLeft = b.scrollLeft; }
+function emptyState(s){
+  var t, d;
+  if (exceptionsOnly && !filterText){ t = "No exceptions in this view"; d = "Every verdict here is clear. Switch back to all rows to see the full list."; }
+  else if (filterText){ t = "Nothing matches “" + filterText + "”"; d = "The search covers every column. Press Esc to clear it."; }
+  else { t = "Nothing to show yet"; d = s.status || "This view fills in once the tool has been run."; }
+  return '<div class="empty"><div class="mk">' + (filterText ? ICON.search : ICON.empty) + '</div><div class="t">' + esc(t) + '</div><div class="d">' + esc(d) + '</div></div>';
+}
+
+/* ============================================================== drawer == */
+function openDrawer(idx){
+  var s = sectionById(current), row = viewRows[idx], h = "", figs = "", i, c, v, lead = "", titleText = "", n;
+  if (!s || !row) return;
+  selRow = idx; markSelected();
+  for (i = 0; i < s.columns.length; i++){
+    if (s.columns[i].type === "verdict" && String(row[i] || "").length){ lead = String(row[i]); break; }
+  }
+  for (i = 0; i < s.columns.length; i++){
+    if (s.columns[i].type === "text" && String(row[i] || "").length > 2 && String(row[i]).length < 70){ titleText = String(row[i]); break; }
+  }
+  /* Prefer the most specific short label: the last short text column before
+     the numbers usually names the row (metric, field, rule). */
+  for (i = 0; i < s.columns.length; i++){
+    if (isNumType(s.columns[i].type)) break;
+    if (s.columns[i].type === "text" && String(row[i] || "").length > 1 && String(row[i]).length < 60) titleText = String(row[i]);
+  }
+  $("drawerkind").innerHTML = esc(s.title);
+  $("drawertitle").innerHTML = esc(titleText || ("Row " + (idx + 1)));
+  $("drawerverdict").innerHTML = lead ? pill(lead) : '<span class="pill p-idle"><i></i>No verdict</span>';
+  for (i = 0; i < s.columns.length; i++){
+    c = s.columns[i]; v = row[i];
+    if (v === "" || v === null || v === undefined || c.type === "verdict") continue;
+    if (c.type === "money" || c.type === "count"){
+      n = Number(v);
+      figs += '<div class="fig' + (n < 0 ? ' neg' : '') + '"><div class="l" title="' + esc(c.label) + '">' + esc(c.label) + '</div><div class="n tnum">' + fmtNum(v, c.type === "money" && Math.round(n) !== n ? 2 : 0) + '</div></div>';
+    } else if (c.type === "pct"){
+      figs += '<div class="fig"><div class="l">' + esc(c.label) + '</div><div class="n tnum">' + fmtPct(v) + '</div></div>';
+    } else {
+      h += '<div class="r"><div class="l">' + esc(c.label) + '</div><div class="d' + (String(v).length > 80 ? ' mono' : '') + '">' + esc(v) + '</div></div>';
+    }
+  }
+  $("dscroll").innerHTML = (figs ? '<div class="figs">' + figs + '</div>' : '') + '<div class="dl">' + h + '</div>';
+  $("drawerpos").innerHTML = 'Row ' + fmtNum(idx + 1) + ' of ' + fmtNum(viewRows.length);
+  $("drawer").style.display = "block";
+  $("scrim").style.display = "block";
+}
+function closeDrawer(){ $("drawer").style.display = "none"; $("scrim").style.display = "none"; }
+function markSelected(){
+  var b = $("tbody"), trs, i;
+  if (!b) return;
+  trs = b.getElementsByTagName("tr");
+  for (i = 0; i < trs.length; i++) trs[i].className = (i === selRow ? "sel" : "");
+}
+function moveSel(d){
+  var b = $("tbody"), trs, n;
+  if (!b) return;
+  trs = b.getElementsByTagName("tr"); n = trs.length;
+  if (!n) return;
+  selRow = clamp(selRow < 0 ? 0 : selRow + d, 0, n - 1);
+  markSelected();
+  try { trs[selRow].scrollIntoView(false); } catch (e) {}
+  if ($("drawer").style.display === "block") openDrawer(selRow);
+}
+function copyRow(){
+  var s = sectionById(current), row = viewRows[selRow], lines = [], i;
+  if (!s || !row) return;
+  for (i = 0; i < s.columns.length; i++) lines.push(s.columns[i].label + "\t" + (row[i] === null ? "" : row[i]));
+  toClipboard(lines.join("\r\n"), "Row details copied.");
+}
+
+/* ============================================================= actions == */
+/* The workbook listens on a file for as long as this window is open;
+   jkbCall is generated by modShared_Bridge, which also restricts it to the
+   actions the payload offered. */
+function runMacro(macro, label){
+  toast(label + " is running in Excel…", false, true);
+  jkbCall(macro, [], function(res){
+    if (String(res).indexOf("ERR:") === 0){ toast("Could not run " + label + ": " + String(res).substring(4), true); return; }
+    if (macro === "OpenReconWorkbench"){ toast("Reconciliation is open in Excel."); return; }
+    toast(label + " finished. Reopen the console to see refreshed results.");
+  });
+}
+function copyView(){
+  var s = sectionById(current), rows, lines = [], i, j, cells;
+  if (!s || !s.columns){ toast("Nothing to copy.", true); return; }
+  rows = visibleRows(s); cells = [];
+  for (i = 0; i < s.columns.length; i++) cells.push(s.columns[i].label);
+  lines.push(cells.join("\t"));
+  for (i = 0; i < rows.length; i++){
+    cells = [];
+    for (j = 0; j < s.columns.length; j++) cells.push(rows[i][j] === null ? "" : String(rows[i][j]));
+    lines.push(cells.join("\t"));
+  }
+  toClipboard(lines.join("\r\n"), fmtNum(rows.length) + " rows copied. Paste them into Excel.");
+}
+function toClipboard(text, okMsg){
+  try { window.clipboardData.setData("Text", text); toast(okMsg); }
+  catch (e){ toast("The clipboard is not available here.", true); }
+}
+var toastTimer = null;
+function toast(msg, isErr, sticky){
+  $("toast").className = isErr ? "err" : "";
+  $("toast").innerHTML = '<span class="ic">' + (isErr ? "&#9888;" : "&#10003;") + '</span>' + esc(msg);
+  $("toast").style.display = "block";
+  if (toastTimer) window.clearTimeout(toastTimer);
+  if (!sticky) toastTimer = window.setTimeout(function(){ $("toast").style.display = "none"; }, 5200);
+}
+
+/* =============================================================== shell == */
+function render(){
+  var s = sectionById(current), h = "", keepFocus = document.activeElement && document.activeElement.id === "search";
+  if (!s) return;
+  h += drawPath();
+  if (s.overview){ h += drawBanner(); h += drawTiles(); h += drawFlow(); }
+  h += drawTable(s);
+  $("body").innerHTML = h;
+  if ($("search")){
+    $("search").onkeyup = onFilter;
+    if (keepFocus){ $("search").focus(); try { var r = $("search").createTextRange(); r.collapse(false); r.select(); } catch (e) {} }
+  }
+  markSelected();
+}
+var resizeTimer = null;
+function onResize(){
+  if (resizeTimer) window.clearTimeout(resizeTimer);
+  resizeTimer = window.setTimeout(function(){ resizeTimer = null; render(); }, 180);
+}
+function show(id){
+  current = id; sortCol = -1; sortDir = 1; selRow = -1; exceptionsOnly = false; filterText = ""; limit = PAGE;
+  closeDrawer(); drawRail(); drawTop(); render();
+  $("body").scrollTop = 0;
+  remember("section", id);
+}
+function sortBy(i){ if (sortCol === i) sortDir = -sortDir; else { sortCol = i; sortDir = isNumType(sectionById(current).columns[i].type) ? -1 : 1; } selRow = -1; render(); }
+function setExceptions(on){ exceptionsOnly = on; selRow = -1; limit = PAGE; closeDrawer(); render(); }
+function setDensity(compact){ document.body.className = compact ? "compact" : ""; remember("density", compact ? "compact" : ""); render(); }
+function showMore(){ limit += PAGE; render(); }
+function onFilter(e){
+  var ev = e || window.event;
+  if (ev && ev.keyCode === 27) return;
+  if ($("search").value === filterText) return;
+  filterText = $("search").value; selRow = -1; limit = PAGE; render();
+}
+function clearSearch(){ filterText = ""; limit = PAGE; render(); if ($("search")) $("search").focus(); }
+function zoomBy(dir){
+  zoomPct = dir === 0 ? 100 : Math.max(80, Math.min(160, zoomPct + dir * 10));
+  document.body.style.fontSize = (13 * zoomPct / 100) + "px";
+  remember("zoom", zoomPct); drawRail(); render();
+}
+function toggleHelp(on){
+  helpOpen = on;
+  $("help").style.display = on ? "block" : "none";
+  $("helpscrim").style.display = on ? "block" : "none";
+}
+function remember(k, v){ try { window.localStorage.setItem("jkbconsole_" + k, v); } catch (e) {} }
+function recall(k){ try { return window.localStorage.getItem("jkbconsole_" + k); } catch (e) { return null; } }
+
+function applyAccent(){
+  var a = P.accent || "#193F89", dark = P.accentDark || "#0E2240";
+  var css = "#rail{background:" + dark + ";}.btn.primary{background:" + a + ";border-color:" + a + ";}.step.on .c{border-color:" + a + ";}";
+  var st = document.createElement("style");
+  st.type = "text/css";
+  if (st.styleSheet) st.styleSheet.cssText = css; else st.appendChild(document.createTextNode(css));
+  document.getElementsByTagName("head")[0].appendChild(st);
+}
+
+function boot(){
+  var startId, z;
+  try { window.resizeTo(Math.min(1480, screen.availWidth), Math.min(960, screen.availHeight)); } catch (e) {}
+  try { window.moveTo(Math.max(0, (screen.availWidth - 1480) / 2), Math.max(0, (screen.availHeight - 960) / 2)); } catch (e) {}
+  applyAccent();
+  z = parseFloat(recall("zoom"));
+  if (z >= 80 && z <= 160){ zoomPct = z; document.body.style.fontSize = (13 * zoomPct / 100) + "px"; }
+  if (recall("density") === "compact") document.body.className = "compact";
+
+  $("help").innerHTML = '<h3>Keyboard shortcuts</h3><div class="sub">Everything in the console works without a mouse.</div><table>' +
+    '<tr><td class="k"><span class="kbd">/</span></td><td>Search the current view</td></tr>' +
+    '<tr><td class="k"><span class="kbd">1</span>&ndash;<span class="kbd">9</span></td><td>Jump to a view in the sidebar</td></tr>' +
+    '<tr><td class="k"><span class="kbd">&uarr;</span><span class="kbd">&darr;</span></td><td>Move through rows</td></tr>' +
+    '<tr><td class="k"><span class="kbd">Enter</span></td><td>Open the selected row</td></tr>' +
+    '<tr><td class="k"><span class="kbd">E</span></td><td>Toggle exceptions only</td></tr>' +
+    '<tr><td class="k"><span class="kbd">Esc</span></td><td>Close the panel or clear the search</td></tr>' +
+    '<tr><td class="k"><span class="kbd">?</span></td><td>Show this list</td></tr></table>' +
+    '<div style="text-align:right;margin-top:14px"><span class="btn sm" onclick="toggleHelp(false)">Done</span></div>';
+
+  if (!P.sections.length){
+    drawRail(); drawTop();
+    $("htitle").innerHTML = esc(P.tool);
+    $("body").innerHTML = '<div class="card"><div class="empty"><div class="mk">' + ICON.empty + '</div><div class="t">Nothing has been run yet</div>' +
+      '<div class="d">Load the system output and its input files, run the tests in the workbook, then open the console again.</div></div></div>';
+    return;
+  }
+  startId = recall("section");
+  current = (startId && sectionById(startId)) ? startId : P.sections[0].id;
+  show(current);
+
+  document.onkeydown = function(e){
+    var ev = e || window.event, k = ev.keyCode, i;
+    var active = document.activeElement, inSearch = active && active.id === "search";
+    if (helpOpen){ if (k === 27 || k === 191) toggleHelp(false); return false; }
+    if ((k === 13 || k === 32) && active && active.getAttribute && active.getAttribute("role") === "button"){ active.click(); return false; }
+    if (k === 27){
+      if (inSearch && filterText.length){ clearSearch(); return false; }
+      if ($("drawer").style.display === "block"){ closeDrawer(); return false; }
+      if (inSearch){ active.blur(); return false; }
+      return false;
+    }
+    if (inSearch){ if (k === 40){ active.blur(); moveSel(1); return false; } return true; }
+    if (k === 191 && ev.shiftKey){ toggleHelp(true); return false; }                 /* ? */
+    if (k === 191){ if ($("search")) $("search").focus(); return false; }            /* / */
+    if (k >= 49 && k <= 57){ i = k - 49; if (P.sections[i]) show(P.sections[i].id); return false; }
+    if (k === 69){ var s = sectionById(current); if (s && hasVerdict(s)) setExceptions(!exceptionsOnly); return false; }  /* E */
+    if (k === 38){ moveSel(-1); return false; }
+    if (k === 40){ moveSel(1); return false; }
+    if (k === 13 && selRow >= 0){ openDrawer(selRow); return false; }
+    if (ev.altKey) document.body.className += " showkeys";
+    return true;
+  };
+  document.onkeyup = function(){ document.body.className = document.body.className.replace(/\s*showkeys/g, ""); };
+  window.onresize = onResize;
+}
+window.onload = boot;
+</script>
+</body>
+</html>
