@@ -593,7 +593,7 @@ def tour_place(tx, ty, tw, th):
 # ---------------------------------------------------------------------------
 def empty_state(today="SUNDAY  ·  27 SEPTEMBER 2026", greeting="Your ALM workbench."):
     return {
-        "version": "3.2",
+        "version": "3.3",
         "asof": "NO DATA LOADED",
         "view_label": "Excel view",
         "date": today,

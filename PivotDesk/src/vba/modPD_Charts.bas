@@ -68,6 +68,8 @@ Private Const TICK_LOW As Long = -4134           ' xlTickLabelPositionLow
 ' --- on Start here ------------------------------------------------------------
 Private Const GRID_GAP As Double = 12
 Private Const GUIDE_CHART_H As Double = 250
+' Reserve several modest rows rather than exceeding Excel's 409.5-point row limit.
+Private Const CHART_ROW_MAX As Double = 200
 Private Const SHEET_CHART_W As Double = 1064
 Private Const SHEET_CHART_H As Double = 520
 ' Each chart's pivot takes a block of columns on the hidden sheet, with room
@@ -569,6 +571,7 @@ Public Function MakeCharts(ByVal wb As Workbook, ByVal fw As String, ByVal chart
     Set mGuide = New Collection
     Set mSheet = Nothing
     mNext = 1
+    mSeq = 0
     If charts Is Nothing Then Exit Function
     For Each rc In charts
         i = i + 1
@@ -610,19 +613,23 @@ End Function
 ' A sheet of its own: the book's bar and title, then the chart, full size.
 Private Function DrawOnSheet(ByVal wb As Workbook, ByVal fw As String, ByVal pt As PivotTable, _
                              ByVal rc As Object) As Boolean
-    Dim ws As Worksheet, title As String, u As String
+    Dim ws As Worksheet, title As String, u As String, why As String, alerts As Boolean
+    On Error GoTo Failed
     title = Replace(CStr(rc("Name")), "{fw}", FwLabel(fw))
     u = UnitsFor(pt, rc)
     Set ws = modPD_Pivot.NewBookSheet(wb, SafeSheetName(title), title, CStr(rc("Desc")), _
         UCase$(FwLabel(fw)) & "  " & ChrW(183) & "  CHART" & IIf(Len(u) > 0, "  " & ChrW(183) & "  IN " & UCase$(u), ""))
     If ws Is Nothing Then Exit Function
-    If DrawChart(ws, pt, rc, title, 14, ws.Rows(4).Top + 8, SHEET_CHART_W, SHEET_CHART_H) Is Nothing Then Exit Function
+    ReserveChartRows ws, 4, SHEET_CHART_H + 16
+    If DrawChart(ws, pt, rc, title, 14, ws.Rows(4).Top + 8, SHEET_CHART_W, SHEET_CHART_H) Is Nothing Then
+        Err.Raise vbObjectError + 521, "DrawOnSheet", "Excel could not draw the chart."
+    End If
     modPD_Pivot.NoteMade ws, IIf(Len(rc("Desc")) > 0, CStr(rc("Desc")), title)
     On Error Resume Next
     ws.Tab.Color = modPD_Theme.C_BRAND
     ws.Activate
     ActiveWindow.DisplayGridlines = False
-    ActiveWindow.DisplayHeadings = False
+    ActiveWindow.DisplayHeadings = True
     ActiveWindow.Zoom = 100
     ActiveWindow.FreezePanes = False
     ws.Range("A2").Select
@@ -639,6 +646,19 @@ Private Function DrawOnSheet(ByVal wb As Workbook, ByVal fw As String, ByVal pt 
     Application.PrintCommunication = True
     Err.Clear
     DrawOnSheet = True
+    Exit Function
+Failed:
+    why = Err.Description
+    On Error Resume Next
+    ' A failed own-sheet chart must not leave a dressed but unindexed orphan tab.
+    If Not ws Is Nothing Then
+        alerts = Application.DisplayAlerts
+        Application.DisplayAlerts = False
+        ws.Delete
+        Application.DisplayAlerts = alerts
+    End If
+    LogIt V_BREAK, "Charts", "Chart " & Chr$(34) & title & Chr$(34) & " was not drawn - " & why, FwLabel(fw)
+    Err.Clear
 End Function
 
 ' The unit a chart reads in: the one asked for, or - for Auto - the one its
@@ -675,28 +695,90 @@ Public Function GuideCharts() As Long
     GuideCharts = mGuide.count
 End Function
 
-' Start here's charts, left to right in rows from row r, each row as tall as
-' its charts. Returns the first row after them.
+' Start here uses a two-pass layout. All worksheet row heights are final before
+' any free-floating chart or background is created. Returns the first unused
+' worksheet row, so the caller's report index cannot overlap the final chart.
 Public Function PlaceOnGuide(ByVal ws As Worksheet, ByVal r As Long, ByVal wide As Double, _
                              ByVal fw As String) As Long
-    Dim e As Variant, x As Double, w As Double, title As String, used As Boolean
+    Dim sizes As Collection, boxes As Collection, e As Variant, box As Variant, i As Long
+    Dim title As String, origin As Double, bottom As Double, pt As PivotTable
     PlaceOnGuide = r
+    ClearChartPanels ws
     If GuideCharts() = 0 Then Exit Function
+    Set sizes = New Collection
     For Each e In mGuide
-        w = WidthFor(CStr(e(1)("Size")), wide)
-        If used And x + w > wide + 1 Then
-            ws.Rows(r).RowHeight = GUIDE_CHART_H + GRID_GAP
-            r = r + 1
-            x = 0
+        Set pt = e(0)
+        If Not pt.Parent.Parent Is ws.Parent Then
+            Err.Raise vbObjectError + 522, "PlaceOnGuide", "Chart source belongs to a different workbook."
         End If
-        title = Replace(CStr(e(1)("Name")), "{fw}", FwLabel(fw))
-        DrawChart ws, e(0), e(1), title, 14 + x, ws.Rows(r).Top + GRID_GAP / 2, w, GUIDE_CHART_H
-        x = x + w + GRID_GAP
-        used = True
+        sizes.Add CStr(e(1)("Size"))
     Next e
-    ws.Rows(r).RowHeight = GUIDE_CHART_H + GRID_GAP
-    PlaceOnGuide = r + 1
+    Set boxes = ChartGrid(sizes, wide, GUIDE_CHART_H)
+    box = boxes(boxes.count)
+    bottom = CDbl(box(1)) + CDbl(box(3)) + GRID_GAP / 2
+    PlaceOnGuide = ReserveChartRows(ws, r, bottom)
+    origin = ws.Rows(r).Top
+    For i = 1 To mGuide.count
+        e = mGuide(i): box = boxes(i)
+        title = Replace(CStr(e(1)("Name")), "{fw}", FwLabel(fw))
+        DrawChart ws, e(0), e(1), title, 14 + CDbl(box(0)), origin + CDbl(box(1)), CDbl(box(2)), CDbl(box(3))
+    Next i
 End Function
+
+' Pure point-coordinate plan, also used by focused layout checks. The 12-point
+' gutters are accounted for in widths, so thirds/halves fill a row exactly.
+' Input order is preserved; an item never backfills an earlier incomplete row.
+Public Function ChartGrid(ByVal sizes As Collection, ByVal wide As Double, _
+                          Optional ByVal high As Double = 250) As Collection
+    Dim boxes As Collection, size As Variant, x As Double, y As Double, w As Double
+    If wide <= 72 Or high <= 12 Then
+        Err.Raise vbObjectError + 523, "ChartGrid", "The chart area is too small."
+    End If
+    Set boxes = New Collection
+    y = GRID_GAP / 2
+    For Each size In sizes
+        w = WidthFor(CStr(size), wide)
+        If x > 0 And x + w > wide + 0.01 Then
+            x = 0
+            y = y + high + GRID_GAP
+        End If
+        boxes.Add Array(x, y, w, high)
+        x = x + w + GRID_GAP
+    Next size
+    Set ChartGrid = boxes
+End Function
+
+' Preallocate physical space in rows below Excel's 409.5-point ceiling. Read
+' back the actual height because Excel rounds to its display grid. At least
+' one point avoids a sub-pixel final remainder becoming a zero-height row.
+Private Function ReserveChartRows(ByVal ws As Worksheet, ByVal firstRow As Long, ByVal high As Double) As Long
+    Dim r As Long, remaining As Double, h As Double, actual As Double
+    r = firstRow: remaining = high
+    Do While remaining > 0.01
+        If r > ws.Rows.count Then Err.Raise vbObjectError + 524, "ReserveChartRows", "No space remains for charts."
+        h = remaining
+        If h > CHART_ROW_MAX Then h = CHART_ROW_MAX
+        If h < 1 Then h = 1
+        ws.Rows(r).RowHeight = h
+        actual = ws.Rows(r).Height
+        If actual <= 0 Then Err.Raise vbObjectError + 525, "ReserveChartRows", "Excel could not reserve chart space."
+        remaining = remaining - actual
+        r = r + 1
+    Loop
+    ReserveChartRows = r
+End Function
+
+' Idempotent guide redraw: remove only our charts and their matching panels.
+' The report hero, KPI cards, other shapes and source PivotTables stay intact.
+Private Sub ClearChartPanels(ByVal ws As Worksheet)
+    Dim i As Long
+    For i = ws.ChartObjects.count To 1 Step -1
+        If Left$(ws.ChartObjects(i).Name, 10) = "pdc_chart_" Then ws.ChartObjects(i).Delete
+    Next i
+    For i = ws.Shapes.count To 1 Step -1
+        If Left$(ws.Shapes(i).Name, 12) = "pdc_surface_" Then ws.Shapes(i).Delete
+    Next i
+End Sub
 
 Private Function WidthFor(ByVal size As String, ByVal wide As Double) As Double
     Select Case size
@@ -711,9 +793,9 @@ End Function
 Private Function DrawChart(ByVal host As Worksheet, ByVal pt As PivotTable, ByVal rc As Object, _
                            ByVal title As String, ByVal l As Double, ByVal t As Double, ByVal w As Double, _
                            ByVal h As Double) As Object
-    Dim co As Object, ch As Object, typ As String, n As Long, u As String, card As Shape
+    Dim co As Object, ch As Object, typ As String, n As Long, u As String, card As Shape, why As String
     u = UnitsFor(pt, rc)
-    On Error Resume Next
+    On Error GoTo Failed
     mSeq = mSeq + 1
     Set card = modPD_Theme.SurfaceCard(host, "pdc_surface_" & mSeq, l, t, w, h)
     If Not card Is Nothing Then
@@ -746,8 +828,25 @@ Private Function DrawChart(ByVal host As Worksheet, ByVal pt As PivotTable, ByVa
     If n = 0 Then
         LogIt V_CHECK, "Charts", "Chart " & Chr$(34) & title & Chr$(34) & " has nothing to plot - its pivot is empty.", ""
     End If
-    Err.Clear
+    ' Native chart binding/type changes can adjust its initial geometry.
+    ' Reapply the planned rectangle only after the PivotChart has been styled.
+    co.Placement = xlFreeFloating
+    co.Left = l + 8: co.Top = t + 6
+    co.Width = w - 16: co.Height = h - 12
+    If Not card Is Nothing Then
+        card.Placement = xlFreeFloating
+        card.Left = l: card.Top = t
+        card.Width = w: card.Height = h
+    End If
     Set DrawChart = co
+    Exit Function
+Failed:
+    why = Err.Description
+    On Error Resume Next
+    If Not co Is Nothing Then co.Delete
+    If Not card Is Nothing Then card.Delete
+    LogIt V_BREAK, "Charts", "Chart " & Chr$(34) & title & Chr$(34) & " was not drawn - " & why, ""
+    Err.Clear
 End Function
 
 ' The card: the Desk's surface, a hairline edge, the title at the top left.

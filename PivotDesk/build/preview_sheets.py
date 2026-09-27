@@ -103,71 +103,95 @@ def app_bar(section):
     </div>"""
 
 
-def toolbar(actions, tab=None):
-    """Row 4: the Reports tabs, a hairline, then what this sheet can do."""
-    h = []
+def toolbar(actions, tab=None, title=None):
+    """The single functional toolbar, positioned like modPD_Theme.Toolbar."""
+    pieces = []
+
+    def pill(label, x, width, kind=1):
+        fill = "linear-gradient(90deg,#16B07F,#009060)" if kind == 4 else "#" + C["E950"] if kind == 1 else "transparent"
+        edge = C["DEEP"] if kind in (1, 4) else C["LINE2"]
+        color = C["INK"] if kind == 4 else C["SOFT"] if kind == 1 else C["TX2"]
+        return (f"<span class='pill' style='position:absolute;left:{px(x)}px;top:{px(9)}px;"
+                f"width:{px(width)}px;height:{px(24)}px;background:{fill};border:1px solid #{edge};"
+                f"color:#{color};font-weight:{600 if kind == 4 else 400}'>{html.escape(label)}</span>")
+
+    def hint(text, x, width, size=8.5):
+        return (f"<div style='position:absolute;left:{px(x)}px;top:{px(15)}px;width:{px(width)}px;"
+                f"font-size:{px(size)}px;color:#{C['TX2']};white-space:nowrap;overflow:hidden'>{html.escape(text)}</div>")
+
     if tab:
-        tabs = "".join(
-            "<span class='pill' style='width:%.1fpx;height:%.1fpx;margin-right:%.1fpx;%s'>%s</span>" % (
-                px(74), px(22), px(2),
-                ("background:#%s;box-shadow:inset 0 0 0 1px #%s;color:#%s" % (C["E900"], C["DEEP"], C["TX1"])
-                 if label == tab else "color:#%s" % C["TX2"]), label) for label, _ in TABS)
-        h.append("<div style='height:%.1fpx;border-radius:999px;background:#%s;box-shadow:inset 0 0 0 1px #%s;"
-                 "display:flex;align-items:center;padding:0 %.1fpx;margin-right:%.1fpx'>%s</div>"
-                 "<div style='width:1px;height:%.1fpx;background:#%s;margin-right:%.1fpx'></div>" % (
-                     px(26), C["WELL"], C["LINE"], px(3), px(10), tabs, px(16), C["LINE2"], px(12)))
-    for a in actions:
-        h.append("<span class='pill' style='height:%.1fpx;padding:0 %.1fpx;margin-right:%.1fpx;background:#%s;"
-                 "box-shadow:inset 0 0 0 1px #%s;color:#%s'>%s</span>" % (
-                     px(24), px(14), px(6), C["E950"], C["DEEP"], C["SOFT"], html.escape(a)))
-    return (f"<div style='height:{px(48)}px;box-sizing:border-box;padding:{px(3)}px {px(28)}px;'>"
-            f"<div style='height:{px(40)}px;width:{px(1064)}px;box-sizing:border-box;padding-left:{px(14)}px;"
-            f"display:flex;align-items:center;border-radius:14px;border:1px solid #{C['LINE2']};"
-            f"background:linear-gradient(#0F1B16,#{C['ROW']})'>{''.join(h)}</div></div>")
+        tabs = "".join(f"<span class='pill' style='width:{px(74)}px;height:{px(22)}px;margin-right:{px(2)}px;"
+                       f"background:#{C['E900'] if label == tab else C['WELL']};color:#{C['TX1'] if label == tab else C['TX2']}'>{label}</span>"
+                       for label, _ in TABS)
+        pieces.append(f"<div style='position:absolute;left:{px(44)}px;top:{px(8)}px;height:{px(26)}px;"
+                      f"padding:0 {px(3)}px;display:flex;align-items:center;border-radius:999px;background:#{C['WELL']};"
+                      f"border:1px solid #{C['LINE']}'>{tabs}</div>")
+        pieces.append(f"<div style='position:absolute;left:{px(432)}px;top:{px(13)}px;width:1px;height:{px(16)}px;background:#{C['LINE2']}'></div>")
+    controls = {
+        "Files": [("Scan a folder", 44, 116, 4), ("Pick files", 168, 88, 1),
+                  ("Use a file for this row", 288, 156, 1), ("Fit columns", 468, 112, 0), ("Clear selected row", 928, 144, 0)],
+        "Pivot config": [("Add a pivot", 460, 96, 4), ("Check", 564, 74, 1),
+                         ("Use the 1.0 layout", 654, 150, 0), ("Restore defaults", 928, 144, 0)],
+        "Pivot fields": [("Check report fields", 460, 160, 4), ("Fit columns", 640, 112, 0)],
+        "Chart config": [("Add a chart", 460, 96, 4), ("Check", 564, 74, 1),
+                         ("Fit columns", 658, 112, 0), ("Restore defaults", 928, 144, 0)],
+        "Workbooks": [("Check workbook plan", 460, 172, 4), ("Fit columns", 652, 112, 0), ("Restore defaults", 928, 144, 0)],
+        "Reconciliation": [("Reconcile current files", 44, 174, 4), ("Fit columns", 936, 136, 0)],
+        "Activity": [("Fit columns", 802, 124, 0), ("Clear activity", 946, 126, 0)],
+        "Gallery": [],
+    }
+    if title in controls:
+        pieces.extend(pill(*item) for item in controls[title])
+    else:
+        x = 460 if tab else 44
+        for label in actions:
+            width = max(74, len(label) * 6.5 + 20)
+            pieces.append(pill(label, x, width))
+            x += width + 8
+    if title == "Gallery":
+        pieces.append(hint("Add a card below, then edit its definition.", 460, 490))
+    elif title == "Reconciliation":
+        pieces.append(hint("Review flagged rows; Activity carries comparison coverage.", 244, 580))
+    elif title == "Activity":
+        pieces.append(hint("Latest event first. Messages retain source and run context.", 44, 680, 9))
+    return (f"<div style='height:{px(44)}px;position:relative'>"
+            f"<div style='position:absolute;left:{px(28)}px;top:{px(2)}px;height:{px(38)}px;width:{px(1064)}px;"
+            f"border-radius:14px;border:1px solid #{C['LINE2']};background:linear-gradient(#0F1B16,#{C['ROW']})'></div>"
+            + "".join(pieces) + "</div>")
 
 
 def chrome(section, title, about, status, level, actions, tab=None, overline=None, status_w=1040, band_row=None):
-    """Rows 1 to 6 of every tool sheet: modPD_Theme.Dress, Rail, Toolbar and SetStatus."""
+    """Rows 1–6: a 124pt workspace band and one 44pt action toolbar."""
     overline = overline or "ALM DESK &nbsp;&#183;&nbsp; MIDBANK CAIRO"
     fg, bg = lv(level)
-    captions = {"Files": "Pick files", "Pivot config": "Check reports", "Pivot fields": "Check reports",
-                "Chart config": "Check charts", "Workbooks": "Check workbooks", "Gallery": "Open pivot config",
-                "Reconciliation": "Reconcile now", "Activity": "Return to Desk"}
-    cta = captions.get(title, "Return to Desk")
-    steps = "".join(f"<span class='pill' style='position:absolute;left:{px(210+i*142)}px;top:{px(98)}px;"
-                    f"width:{px(134)}px;height:{px(24)}px;background:#{C['E900'] if key == section else C['WELL']};"
-                    f"border:1px solid #{C['DEEP'] if key == section else C['LINE2']};color:#{C['SOFT']}'>{i+1:02d} {label}</span>"
-                    for i, (label, key) in enumerate((("Files", "files"), ("Reports", "reports"), ("Reconcile", "recon"))))
-    context = {"Files": ("Match files to frameworks", "Check date, currency and source status before building."),
-               "Pivot config": ("Design once. Reuse each build.", "Set dimensions, Report filters and totals. Check each changed row."),
-               "Pivot fields": ("Keep source names consistent", "Map columns once. Pivots and charts share these field names."),
-               "Chart config": ("A view for each question", "Choose categories, values and placement. Charts stay linked to their pivots."),
-               "Workbooks": ("Separate reporting populations", "Split by currency or another field. Each workbook has its own totals."),
-               "Gallery": ("Start with a ready-made report", "Add a card, then refine its settings in Pivots or Charts."),
-               "Reconciliation": ("Follow differences to the source", "Review amounts and tolerance before accepting a result."),
-               "Activity": ("Trace the last action", "Read the latest status and source context, then return to the relevant workspace.")}
-    eyebrow = "WORKSPACE FOCUS"
-    headline, detail = context.get(title, context["Activity"])
-    star = " ".join(f"{x:.1f},{y:.1f}" for x, y in assets.khatam_points(31, 31, 31))
-    lattice = "".join(f"<svg style='position:absolute;left:{px(664+i*61)}px;top:{px(16+(i%2)*23)}px;width:{px(62)}px;height:{px(62)}px;opacity:.1' viewBox='0 0 62 62'><polygon points='{star}' fill='none' stroke='#16B07F' stroke-width='.75'/></svg>" for i in range(6))
-    title_html = f"""<div style="height:{px(144)}px;position:relative">
-      <div style="position:absolute;left:{px(28)}px;top:{px(8)}px;width:{px(1064)}px;height:{px(128)}px;box-sizing:border-box;overflow:hidden;border:1px solid #{C['LINE2']};border-radius:14px;background:linear-gradient(90deg,#{C['E900']},#{C['ROW']});box-shadow:0 4px 16px #0004">
-      {lattice}
-      <div style="position:absolute;left:{px(28)}px;top:{px(13)}px;font-size:{px(7)}px;letter-spacing:1.6px;color:#{C['M300']};font-weight:600">{overline}</div>
-      <div style="position:absolute;left:{px(26)}px;top:{px(27)}px;font-size:{px(22)}px;font-weight:600">{html.escape(title)}</div>
-      <div style="position:absolute;left:{px(28)}px;top:{px(60)}px;width:{px(670)}px;height:{px(32)}px;font-size:{px(9)}px;line-height:1.3;color:#{C['TX2']}">{html.escape(about)}</div>
-      <span class="pill" style="position:absolute;left:{px(28)}px;top:{px(98)}px;width:{px(166)}px;height:{px(24)}px;color:#000;background:linear-gradient(90deg,#16B07F,#009060);font-weight:600;box-shadow:0 3px 12px #00906030">{cta}</span>{steps}
-      <div style="position:absolute;left:{px(724)}px;top:{px(14)}px;width:{px(316)}px;height:{px(100)}px;border:1px solid #{C['LINE2']};border-radius:12px;background:#{C['WELL']}">
-        <div style="position:absolute;left:{px(16)}px;top:{px(14)}px;font-size:{px(7)}px;letter-spacing:1.2px;color:#{C['M300']}">{eyebrow}</div>
-        <div style="position:absolute;left:{px(16)}px;top:{px(33)}px;font-size:{px(11)}px;font-weight:600">{headline}</div>
-        <div style="position:absolute;left:{px(16)}px;top:{px(53)}px;width:{px(282)}px;height:{px(36)}px;font-size:{px(8.5)}px;line-height:1.3;color:#{C['TX2']}">{detail}</div>
+    context = {
+        "Files": ("BEFORE YOU BUILD", "Confirm the source set", "Review dates and file status. Use a file for this row when a source needs an explicit match."),
+        "Pivot config": ("EDITABLE REPORT DEFINITIONS", "One row defines one report", "Add or edit a pivot, then Check. Use the Fields and Workbooks tabs for names and population splits."),
+        "Pivot fields": ("SHARED SOURCE MAPPING", "Keep source names consistent", "Map the actual source headers. These names feed every pivot and chart in the next build."),
+        "Chart config": ("LINKED CHART DEFINITIONS", "Build a view for each question", "Set categories, measures and placement. Add a chart, then Check its source and configuration."),
+        "Workbooks": ("WORKBOOK POPULATIONS", "Keep reporting scopes separate", "Choose currency or another split field. Check the plan before building independent workbooks."),
+        "Gallery": ("READY-MADE STARTING POINTS", "Add a report, then refine it", "Use Add on a card. Its definition stays editable in Pivots or Charts; Open returns to that row."),
+        "Reconciliation": ("INDEPENDENT CONTROL REVIEW", "Read differences with their scope", "Reconcile current files, then inspect each flagged amount. Activity records coverage and source context."),
+        "Activity": ("WORKSPACE HISTORY", "Trace the last action", "The latest event appears first. Review the message and source before returning to the affected workspace."),
+    }
+    eyebrow, headline, detail = context.get(title, context["Activity"])
+    title_html = f"""<div style="height:{px(124)}px;position:relative">
+      <div style="position:absolute;left:{px(28)}px;top:{px(8)}px;width:{px(1064)}px;height:{px(108)}px;box-sizing:border-box;overflow:hidden;border:1px solid #{C['LINE2']};border-radius:14px;background:linear-gradient(90deg,#0F1B16,#{C['E950']});box-shadow:0 4px 16px #0004">
+      <div style="position:absolute;left:{px(1)}px;top:{px(20)}px;width:{px(3)}px;height:{px(68)}px;background:#16B07F"></div>
+      <div style="position:absolute;left:{px(24)}px;top:{px(12)}px;width:{px(516)}px;font-size:{px(7)}px;letter-spacing:1px;color:#{C['M300']};font-weight:600;white-space:nowrap;overflow:hidden">{overline}</div>
+      <div style="position:absolute;left:{px(22)}px;top:{px(29)}px;width:{px(522)}px;height:{px(33)}px;font-size:{px(24)}px;font-weight:600;overflow:hidden">{html.escape(title)}</div>
+      <div title="{html.escape(about, quote=True)}" style="position:absolute;left:{px(24)}px;top:{px(66)}px;width:{px(520)}px;height:{px(32)}px;font-size:{px(8.5 if len(about)>185 else 9.5)}px;line-height:1.15;color:#{C['TX2']};overflow:hidden">{html.escape(about)}</div>
+      <div style="position:absolute;left:{px(572)}px;top:{px(12)}px;width:{px(468)}px;height:{px(84)}px;border:1px solid #{C['LINE2']};border-radius:12px;background:#{C['WELL']}">
+        <div style="position:absolute;left:{px(18)}px;top:{px(10)}px;width:{px(430)}px;font-size:{px(7)}px;letter-spacing:.8px;color:#{C['M300']}">{eyebrow}</div>
+        <div style="position:absolute;left:{px(18)}px;top:{px(27)}px;width:{px(430)}px;height:{px(19)}px;font-size:{px(12)}px;font-weight:600">{headline}</div>
+        <div style="position:absolute;left:{px(18)}px;top:{px(49)}px;width:{px(428)}px;height:{px(29)}px;font-size:{px(9)}px;line-height:1.2;color:#{C['TX2']};overflow:hidden">{detail}</div>
       </div></div></div>"""
     status_html = ("<div style='width:%dpx;height:%.1fpx;background:#%s;border-left:4px solid #%s;display:flex;"
                    "align-items:center;padding-left:12px;box-sizing:border-box;font-family:\"Segoe UI Semibold\";"
                    "font-size:%.1fpx;color:#%s'>&#9679;&nbsp;&nbsp;%s</div>") % (
         status_w, px(26), bg, fg, px(9), fg, html.escape(status))
     spacer = band_row if band_row is not None else "<div style='height:%.1fpx'></div>" % px(8)
-    return app_bar(section) + title_html + toolbar(actions, tab) + status_html + spacer
+    return app_bar(section) + title_html + toolbar(actions, tab, title) + status_html + spacer
 
 
 def table(headers, widths, rows, verdict_col=None, mono_cols=(), muted_cols=(), right_cols=(), semi_cols=(),
@@ -177,10 +201,10 @@ def table(headers, widths, rows, verdict_col=None, mono_cols=(), muted_cols=(), 
     # A set width, or Chrome lays a fixed table out as auto and widens columns
     # to their longest text - which Excel never does.
     h = ['<table style="width:%dpx">%s%s<tr style="height:%.1fpx;background:#000">' % (
-        sum(colw(w) for w in widths), cols, pre_rows, px(30))]
+        sum(colw(w) for w in widths), cols, pre_rows, px(34))]
     for t in headers:
         h.append('<td style="font-family:\'Segoe UI Semibold\';font-size:%.1fpx;color:#%s;border-bottom:3px solid #%s;'
-                 'border-right:1px solid #%s">%s</td>' % (px(8.5), C["SOFT"], C["BRAND"], C["LINE"], html.escape(t)))
+                 'border-right:1px solid #%s;white-space:normal;line-height:1.15;padding-right:9px">%s</td>' % (px(9), C["SOFT"], C["BRAND"], C["LINE"], html.escape(t)))
     h.append("</tr>")
     maxbar = max((abs(r[bars_col]) for r in rows if bars_col is not None and isinstance(r[bars_col], (int, float))),
                  default=1) or 1
@@ -405,9 +429,9 @@ def book_bar(crumb, back=True, prev_next=True, ordinal=None):
 
 def title_block(overline, title, about, kind="report"):
     """The 112-point generated-report hero (rows 2–3), after the 40-point BookBar."""
-    context = {"report": ("REPORT WORKSPACE", "Filter the view. Double-click a value to inspect its source rows."),
-               "overview": ("WORKBOOK OVERVIEW", "Check scope and totals, then open a report from the index."),
-               "chart": ("CHART WORKSPACE", "Read the units with the trend. Use Start here to move between reports.")}
+    context = {"report": ("LIVE REPORT / EXCEL CONTROLS", "Drag column edges to resize. Filter the view or double-click a value to inspect source rows."),
+               "overview": ("WORKBOOK OVERVIEW", "Review scope and totals, then open a report below. Column edges remain resizable."),
+               "chart": ("CHART WORKSPACE", "Read the units with the trend. Use Start here to move between reports; resize the chart in Excel.")}
     label, detail = context[kind]
     title_size = 13 if len(title) > 120 else 15 if len(title) > 80 else 18 if len(title) > 55 else 22
     about_top, about_height = (66, 22) if len(title) > 80 else (58, 28)

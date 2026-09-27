@@ -1105,6 +1105,7 @@ Public Sub PD_RibbonClick(control As Object)
         Case "pdPick": modPD_Files.PD_LoadFiles
         Case "pdBuild": PD_BuildSelected
         Case "pdReconcile": modPD_Recon.PD_Reconcile
+        Case "pdFitColumns": modPD_Run.PD_FitReport
         Case "pdApp": PD_ToggleAppView
         Case "pdTour": PD_TourStart
     End Select
@@ -1513,7 +1514,8 @@ Public Sub ApplyChrome()
         Application.ExecuteExcel4Macro "SHOW.TOOLBAR(""Ribbon"",False)"
         Application.DisplayFormulaBar = Not onDesk
         wn.DisplayWorkbookTabs = False
-        wn.DisplayHeadings = False
+        ' Working tables keep native sizing handles even in app view.
+        wn.DisplayHeadings = Not onDesk
     Else
         RestoreChrome
         wn.DisplayWorkbookTabs = True

@@ -1,13 +1,14 @@
-# Avati ALM Desk 3.2
+# Avati ALM Desk 3.3
 
 A desk for daily ALM analysis at MIDBANK Cairo. Point it at the LCR, NSFR and
 maturity-ladder outputs and control reports 3 and 6. It recognises each file
 by its columns, builds workbooks of live PivotTables and PivotCharts for each
 framework, and reconciles the outputs against the control reports.
 
-It runs as one application inside Excel. While the workbook is in front, the
-ribbon, formula bar and sheet tabs step aside and the **Desk** fills the
-window. When another workbook comes to the front, Excel's chrome comes back.
+It runs as one application inside Excel. The **Desk** fills the window in App
+view; working tables retain row and column handles for resizing. Generated
+workbooks keep native Excel controls. **Excel view** restores the full ribbon
+and sheet tabs in the application workbook.
 
 ![The Desk](preview/desk-showcase.png)
 
@@ -43,6 +44,32 @@ The first time the workbook opens, a six-step tour walks through the Desk.
 
 **Excel view** on the app bar brings the ribbon back, with an **Avati** tab
 first on it. **App view** hides it again.
+
+## What changed in 3.3
+
+Reports now fit their displayed numbers automatically in native Excel. Large
+contra balances, precise decimals, long currency formats and date labels can
+use the width they need. Row and column handles remain visible on working
+tables and generated reports; **Fit columns** is available from relevant
+toolbars and the Avati ribbon. Fitting preserves values, totals, filters,
+selection, zoom and scroll position.
+
+Secondary pages use a compact 124-point header, one functional toolbar and
+34-point wrapped table headings. Everyday actions are separated from reset and
+clear actions. Generated titles and metric labels fit their own surfaces,
+while linked totals retain their values.
+
+Chart placement reserves all required worksheet rows before drawing. Mixed
+sizes on Start here remain separate from the report index; repeated placement
+replaces the prior chart group without disturbing unrelated shapes or cells.
+Standalone charts reserve enough rows for their full height.
+
+Native Excel acceptance passed **38 pivot/layout assertions**, five narrow-column
+fixtures with every `####` display removed, ten mixed-size guide charts and a
+520-point standalone chart. The source build passed with **19 modules, 239 Desk
+shapes and 0 problems**; all seven focused layout tests passed. These checks use
+synthetic fixtures, not full bank-production acceptance. See the
+[verification record and reproduction steps](docs/MIDBANK_UI.md#verification).
 
 ## What changed in 3.2
 
@@ -255,53 +282,38 @@ CONFIG_ONLY=1 python3 build/preview_sheets.py          # Pivot config, Pivot fie
 LCR_SAMPLE=<lcr sample.xlsx> python3 build/preview_v3.py       # Chart config, Workbooks, Gallery, Start here, top counterparties
 ```
 
-The built-workbook previews use the LCR sample's real figures, staged the way
-the VBA stages them. The Reports previews read their rows from the VBA
-source.
+Preview scripts use synthetic examples by default. An explicitly supplied
+local sample can drive a private data preview; the Reports previews read their
+definitions from the VBA source. HTML previews mirror the design and do not
+establish native Excel behavior.
 
-## Verification, and what still needs Windows
+## Verification
 
-Checked here:
+Version 3.3 passed the source build gates above and all seven focused layout
+tests. Native Excel acceptance on 27 September 2026 generated actual Balance
+sheet and Output PivotTables, verified automatic fitting and exercised native
+PivotChart placement. It preserved pivot results, an active report filter,
+field captions, row/column handles, selection, zoom and scrolling.
 
-- The build passes every gate above.
-- `build/lo_run.py` opens the shipped workbook in LibreOffice's
-  VBA-compatible Basic.
-  - All 19 modules compile there.
-  - The tenor parser and label tidying agree with their Python mirrors: 37
-    and 35 labels.
-  - These run against known answers: number parsing (`1.5m`, `2bn`, `5%`),
-    unit formats, date periods and number steps.
-- The VBA project round-trips byte for byte.
+To repeat the focused checks, run from this directory:
 
 ```
-python3 build/lo_run.py dist/Avati.xlsm
+python build/build.py
+python build/chart_layout_check.py
+python build/layout_acceptance.py --output qa/Avati-Layout-QA.xlsm
 ```
 
-**Not checked here: anything that needs Excel itself.** LibreOffice has no
-`Scripting.Dictionary`, which recipe parsing is built on, and no Excel
-object model. That leaves out:
+Use a new QA filename, open that disposable workbook in Excel, enable its
+macros and run **PD_LayoutAcceptance**. It writes `layout-acceptance.log` and a
+synthetic result workbook beside the QA copy. The optional acceptance modules
+are injected only into that copy; they are excluded from `dist/Avati.xlsm`.
 
-- pivots, slicers and PivotCharts;
-- value filters, calculated fields, conditional formats;
-- the logo, which is decoded with MSXML.
-
-Before anyone relies on 3.2, open it once on Windows:
-
-1. Enable Content. The tour should start, and the Desk should carry the Avati
-   mark.
-2. Load the LCR, NSFR and ladder outputs and build all three. You should get
-   LCR, NSFR and one Maturity Ladder workbook per currency.
-3. In LCR:
-   - Start here shows three charts.
-   - *LCR top counterparties* has data bars, Share and Cumulative.
-   - Buckets run shortest first.
-4. Gallery: add *Haircut by rule* and *Large exposures*, then build LCR again.
-   Check the calculated fields and the folded outline.
-5. Reports:
-   - On Pivot config, type a bad value. The status bar should say why, and
-     Ctrl+Z should still undo it.
-   - On Chart config, **Check** should mark every row OK.
-6. Choose Excel view. The Avati tab should lead the ribbon.
+This establishes the tested layout behavior, not correctness of every bank
+extract, recipe, calculation or printer configuration. Before operational use,
+load representative LCR, NSFR and maturity inputs; check currency splits,
+configured filters/calculations, control reconciliation and Print Preview.
+Confirm that Gallery additions build as intended and that changed source files
+require reconciliation to be rerun.
 
 Anything Excel refuses is logged on Activity with the Pivot config or Chart
 config row it came from. The rest of the workbook is still built.

@@ -353,3 +353,54 @@ Public Sub PreparePrint()
     Next ws
     Err.Clear
 End Sub
+
+
+' User-invoked repair for the active ALM table, without rebuilding its data.
+' Generated exports still work independently: native column headings stay on.
+Public Sub PD_FitReport()
+    Dim ws As Worksheet, found As Range, body As Range, marker As Shape
+    Dim lastCol As Long, lastR As Long, c As Long, numericCol As Boolean
+    If PD_Busy Then Exit Sub
+    On Error GoTo Failed
+    If Not TypeOf ActiveSheet Is Worksheet Then Exit Sub
+    Set ws = ActiveSheet
+    If Not ws.Parent Is ThisWorkbook Then
+        On Error Resume Next
+        Set marker = ws.Shapes("pdb_logo")
+        On Error GoTo Failed
+        If marker Is Nothing Then Exit Sub
+        If ws.PivotTables.count = 0 Then Exit Sub
+        modPD_Pivot.FitReportValues ws
+    Else
+        Select Case ws.Name
+            Case SH_SOURCES, SH_RECON, SH_LOG, SH_CONFIG, SH_FIELDS, SH_CHARTS, SH_BOOKS
+                lastCol = ws.Cells(R_HDR, ws.Columns.count).End(xlToLeft).Column
+                Set found = ws.Range(ws.Cells(R_HDR, 1), ws.Cells(ws.Rows.count, lastCol)).Find(What:="*", _
+                    After:=ws.Cells(R_HDR, 1), LookIn:=xlFormulas, LookAt:=xlPart, SearchOrder:=xlByRows, _
+                    SearchDirection:=xlPrevious, MatchCase:=False, SearchFormat:=False)
+                If found Is Nothing Then Exit Sub
+                lastR = found.Row
+                Set body = ws.Range(ws.Cells(R_HDR, 1), ws.Cells(lastR, lastCol))
+                body.Columns.AutoFit
+                For c = 1 To lastCol
+                    numericCol = (ws.Name = SH_RECON And c >= 4 And c <= 6) Or _
+                                 (ws.Name = SH_SOURCES And c >= 5 And c <= 6)
+                    If ws.Columns(c).ColumnWidth < 10 Then ws.Columns(c).ColumnWidth = 10
+                    If Not numericCol And ws.Columns(c).ColumnWidth > 72 Then
+                        ws.Columns(c).ColumnWidth = 72
+                        ws.Range(ws.Cells(R_HDR, c), ws.Cells(lastR, c)).WrapText = True
+                    End If
+                Next c
+                If lastR >= R_FIRST Then
+                    ws.Range(ws.Rows(R_FIRST), ws.Rows(lastR)).AutoFit
+                End If
+                modPD_Theme.PrintReady ws, lastCol, lastR
+            Case Else
+                Exit Sub
+        End Select
+    End If
+    ActiveWindow.DisplayHeadings = True
+    Exit Sub
+Failed:
+    MsgBox "The layout could not be fitted: " & Err.Description, vbExclamation, TOOL_NAME
+End Sub

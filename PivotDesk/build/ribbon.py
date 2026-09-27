@@ -34,6 +34,9 @@ GROUPS = [
         ("pdBuild", "Build pivots", "pivot", True, "One workbook of live PivotTables per framework switched on."),
         ("pdReconcile", "Reconcile", "check", True, "Compare the outputs with the control reports."),
     ]),
+    ("Report layout", [
+        ("pdFitColumns", "Fit columns", "expand", True, "Fit the current ALM pivot or working table to its formatted values. Filters and totals stay intact."),
+    ]),
     ("Avati", [
         ("pdApp", "App view", "expand", True, "Hide the ribbon and work from the Desk."),
         ("pdTour", "Tour", "help", True, "A one-minute tour of the Desk. F1"),

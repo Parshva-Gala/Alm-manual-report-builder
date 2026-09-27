@@ -187,7 +187,7 @@ def gallery_sheet():
                      "or Chart config, switched on; from there it is a row like any other - change what you like.",
                      "%d pivot reports and %d charts. %d already in the next build." % (npiv, len(tpl) - npiv, n_on),
                      "Idle", [], tab="Gallery", overline="REPORTS &nbsp;&#183;&nbsp; GALLERY") + grid)
-    return P.page("Gallery", body, 1500), px(y + 10 + 52 + 144 + 48 + 26 + 8)
+    return P.page("Gallery", body, 1500), px(y + 10 + 52 + 124 + 44 + 26 + 8)
 
 
 def card(t, x, y, w, h, state):
@@ -446,7 +446,7 @@ def start_here(rows):
                   muted_cols=(1,), row_height=32, wrap_cols=(1,))
     tbl = re.sub(r'(<tr style="height:[0-9.]+px;background:#[0-9A-F]+"><td style=")',
                  r"\1color:#%s;font-family:'Segoe UI Semibold';" % C["M300"], tbl)
-    built = "Avati ALM Desk 3.2 · " + P.data_context() + " · HTML design preview"
+    built = "Avati ALM Desk 3.3 · " + P.data_context() + " · HTML design preview"
     notes = P.table(["Context", "How to read this"], [38, 110], [
         ["Preview data", P.data_context() + ". Figures are for design review, not a bank report."],
         ["Amounts", "Pre-factor and post-factor are displayed in reporting LCY. Gross metrics sum absolute values."],

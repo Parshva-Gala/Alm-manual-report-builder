@@ -550,6 +550,9 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     r = r + 1
     Section ws, r, "HOW TO READ THIS"
     r = r + 1
+    Note ws, r, "Layout", "Column letters and row numbers remain visible so you can resize this Excel workbook. " & _
+        "Double-click a column edge to fit its contents. With Avati open, Fit columns on the Avati tab refits a pivot report."
+    r = r + 1
     Note ws, r, "Amounts", "Pre-factor and post-factor from " & modPD_Stage.AmountFieldNote() & _
         IIf(modPD_Stage.UsedNativeAmounts(), ".", _
         ".  THERE IS NO NATIVE-CURRENCY AMOUNT COLUMN IN THIS EXTRACT - these are the converted " & _
@@ -594,7 +597,7 @@ Private Sub Guide(ByVal wb As Workbook, ByVal fw As String, ByVal nSheets As Lon
     On Error Resume Next
     ws.Activate
     ActiveWindow.DisplayGridlines = False
-    ActiveWindow.DisplayHeadings = False
+    ActiveWindow.DisplayHeadings = True
     ActiveWindow.Zoom = 100
     ActiveWindow.FreezePanes = False
     ws.Range("A2").Select
