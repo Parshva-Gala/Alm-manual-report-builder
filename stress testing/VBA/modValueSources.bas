@@ -438,7 +438,7 @@ Public Function VS_SeedMetrics() As Variant
     Next i
     a(6) = Array("RWA_CR_BASE", "CAP", "SUM(REPORT_BALANCE) WHERE BANK_ID IN ('101') AND CAP_COMPONENT_CODE IN ('NET_RWA_CREDIT_RISK')", "ALL", _
                  "Credit risk RWA, capital component", "ST Design base for RWA_CR_LCY.")
-    a(7) = Array("RWA_OR_BASE", "CAP", "SUM(REPORT_BALANCE) WHERE BANK_ID IN ('101') AND CAP_COMPONENT_CODE IN ('NET_RWA_OPERATIONAL_RISK')", "ALL", _
+    a(7) = Array("RWA_OR_BASE", "CAP", "SUM(REPORT_BALANCE) WHERE BANK_ID IN ('101') AND CAP_COMPONENT_CODE IN ('RWA_OPERATIONAL_RISK')", "ALL", _
                  "Operational risk RWA, capital component", "Confirm the component code against the capital component file.")
     a(8) = Array("NSFR_ASF_PRE_SHOCK", "NSFR", "SUM(CASHFLOW_AMOUNT_LCY_POST_FACTOR) WHERE ALM_PORTFOLIO_SEGMENTATION_RULE_CATEGORY IN ('ASF')", "ALL", _
                  "NSFR - available stable funding", "Category code from the ST Design; confirm against the NSFR file.")
@@ -468,6 +468,8 @@ Public Sub JKB_ApplyValueSourceSetup(Optional ByVal quiet As Boolean = False, Op
     RegisterNsfrRow
     Set ws = EnsureValueSourcesSheet()
     added = SeedLinkTable(ws, resetLinks)
+    ' The ST Design's base and pre-shock definitions, over the seeds above.
+    modDesignBasePreShock.DBP_ApplyDesignSetup
     figAdded = SeedFigureTable(ws, resetLinks)
     ConsolidateSwitches ws
     FinishValueSourcesSheet ws
@@ -493,19 +495,8 @@ Failed:
 End Sub
 
 Private Sub RegisterNsfrRow()
-    Dim ws As Worksheet, i As Long, k As Variant
-    Set ws = PsSourcesSheet()
-    If ws Is Nothing Then Exit Sub
-    For Each k In SourceKeys()
-        If CStr(k) = "NSFR" Then
-            If Len(SafeText(ws.Cells(PS_SRC_LIST_ROW + i, 1).Value2)) = 0 Then
-                ws.Cells(PS_SRC_LIST_ROW + i, 1).Value2 = "NSFR"
-                ws.Cells(PS_SRC_LIST_ROW + i, 2).Value2 = "NSFR ALM output - available and required stable funding"
-                ws.Cells(PS_SRC_LIST_ROW + i, 8).Value2 = "Not loaded"
-            End If
-        End If
-        i = i + 1
-    Next k
+    ' Every input row, not only NSFR: older workbooks lacked LL, LCR and CAP too.
+    EnsureSourceRows
 End Sub
 
 Private Sub ApplyList(ByVal rng As Range)

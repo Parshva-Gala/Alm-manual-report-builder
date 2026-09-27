@@ -103,21 +103,17 @@ Public Sub ResultsDecorate(ByVal ws As Worksheet, ByVal rowCount As Long, ByVal 
     ws.Tab.Color = UI_BRAND
     ' Window settings only when a person is looking, never in the middle of a run.
     If Not JKB_Busy Then
-        ws.Activate
-        ResultsWindow ws
+        If UiTryActivate(ws) Then ResultsWindow ws
     End If
     Err.Clear
 End Sub
 
 Private Sub ResultsWindow(ByVal ws As Worksheet)
     On Error Resume Next
-    If Not ActiveSheet Is ws Then Exit Sub
-    ActiveWindow.DisplayGridlines = False: ActiveWindow.DisplayHeadings = False
-    ActiveWindow.FreezePanes = False
-    ActiveWindow.ScrollRow = 1: ActiveWindow.ScrollColumn = 1
-    ActiveWindow.splitRow = 7: ActiveWindow.SplitColumn = 2: ActiveWindow.FreezePanes = True
-    ActiveWindow.zoom = 90
-    ws.Range("A8").Select
+    If UiOwnWindow(ws) Is Nothing Then Exit Sub
+    UiSetView ws, 7, 2, 90, False
+    If UiIsActiveWindow(UiOwnWindow(ws)) Then ws.Range("A8").Select
+    Err.Clear
 End Sub
 
 ' ---------------------------------------------------------------- quick filters
@@ -150,8 +146,11 @@ Private Sub QuickFilter(ByVal which As String)
         Case "FAIL", "PASS": ws.Range("A7").AutoFilter field:=1, Criteria1:=which
         Case "OPEN": ws.Range("A7").AutoFilter field:=1, Criteria1:=Array("BLOCKED", "REVIEW"), Operator:=xlFilterValues
     End Select
-    ws.Activate
-    ActiveWindow.ScrollRow = 8
+    If UiTryActivate(ws) Then
+        On Error Resume Next
+        UiOwnWindow(ws).ScrollRow = 8
+        Err.Clear
+    End If
 End Sub
 
 Private Sub AddQuickFilters(ByVal ws As Worksheet)

@@ -358,7 +358,7 @@ Private Sub BuildSummary(ByVal ws As Worksheet, ByVal d As Object)
     ' ---- KPIs (rows 4-6) -------------------------------------------------
     checkedAll = d("pass") + d("fail") + d("open")
     ws.rows(4).RowHeight = 16: ws.rows(5).RowHeight = 28: ws.rows(6).RowHeight = 15: ws.rows(7).RowHeight = 12
-    Kpi ws, "B4:D6", "Checks reconciled", IIf(checkedAll > 0, format$(d("pass") / checkedAll, "0.0%"), "-"), _
+    Kpi ws, "B4:D6", "Checks reconciled", IIf(checkedAll > 0, format$(d("pass") / IIf(checkedAll > 0, checkedAll, 1), "0.0%"), "-"), _
         format$(d("pass"), "#,##0") & " of " & format$(checkedAll, "#,##0"), UI_INK
     Kpi ws, "E4:G6", "Differences", format$(d("fail"), "#,##0"), "above tolerance", IIf(d("fail") > 0, UI_BAD, UI_OK)
     Kpi ws, "I4:J6", "Missing or to review", format$(d("open"), "#,##0"), "evidence incomplete", IIf(d("open") > 0, UI_WARN, UI_OK)

@@ -304,6 +304,71 @@ End Sub
 
 ' Opens Config_ValueSources: where each base and pre-shock value is linked to the
 ' input files, with its per-row switch. Sets it up first if it is not there yet.
+' ---------------------------------------------------------------- window -----
+' View settings (gridlines, frozen header, zoom) belong to a window, and
+' ActiveWindow is whatever the person is looking at: during a long run they may
+' be in another workbook, where the settings would land or Excel would refuse
+' them ("Unable to set the FreezePanes property"). These go through the tool's
+' own window, only when the sheet is the one it shows, and never raise: a view
+' setting must never turn a finished run into a failed one.
+
+' The tool's own window when it is showing ws, else Nothing.
+Public Function UiOwnWindow(ByVal ws As Worksheet) As Window
+    Dim w As Window
+    On Error Resume Next
+    Set w = ws.Parent.Windows(1)
+    If Not w Is Nothing Then
+        If Not w.ActiveSheet Is ws Then Set w = Nothing
+    End If
+    Set UiOwnWindow = w
+    Err.Clear
+End Function
+
+' Gridlines off, header frozen at (freezeRow, freezeCol) when freezeRow >= 0,
+' zoom and headings when given. A freeze already in place is left alone, so the
+' reader keeps their scroll position.
+Public Sub UiSetView(ByVal ws As Worksheet, Optional ByVal freezeRow As Long = -1, Optional ByVal freezeCol As Long = 0, _
+                     Optional ByVal zoomPct As Variant, Optional ByVal showHeadings As Variant)
+    Dim w As Window
+    On Error Resume Next
+    Set w = UiOwnWindow(ws)
+    If w Is Nothing Then Exit Sub
+    w.DisplayGridlines = False
+    If Not IsMissing(showHeadings) Then w.DisplayHeadings = CBool(showHeadings)
+    If freezeRow >= 0 Then
+        If Not (w.FreezePanes And w.splitRow = freezeRow And w.SplitColumn = freezeCol) Then
+            w.FreezePanes = False
+            w.ScrollRow = 1: w.ScrollColumn = 1
+            w.splitRow = freezeRow: w.SplitColumn = freezeCol
+            w.FreezePanes = True
+        End If
+    End If
+    If Not IsMissing(zoomPct) Then w.zoom = zoomPct
+    Err.Clear
+End Sub
+
+' True when w is the window in front. Two references to one Window are often
+' not "Is" the same object, so compare the handles (caption as a fallback).
+Public Function UiIsActiveWindow(ByVal w As Window) As Boolean
+    On Error Resume Next
+    If w Is Nothing Or ActiveWindow Is Nothing Then Exit Function
+    UiIsActiveWindow = (ActiveWindow.Hwnd = w.Hwnd)
+    If Err.Number <> 0 Then
+        Err.Clear
+        UiIsActiveWindow = (ActiveWindow.caption = w.caption) And (ActiveWorkbook Is w.Parent)
+    End If
+    Err.Clear
+End Function
+
+' Shows a sheet of this workbook without raising when Excel will not switch
+' (another workbook or application has focus, or a dialog is open).
+Public Function UiTryActivate(ByVal ws As Worksheet) As Boolean
+    On Error Resume Next
+    ws.Activate
+    UiTryActivate = (Err.Number = 0)
+    Err.Clear
+End Function
+
 Public Sub GoValueSources()
     Dim ws As Worksheet
     On Error Resume Next
@@ -328,4 +393,8 @@ Public Sub JKB_ApplyReleaseSetup()
     JKB_ApplyGroupingSetup True, True
     JKB_ApplyValueSourceSetup True
     JKB_ApplySimplifySetup True
+    ' A fresh build starts with a clean activity line: the V14 input workbook
+    ' still carried its last "Cleared ... Backup: C:\Users\..." note.
+    HomeSetActivity "Ready. Load the input files, then click Run."
+    RefreshHome
 End Sub

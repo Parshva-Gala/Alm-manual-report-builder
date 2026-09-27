@@ -68,11 +68,16 @@ DrawFailed:
 End Sub
 
 Public Sub RefreshHome()
-    Dim ws As Worksheet, d As Object
+    Dim ws As Worksheet, d As Object, why As String, keepScreen As Boolean
+    ' Drawn with the screen off: after a Run the screen is back on, and a few
+    ' thousand visible cell and shape updates kept Excel from answering Windows
+    ' long enough to be reported as hung.
+    keepScreen = Application.ScreenUpdating
+    Application.ScreenUpdating = False
     On Error GoTo Quiet
     Set ws = HomeSheet(False)
-    If ws Is Nothing Then Exit Sub
-    If CStr(ws.Range(STAMP_CELL).Value2) <> LAYOUT_STAMP Then Exit Sub
+    If ws Is Nothing Then GoTo Done
+    If CStr(ws.Range(STAMP_CELL).Value2) <> LAYOUT_STAMP Then GoTo Done
     Set d = ReadDetail()
     FillBand ws, d
     FillTiles ws, d
@@ -81,14 +86,18 @@ Public Sub RefreshHome()
     FillDifferences ws, d
     FillInputs ws
     FillNextStep ws, d
+Done:
     mSlim = Empty
+    Application.ScreenUpdating = keepScreen
     Exit Sub
 Quiet:
     ' The home must never be the thing that stops a run. A refresh that fails
     ' leaves the last good figures in place and says so in the activity line.
+    why = Err.description   ' read before On Error Resume Next clears it
     On Error Resume Next
-    If Not ws Is Nothing Then ws.Range("JKB_LastActivity").Value2 = "The home could not refresh: " & Err.description
+    If Not ws Is Nothing Then ws.Range("JKB_LastActivity").Value2 = "The home could not refresh: " & why
     mSlim = Empty
+    Application.ScreenUpdating = keepScreen
 End Sub
 
 ' ---------------------------------------------------------------- state ------
@@ -242,8 +251,13 @@ Public Sub HomeCheckSetup()
 End Sub
 
 Public Sub HomeRun()
+    ' A button's macro must never hand an error back to Excel: the run reports
+    ' its own failures, and a view step after it must not end the session.
+    ' RunStressReconciliation already refreshes Home (in the run's summary and
+    ' again in OpenReconWorkbench); a third refresh only added time at the end.
+    On Error Resume Next
     RunStressReconciliation
-    RefreshHome
+    Err.Clear
 End Sub
 
 Public Sub HomeReview()
@@ -865,16 +879,18 @@ Private Sub FillTiles(ByVal ws As Worksheet, ByVal d As Object)
     total = d("n") - d("assume")
     ws.Range("JKB_PassCount").Value2 = d("pass")
     Blk(ws, R_TILE + 1, 4, R_TILE + 1, 4).Value2 = "of " & format$(total, "#,##0")
-    Blk(ws, R_TILE + 3, 1, R_TILE + 3, 1).Value2 = IIf(total > 0, format$(d("pass") / total, "0.0%") & " within tolerance", "No run yet")
-    TileBar ws, 0, 1, 6, IIf(total > 0, d("pass") / total, 0), UI_OK_DOT
+    ' IIf evaluates both branches, so every share goes through Share (0 when
+    ' nothing has run) rather than dividing inside IIf.
+    Blk(ws, R_TILE + 3, 1, R_TILE + 3, 1).Value2 = IIf(total > 0, format$(Share(d("pass"), total), "0.0%") & " within tolerance", "No run yet")
+    TileBar ws, 0, 1, 6, Share(d("pass"), total), UI_OK_DOT
 
     ws.Range("JKB_FailCount").Value2 = d("fail")
     Blk(ws, R_TILE + 3, 8, R_TILE + 3, 8).Value2 = IIf(d("fail") > 0, "Largest: " & LargestDifferenceText(d), "None above tolerance")
-    TileBar ws, 1, 8, 13, IIf(total > 0, d("fail") / total, 0), UI_BAD_DOT
+    TileBar ws, 1, 8, 13, Share(d("fail"), total), UI_BAD_DOT
 
     ws.Range("JKB_OpenCount").Value2 = d("review") + d("blocked")
     Blk(ws, R_TILE + 3, 15, R_TILE + 3, 15).Value2 = format$(d("blocked"), "#,##0") & " missing input " & ChrW(183) & " " & format$(d("review"), "#,##0") & " to review"
-    TileBar ws, 2, 15, 20, IIf(total > 0, (d("review") + d("blocked")) / total, 0), UI_WARN_DOT
+    TileBar ws, 2, 15, 20, Share(d("review") + d("blocked"), total), UI_WARN_DOT
 
     loaded = LoadedInputs(dates)
     Blk(ws, R_TILE + 1, 22, R_TILE + 1, 22).Value2 = loaded
@@ -888,6 +904,10 @@ Private Sub FillTiles(ByVal ws As Worksheet, ByVal d As Object)
     Blk(ws, R_TILE + 3, 29, R_TILE + 3, 29).Value2 = famCount & " risk families"
     TileBar ws, 4, 29, 35, IIf(caseCount > 0, 1, 0), UI_BRAND
 End Sub
+
+Private Function Share(ByVal part As Double, ByVal whole As Double) As Double
+    If whole <> 0 Then Share = part / whole
+End Function
 
 ' A thin progress bar inside a tile: a grey track and a coloured fill, as shapes
 ' so the length is exact.
@@ -1010,7 +1030,7 @@ Private Sub FillHeatmap(ByVal ws As Worksheet, ByVal d As Object)
         For j = 0 To 3: Blk(ws, r, 5 + j * 2, r, 5 + j * 2).Value2 = Empty: Next j
     Next r
     If fams.count = 0 Then
-        Blk(ws, R_PANEL + 2, 1, R_PANEL + 2, 1).Value2 = "Run the reconciliation to see this."
+        Blk(ws, R_PANEL + 2, 1, R_PANEL + 2, 1).Value2 = "Not run yet"   ' short: the name column is narrow
         Blk(ws, R_PANEL + 2, 1, R_PANEL + 2, 1).Font.Color = UI_FAINT
         Exit Sub
     End If
@@ -1221,6 +1241,11 @@ Private Function LoadedInputs(ByRef dates As String) As Long
     LoadedInputs = n
 End Function
 
+Private Function SystemOutputRows() As Long
+    Dim asOf As String, entity As String
+    SystemOutputFacts asOf, entity, SystemOutputRows
+End Function
+
 ' Reporting date, entity and data row count of the system output, read from its
 ' own columns so the band never shows a date the data does not carry.
 Private Sub SystemOutputFacts(ByRef asOf As String, ByRef entity As String, ByRef dataRows As Long)
@@ -1340,7 +1365,14 @@ Private Sub FillNextStep(ByVal ws As Worksheet, ByVal d As Object)
     Next i
 
     Select Case cur
-        Case 0: mainCap = "Load inputs": mainProc = "HomeLoad": altCap = "One file": altProc = "UiLoadOneSource"
+        Case 0
+            mainCap = "Load inputs": mainProc = "HomeLoad"
+            ' Without the system output there is nothing to reconcile against.
+            If SystemOutputRows() = 0 Then
+                altCap = "System output": altProc = "UploadScenarioOutput"
+            Else
+                altCap = "One file": altProc = "UiLoadOneSource"
+            End If
         Case 1: mainCap = "Check setup": mainProc = "HomeCheckSetup": altCap = "Test cases": altProc = "GoPreShockCases"
         Case 2: mainCap = "Run": mainProc = "HomeRun": altCap = "Check setup": altProc = "HomeCheckSetup"
         Case Else: mainCap = "Review console": mainProc = "HomeReview": altCap = "Review pack": altProc = "HomePack"

@@ -970,9 +970,8 @@ Private Sub FormatJoinedSheet(ByVal ws As Worksheet, ByVal nCols As Long, ByVal 
     ws.columns(4).ColumnWidth = 39
     ws.Range(ws.Cells(1, 1), ws.Cells(nRows + 1, nCols)).AutoFilter
     ws.Range("A1").EntireRow.Font.Size = 9
-    ws.Range("A2").Select
-    ActiveWindow.FreezePanes = False
-    ActiveWindow.FreezePanes = True
+    ' Through the book's own window: the person may be in another one by now.
+    If UiTryActivate(ws) Then UiSetView ws, 1, 0
     Err.Clear
 End Sub
 

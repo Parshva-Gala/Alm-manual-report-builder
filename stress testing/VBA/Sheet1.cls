@@ -167,6 +167,9 @@ Public Sub EnsureRibbon(ByVal ws As Worksheet)
             Case "Pre_Shock_Sources"
                 Button ws, "JKB_PsUpAll", "Load inputs", "UploadAllSources", px, 2, 88, 17, False: px = px + 92
                 Button ws, "JKB_PsUpOne", "Load one input", "UiLoadOneSource", px, 2, 100, 17, False: px = px + 104
+                ' The system's test case output (Scenario Element Output) is the other
+                ' side of every check; it is loaded here too, not only from Dashboard.
+                Button ws, "JKB_PsUpOut", "Load system output", "UploadScenarioOutput", px, 2, 120, 17, False: px = px + 124
                 Button ws, "JKB_PsEntity", "Entity scope", "CycleEntityScope", px, 2, 88, 17, False: px = px + 92
             Case "Pre_Shock_Metrics"
                 Button ws, "JKB_PsBuilder", "Formula builder", "OpenPreShockStudio", px, 2, 100, 17, False
@@ -3709,7 +3712,7 @@ Private Sub ProRibbon(ByVal ws As Worksheet, ByVal isMaster As Boolean)
     x = x + 14
     For Each nm In Array("JKB_Config", "JKB_Editor", "JKB_GroupSetup", "JKB_Formula", "JKB_GroupToggle", _
                          "JKB_SevMod", "JKB_SevMed", "JKB_SevSev", "JKB_BackElement", "JKB_OutFormat", "JKB_OutApply", _
-                         "JKB_PsUpAll", "JKB_PsUpOne", "JKB_PsEntity", "JKB_PsJoin", "JKB_PsBuilder", "JKB_PsTest", _
+                         "JKB_PsUpAll", "JKB_PsUpOne", "JKB_PsUpOut", "JKB_PsEntity", "JKB_PsJoin", "JKB_PsBuilder", "JKB_PsTest", _
                          "JKB_PsTrace", "JKB_PsClearTr", "JKB_PsRules", "JKB_PsManual", "JKB_PsUseDerived", "JKB_PsRun")
         ProMove ws, CStr(nm), x, 7, 0
     Next nm

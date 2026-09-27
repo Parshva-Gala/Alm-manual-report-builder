@@ -99,7 +99,9 @@ End Sub
 
 Private Sub DressInputs(ByVal ws As Worksheet)
     Dim lastR As Long, rg As Range, fc As FormatCondition, n As Long, loaded As Long, r As Long
+    Dim asOf As String, entity As String, outRows As Long
     On Error Resume Next
+    EnsureSourceRows
     lastR = LastRowIn(ws, 1, FIRST)
     Frame ws, 8, "Inputs", "The files the stress test is rebuilt from. The tool reads them and never changes them."
     For r = FIRST To lastR
@@ -108,8 +110,11 @@ Private Sub DressInputs(ByVal ws As Worksheet)
             If Left$(SafeText(ws.Cells(r, 8).Value2), 6) = "Loaded" Then loaded = loaded + 1
         End If
     Next r
-    Summary ws, Array(loaded & " of " & n & " input files loaded", HomeInputsLine()), _
-            Array(IIf(loaded = n And n > 0, UI_OK, UI_WARN), UI_TEXT_2)
+    HomeSystemFacts asOf, entity, outRows
+    Summary ws, Array(loaded & " of " & n & " input files loaded", HomeInputsLine(), _
+                      IIf(outRows > 0, "System output " & format$(outRows, "#,##0") & " rows" & IIf(Len(asOf) > 0, " (" & asOf & ")", ""), _
+                          "System output not loaded: click Load system output")), _
+            Array(IIf(loaded = n And n > 0, UI_OK, UI_WARN), UI_TEXT_2, IIf(outRows > 0, UI_OK, UI_BAD))
     Table ws, 8, lastR, 30
     ws.Range(ws.Cells(FIRST, 1), ws.Cells(lastR, 1)).Font.Bold = True
     ws.Range(ws.Cells(FIRST, 1), ws.Cells(lastR, 1)).Font.Color = UI_INK
@@ -142,7 +147,7 @@ Private Sub DressInputs(ByVal ws As Worksheet)
     If ws.columns("J").ColumnWidth < 22 Then ws.columns("J").ColumnWidth = 22
     ws.columns("I").ColumnWidth = 3
     ws.rows(FIRST & ":" & Application.Max(FIRST, lastR)).RowHeight = 30
-    Freeze ws, HDR, 1
+    Freeze ws, HDR, 0   ' header only: a frozen column line cut through the title and summary
     MarkDressed ws
 End Sub
 
@@ -480,14 +485,5 @@ Private Function LastRowIn(ByVal ws As Worksheet, ByVal c As Long, ByVal minRow 
 End Function
 
 Private Sub Freeze(ByVal ws As Worksheet, ByVal headerRow As Long, ByVal cols As Long)
-    If Not ActiveSheet Is ws Then Exit Sub
-    If ActiveWindow.FreezePanes And ActiveWindow.splitRow = headerRow And ActiveWindow.SplitColumn = cols Then
-        ActiveWindow.DisplayGridlines = False
-        Exit Sub
-    End If
-    ActiveWindow.FreezePanes = False
-    ActiveWindow.ScrollRow = 1: ActiveWindow.ScrollColumn = 1
-    ActiveWindow.splitRow = headerRow: ActiveWindow.SplitColumn = cols
-    ActiveWindow.FreezePanes = True
-    ActiveWindow.DisplayGridlines = False
+    UiSetView ws, headerRow, cols
 End Sub
